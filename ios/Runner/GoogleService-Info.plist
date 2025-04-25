@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>168552599519-d0rmhm8t8vo12ccec3u1a9stpiag1r4c.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.168552599519-d0rmhm8t8vo12ccec3u1a9stpiag1r4c</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>168552599519-3ln7sf9ms9qisthsuae6npvrcn3fj4os.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBQjkirGhmTigVxD2iRGwDjXC_8dy40_us</string>
+	<key>GCM_SENDER_ID</key>
+	<string>168552599519</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.momentum</string>
+	<key>PROJECT_ID</key>
+	<string>momentum-32f3e</string>
+	<key>STORAGE_BUCKET</key>
+	<string>momentum-32f3e.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:168552599519:ios:20ced1ace964f3ce1cfe6a</string>
+</dict>
+</plist>
