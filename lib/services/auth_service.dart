@@ -40,6 +40,29 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
+  Future<UserCredential?> signInSilently() async {
+    // A. 先看 Firebase 自己是否已經有使用者
+    if (_auth.currentUser != null) {
+      return null; // 已登入就不處理
+    }
+
+    // B. 使用 google_sign_in 靜默取得帳號（cookie / storage 裏若有）
+    final googleAccount = await _googleSignIn.signInSilently();
+    if (googleAccount == null) return null; // 沒找到  視為未登入
+
+    // C. 初始化 CalendarService（之後才能 sync）
+    await CalendarService.instance.init(googleAccount);
+
+    // D. 取 accessToken / idToken，換 Firebase Credential
+    final auth = await googleAccount.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: auth.idToken,
+    );
+
+    return _auth.signInWithCredential(credential);
+  }
+
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();

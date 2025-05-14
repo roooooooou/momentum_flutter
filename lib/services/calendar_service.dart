@@ -36,7 +36,7 @@ class CalendarService {
     final start = DateTime(now.year, now.month, now.day).toUtc();
     final end = start.add(const Duration(days: 1));
 
-    final events = await _api.events.list(
+    final apiEvents = await _api.events.list(
       'primary',
       timeMin: start,
       timeMax: end,
@@ -49,20 +49,40 @@ class CalendarService {
         .doc(uid)
         .collection('events');
 
-    for (final e in events.items ?? <cal.Event>[]) {
-      final startDt = e.start?.dateTime;
-      final endDt = e.end?.dateTime;
-      if (startDt == null || endDt == null) continue;
+    final idsToday = <String>{};
 
-      await col.doc(e.id).set({
+    // 1) 逐筆 upsert
+    for (final e in apiEvents.items ?? <cal.Event>[]) {
+      final s = e.start?.dateTime, t = e.end?.dateTime;
+      if (s == null || t == null) continue;
+
+      final ref = col.doc(e.id);
+      final snap = await ref.get(); // 先判斷有沒有這筆
+
+      final data = <String, dynamic>{
         'title': e.summary ?? 'No title',
-        'startTime': Timestamp.fromDate(startDt.toUtc()),
-        'endTime': Timestamp.fromDate(endDt.toUtc()),
+        'startTime': Timestamp.fromDate(s.toUtc()),
+        'endTime': Timestamp.fromDate(t.toUtc()),
         'googleEventId': e.id,
         'googleCalendarId': e.organizer?.email ?? 'primary',
-        'isDone': false,
-      });
+        if (!snap.exists) 'isDone': false,
+      };
+
+      await ref.set(data, SetOptions(merge: true));
+      idsToday.add(e.id!);
     }
+
+    // 2) 移除 Google 已刪除的（可選）
+    final snap = await col
+        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startTime', isLessThan: Timestamp.fromDate(end))
+        .get();
+
+    final batch = FirebaseFirestore.instance.batch();
+    for (final d in snap.docs) {
+      if (!idsToday.contains(d.id)) batch.delete(d.reference);
+    }
+    await batch.commit();
   }
 
   Future<void> toggleEventDone(String uid, EventModel event,
