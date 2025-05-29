@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'theme.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'providers/events_provider.dart';
@@ -31,7 +31,7 @@ class ProcrastinationControlApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Procrastination-Calendar',
-        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+        theme: AppTheme.light(),
         home: const AuthGate(),
       ),
     );

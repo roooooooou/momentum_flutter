@@ -101,4 +101,42 @@ class CalendarService {
       'doneAt': newDone ? Timestamp.now() : null,
     });
   }
+
+  Future<void> startEvent(String uid, EventModel e) async {
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(e.id);
+
+    await ref.update({
+      'actualStartTime': Timestamp.now(), // 記錄開始時間
+      'isDone': false, // 保險起見，確保還沒完成
+    });
+  }
+
+  Future<void> stopEvent(String uid, EventModel e) async {
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(e.id);
+
+    await ref.update({
+      'actualStartTime': null, // 清掉開始時間 → 讓 status 回 NotStart / Overdue
+    });
+  }
+
+  Future<void> completeEvent(String uid, EventModel e) async {
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(e.id);
+
+    await ref.update({
+      'isDone': true,
+      'doneAt': Timestamp.now(),
+    });
+  }
 }
