@@ -1,1 +1,52 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"momentum-32f3e","appId":"1:168552599519:android:94b15c08c130a1001cfe6a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"momentum-32f3e","configurations":{"android":"1:168552599519:android:94b15c08c130a1001cfe6a","ios":"1:168552599519:ios:4953abf01889a3151cfe6a","web":"1:168552599519:web:efbe171f0e29b0d41cfe6a"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "momentum-32f3e",
+          "appId": "1:168552599519:android:94b15c08c130a1001cfe6a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "momentum-32f3e",
+          "configurations": {
+            "android": "1:168552599519:android:94b15c08c130a1001cfe6a",
+            "ios": "1:168552599519:ios:4953abf01889a3151cfe6a",
+            "web": "1:168552599519:web:efbe171f0e29b0d41cfe6a"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "runtime": "python313"
+    }
+  ]
+}

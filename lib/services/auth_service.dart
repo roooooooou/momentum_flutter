@@ -9,6 +9,8 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId:
+        '168552599519-6u508c50ub83vj65hafl00d6kq6id4b4.apps.googleusercontent.com',
     scopes: [
       'email',
       // Calendar read / write
@@ -40,27 +42,23 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
-  Future<UserCredential?> signInSilently() async {
-    // A. 先看 Firebase 自己是否已經有使用者
-    if (_auth.currentUser != null) {
-      return null; // 已登入就不處理
+  Future<void> signInSilently() async {
+    // 1. 先試著拿 Google 帳號（記憶體或 cookie 裡）
+    final googleAccount =
+        _googleSignIn.currentUser ?? await _googleSignIn.signInSilently();
+
+    if (googleAccount == null) return; // 沒帳號 → 視為未登入
+    await CalendarService.instance.init(googleAccount); // **** 關鍵 ****
+
+    // 2. Firebase 可能已經有 user，就不用再 sign-in
+    if (_auth.currentUser == null) {
+      final auth = await googleAccount.authentication;
+      final cred = GoogleAuthProvider.credential(
+        accessToken: auth.accessToken,
+        idToken: auth.idToken,
+      );
+      await _auth.signInWithCredential(cred);
     }
-
-    // B. 使用 google_sign_in 靜默取得帳號（cookie / storage 裏若有）
-    final googleAccount = await _googleSignIn.signInSilently();
-    if (googleAccount == null) return null; // 沒找到  視為未登入
-
-    // C. 初始化 CalendarService（之後才能 sync）
-    await CalendarService.instance.init(googleAccount);
-
-    // D. 取 accessToken / idToken，換 Firebase Credential
-    final auth = await googleAccount.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: auth.accessToken,
-      idToken: auth.idToken,
-    );
-
-    return _auth.signInWithCredential(credential);
   }
 
   Future<void> signOut() async {

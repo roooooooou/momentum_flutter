@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:googleapis/calendar/v3.dart' as cal;
 import 'package:http/http.dart' as http;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:momentum/services/auth_service.dart';
 import '../models/event_model.dart';
 
 /// Light wrapper that adds Google OAuth headers to each request.
@@ -21,7 +22,7 @@ class CalendarService {
   CalendarService._();
   static final instance = CalendarService._();
 
-  late cal.CalendarApi _api;
+  cal.CalendarApi? _api;
 
   /// Must be called **after** Google Sign-in succeeds.
   Future<void> init(GoogleSignInAccount account) async {
@@ -30,13 +31,35 @@ class CalendarService {
     _api = cal.CalendarApi(client);
   }
 
+  Future<void> _ensureReady() async {
+    if (_api != null) return;
+    final acct = AuthService.instance.googleAccount;
+    if (acct != null) {
+      try {
+        await init(acct);
+      } catch (e) {
+        // 如果初始化失败，尝试重新登录
+        await AuthService.instance.signInSilently();
+        final newAcct = AuthService.instance.googleAccount;
+        if (newAcct != null) {
+          await init(newAcct);
+        } else {
+          throw StateError('CalendarService initialization failed');
+        }
+      }
+    } else {
+      throw StateError('CalendarService not initialized');
+    }
+  }
+
   /// Syncs today's events from *primary* calendar into Firestore `/events`.
   Future<void> syncToday(String uid) async {
+    await _ensureReady();
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day).toUtc();
     final end = start.add(const Duration(days: 1));
 
-    final apiEvents = await _api.events.list(
+    final apiEvents = await _api!.events.list(
       'primary',
       timeMin: start,
       timeMax: end,
@@ -52,7 +75,7 @@ class CalendarService {
     final idsToday = <String>{};
 
     // 1) 逐筆 upsert
-    for (final e in apiEvents.items ?? <cal.Event>[]) {
+    for (final e in apiEvents!.items ?? <cal.Event>[]) {
       final s = e.start?.dateTime, t = e.end?.dateTime;
       if (s == null || t == null) continue;
 

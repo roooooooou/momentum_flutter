@@ -4,10 +4,15 @@ import '../models/event_model.dart';
 enum TaskAction { start, stop, complete }
 
 class EventCard extends StatelessWidget {
-  const EventCard({super.key, required this.event, required this.onAction});
+  const EventCard(
+      {super.key,
+      required this.event,
+      required this.onAction,
+      required this.onOpenChat});
 
   final EventModel event;
   final void Function(TaskAction a) onAction;
+  final void Function() onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +124,7 @@ class EventCard extends StatelessWidget {
                 status: event.status,
                 onStart: () => onAction(TaskAction.start),
                 onStop: () => onAction(TaskAction.stop),
+                onChat: () => onOpenChat(),
                 // Pass in responsive size parameters
                 buttonHeight: size.height * 0.045,
                 buttonWidth: size.width * 0.2,
@@ -196,6 +202,7 @@ class _ActionButton extends StatelessWidget {
     required this.status,
     required this.onStart,
     required this.onStop,
+    required this.onChat,
     required this.buttonHeight,
     required this.buttonWidth,
     required this.borderRadius,
@@ -205,6 +212,7 @@ class _ActionButton extends StatelessWidget {
   final TaskStatus status;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onChat;
   final double buttonHeight;
   final double buttonWidth;
   final double borderRadius;
@@ -245,17 +253,36 @@ class _ActionButton extends StatelessWidget {
 
     // Start button
     if (status == TaskStatus.notStarted || status == TaskStatus.overdue) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: buttonWidth,
-          maxWidth: buttonWidth * 1.5,
-          minHeight: buttonHeight,
-        ),
-        child: ElevatedButton(
-          onPressed: onStart,
-          style: buttonStyle,
-          child: const Text('Start'),
-        ),
+      return Column(
+        mainAxisSize: MainAxisSize.min, // 不撐滿父層
+        crossAxisAlignment: CrossAxisAlignment.end, // 右對齊，跟原本一致
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: buttonWidth,
+              maxWidth: buttonWidth * 1.5,
+              minHeight: buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: onChat, // ← 新 callback
+              style: buttonStyle,
+              child: const Text('Chat'),
+            ),
+          ),
+          const SizedBox(height: 6), // 垂直間距
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: buttonWidth,
+              maxWidth: buttonWidth * 1.5,
+              minHeight: buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: onStart,
+              style: buttonStyle,
+              child: const Text('Start'),
+            ),
+          ),
+        ],
       );
     }
 

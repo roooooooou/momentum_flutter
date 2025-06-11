@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/providers/chat_provider.dart';
+import 'package:momentum/services/proact_coach_service.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/calendar_service.dart';
 import '../providers/events_provider.dart';
 import '../models/event_model.dart';
 import '../widgets/event_card.dart';
+import '../screens/chat_screen.dart';
+import '../screens/sign_in_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,6 +41,13 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (action) {
       case TaskAction.start:
         await CalendarService.instance.startEvent(uid, e);
+        //if (mounted) {
+        //  Navigator.of(context).push(
+        //    MaterialPageRoute(
+        //      builder: (_) => ChatScreen(taskTitle: e.title),
+        //    ),
+        //  );
+        // }
         break;
       case TaskAction.stop:
         await CalendarService.instance.stopEvent(uid, e);
@@ -50,7 +61,16 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _sync(context));
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final googleAccount = AuthService.instance.googleAccount;
+      if (googleAccount == null) {
+        // 只 sign out，不要用 Navigator 跳頁
+        await AuthService.instance.signOut();
+        // AuthGate 會自動顯示 SignInScreen
+      } else {
+        _sync(context);
+      }
+    });
   }
 
   @override
@@ -128,9 +148,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             separatorBuilder: (_, __) =>
                                 SizedBox(height: listViewSpacing),
                             itemBuilder: (_, i) => EventCard(
-                              event: list[i],
-                              onAction: (a) => _handleAction(list[i], a),
-                            ),
+                                event: list[i],
+                                onAction: (a) => _handleAction(list[i], a),
+                                onOpenChat: () {
+                                  if (mounted) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => ChangeNotifierProvider(
+                                          create: (_) => ChatProvider(
+                                              taskTitle: list[i].title),
+                                          child: ChatScreen(
+                                              taskTitle: list[i].title),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }),
                           );
                         },
                       ),
