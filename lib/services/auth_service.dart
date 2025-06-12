@@ -9,8 +9,6 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId:
-        '168552599519-6u508c50ub83vj65hafl00d6kq6id4b4.apps.googleusercontent.com',
     scopes: [
       'email',
       // Calendar read / write
@@ -31,8 +29,13 @@ class AuthService {
       );
     }
 
-    // IMPORTANT:  initialise Calendar API as soon as we have the account
-    await CalendarService.instance.init(googleUser);
+    // IMPORTANT: 尝试初始化Calendar API，但不要让错误阻止登录
+    try {
+      await CalendarService.instance.init(googleUser);
+    } catch (e) {
+      print('Calendar initialization failed: $e');
+      // 不抛出错误，继续登录流程
+    }
 
     final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
@@ -48,7 +51,13 @@ class AuthService {
         _googleSignIn.currentUser ?? await _googleSignIn.signInSilently();
 
     if (googleAccount == null) return; // 沒帳號 → 視為未登入
-    await CalendarService.instance.init(googleAccount); // **** 關鍵 ****
+    
+    // 尝试初始化Calendar，但不要让错误阻止登录
+    try {
+      await CalendarService.instance.init(googleAccount); // **** 關鍵 ****
+    } catch (e) {
+      print('Calendar initialization failed in signInSilently: $e');
+    }
 
     // 2. Firebase 可能已經有 user，就不用再 sign-in
     if (_auth.currentUser == null) {
