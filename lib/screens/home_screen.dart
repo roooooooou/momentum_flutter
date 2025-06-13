@@ -9,6 +9,7 @@ import '../models/event_model.dart';
 import '../widgets/event_card.dart';
 import '../screens/chat_screen.dart';
 import '../screens/sign_in_screen.dart';
+import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -55,6 +56,68 @@ class _HomeScreenState extends State<HomeScreen> {
       case TaskAction.complete:
         await CalendarService.instance.completeEvent(uid, e);
         break;
+    }
+  }
+
+  Future<void> _testNotification() async {
+    try {
+      // 首先檢查權限
+      final hasPermission = await NotificationService.instance.areNotificationsEnabled();
+      print('🔐 通知權限狀態: $hasPermission');
+      
+      if (!hasPermission) {
+        // 請求權限
+        final granted = await NotificationService.instance.requestNotificationPermissions();
+        print('🔑 權限請求結果: $granted');
+        
+        if (!granted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('請到設定中開啟通知權限'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // 先發送一個立即通知
+      final immediateSuccess = await NotificationService.instance.showImmediateTestNotification();
+      print('📱 立即通知結果: $immediateSuccess');
+
+      // 然後發送5秒延遲通知
+      final delayedSuccess = await NotificationService.instance.showTestNotification();
+      print('⏰ 延遲通知結果: $delayedSuccess');
+
+      if (mounted) {
+        if (immediateSuccess || delayedSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('通知已發送！請檢查通知中心。5秒後還會有第二個通知。'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('通知發送失敗，請檢查控制台日誌'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ 通知測試錯誤: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('通知失敗: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -168,32 +231,77 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
               ),
-              Container(
-                width: size.width * 0.45, // 45% of screen width
-                height: buttonHeight,
-                margin: EdgeInsets.only(
-                  bottom: size.height * 0.03,
-                  top: size.height * 0.01,
+              // 按鈕區域
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: size.height * 0.01,
                 ),
-                child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: navigate to Daily Report
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD7DFE0), // Light grey-blue
-                    foregroundColor: Colors.black87,
-                    elevation: 0,
-                    padding: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(size.width * 0.06),
+                child: Row(
+                  children: [
+                    // Daily Report 按鈕
+                    Expanded(
+                      child: Container(
+                        height: buttonHeight,
+                        margin: EdgeInsets.only(right: size.width * 0.02),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // TODO: navigate to Daily Report
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD7DFE0), // Light grey-blue
+                            foregroundColor: Colors.black87,
+                            elevation: 0,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(size.width * 0.06),
+                            ),
+                          ),
+                          child: Text('Daily Report',
+                              style: TextStyle(
+                                  fontSize: (14 * responsiveText).clamp(12.0, 18.0),
+                                  fontWeight: FontWeight.w500)),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text('Daily Report',
-                      style: TextStyle(
-                          fontSize: (16 * responsiveText).clamp(14.0, 20.0),
-                          fontWeight: FontWeight.w500)),
+                    // 測試通知按鈕
+                    Expanded(
+                      child: Container(
+                        height: buttonHeight,
+                        margin: EdgeInsets.only(left: size.width * 0.02),
+                        child: ElevatedButton(
+                          onPressed: _testNotification,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF98E5EE), // Light cyan
+                            foregroundColor: Colors.black87,
+                            elevation: 0,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(size.width * 0.06),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.notifications_outlined,
+                                size: (16 * responsiveText).clamp(14.0, 20.0),
+                                color: Colors.black87,
+                              ),
+                              SizedBox(width: size.width * 0.01),
+                              Text('測試通知',
+                                  style: TextStyle(
+                                      fontSize: (14 * responsiveText).clamp(12.0, 18.0),
+                                      fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              SizedBox(height: size.height * 0.02),
             ],
           );
         }),
