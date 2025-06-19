@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_message.dart';
 import '../services/proact_coach_service.dart';
-import '../utils/logger.dart';
 
 class ChatProvider extends ChangeNotifier {
   final _coach = ProactCoachService();
@@ -31,8 +30,7 @@ class ChatProvider extends ChangeNotifier {
     try {
       final reply = await _coach.getCompletion(_messages, taskTitle);
       _messages.add(reply);
-    } catch (e, st) {
-      Logger.e('LLM failed', e, st);
+    } catch (e) {
       _messages
           .add(ChatMessage(role: ChatRole.assistant, content: '⚠️ 發生錯誤，請稍後再試'));
     } finally {

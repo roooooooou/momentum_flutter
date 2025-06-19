@@ -23,8 +23,35 @@ void main() async {
   runApp(const ProcrastinationControlApp());
 }
 
-class ProcrastinationControlApp extends StatelessWidget {
+class ProcrastinationControlApp extends StatefulWidget {
   const ProcrastinationControlApp({super.key});
+
+  @override
+  State<ProcrastinationControlApp> createState() => _ProcrastinationControlAppState();
+}
+
+class _ProcrastinationControlAppState extends State<ProcrastinationControlApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // 在App層級記錄lifecycle變化，但具體同步邏輯在HomeScreen中處理
+    if (state == AppLifecycleState.resumed) {
+      // 這裡可以添加全局的App resume處理邏輯
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -27,17 +27,15 @@ class NotificationService {
       defaultPresentAlert: true,
       defaultPresentSound: true,
       defaultPresentBadge: true,
-      // ★ 加入這兩行
-      defaultPresentBanner: true,   // iOS 14+ 需要
-      defaultPresentList: true,     // iOS 15+ 通知摘要用
+      defaultPresentBanner: true,  
+      defaultPresentList: true,   
 
-        // ★ 順便把 category 註冊進去
       notificationCategories: [
         DarwinNotificationCategory(
             'momentum_notification',
             actions: [
-                DarwinNotificationAction.plain('start_now', '我要開始'),
-                DarwinNotificationAction.plain('snooze', '稍後提醒'),
+                DarwinNotificationAction.plain('start_now', '準備開始了！'),
+                DarwinNotificationAction.plain('snooze', '現在還不想做'),
             ],
             ),
         ],
