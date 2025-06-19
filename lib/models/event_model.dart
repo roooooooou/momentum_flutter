@@ -12,6 +12,9 @@ class EventModel {
   final DateTime? actualStartTime;
   final String? googleEventId;
   final String? googleCalendarId;
+  final DateTime? updatedAt;
+  final int? notifId;
+  final DateTime? notifScheduledAt;
 
   EventModel({
     required this.id,
@@ -22,6 +25,9 @@ class EventModel {
     this.actualStartTime,
     this.googleEventId,
     this.googleCalendarId,
+    this.updatedAt,
+    this.notifId,
+    this.notifScheduledAt,
   });
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -35,6 +41,9 @@ class EventModel {
       actualStartTime: (d['actualStartTime'] as Timestamp?)?.toDate(),
       googleEventId: d['googleEventId'],
       googleCalendarId: d['googleCalendarId'],
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
+      notifId: d['notifId'],
+      notifScheduledAt: (d['notifScheduledAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -48,5 +57,33 @@ class EventModel {
     if (actualStartTime != null) return TaskStatus.inProgress;
     if (DateTime.now().isAfter(startTime)) return TaskStatus.overdue;
     return TaskStatus.notStarted;
+  }
+
+  EventModel copyWith({
+    String? id,
+    String? title,
+    DateTime? startTime,
+    DateTime? endTime,
+    bool? isDone,
+    DateTime? actualStartTime,
+    String? googleEventId,
+    String? googleCalendarId,
+    DateTime? updatedAt,
+    int? notifId,
+    DateTime? notifScheduledAt,
+  }) {
+    return EventModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      isDone: isDone ?? this.isDone,
+      actualStartTime: actualStartTime ?? this.actualStartTime,
+      googleEventId: googleEventId ?? this.googleEventId,
+      googleCalendarId: googleCalendarId ?? this.googleCalendarId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      notifId: notifId ?? this.notifId,
+      notifScheduledAt: notifScheduledAt ?? this.notifScheduledAt,
+    );
   }
 }

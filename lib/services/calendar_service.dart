@@ -5,6 +5,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:momentum/services/auth_service.dart';
 import '../models/event_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
+import 'package:flutter/foundation.dart';
 
 /// Light wrapper that adds Google OAuth headers to each request.
 class _GoogleAuthClient extends http.BaseClient {
@@ -33,12 +35,27 @@ class CalendarService {
 
   /// Must be called **after** Google Sign-in succeeds.
   Future<void> init(GoogleSignInAccount account) async {
-    final authHeaders = await account.authHeaders;
-    final client = _GoogleAuthClient(authHeaders);
-    _api = cal.CalendarApi(client);
-    
-    // 載入上次同步時間
-    await _loadLastSyncAt();
+    try {
+      final authHeaders = await account.authHeaders;
+      final client = _GoogleAuthClient(authHeaders);
+      _api = cal.CalendarApi(client);
+      
+      // 測試 API 是否正常工作
+      await _api!.calendarList.list();
+      
+      // 載入上次同步時間
+      await _loadLastSyncAt();
+      
+      if (kDebugMode) {
+        print('CalendarService 初始化成功');
+      }
+    } catch (e) {
+      _api = null; // 重置 API 實例
+      if (kDebugMode) {
+        print('CalendarService 初始化失敗: $e');
+      }
+      rethrow;
+    }
   }
 
   /// 從SharedPreferences載入lastSyncAt
@@ -68,125 +85,109 @@ class CalendarService {
   }
 
   Future<void> _ensureReady() async {
-    if (_api != null) return;
+    if (kDebugMode) {
+      print('_ensureReady: 開始檢查 API 狀態');
+    }
+    
+    if (_api != null) {
+      // 测试 API 是否仍然有效
+      try {
+        if (kDebugMode) {
+          print('_ensureReady: 測試現有 API 實例');
+        }
+        await _api!.calendarList.list();
+        if (kDebugMode) {
+          print('_ensureReady: API 實例有效，直接返回');
+        }
+        return; // API 仍然有效
+      } catch (e) {
+        if (kDebugMode) {
+          print('_ensureReady: Calendar API 測試失敗，需要重新初始化: $e');
+        }
+        // API 無效，重置並重新初始化
+        _api = null;
+      }
+    }
+    
+    if (kDebugMode) {
+      print('_ensureReady: 開始重新初始化 API');
+    }
+    
     final acct = AuthService.instance.googleAccount;
     if (acct != null) {
       try {
+        if (kDebugMode) {
+          print('_ensureReady: 使用現有帳號初始化: ${acct.email}');
+        }
         await init(acct);
+        if (kDebugMode) {
+          print('_ensureReady: 使用現有帳號初始化成功');
+        }
       } catch (e) {
+        if (kDebugMode) {
+          print('_ensureReady: 使用現有帳號初始化失敗: $e');
+        }
         // 如果初始化失败，尝试重新登录
-        await AuthService.instance.signInSilently();
-        final newAcct = AuthService.instance.googleAccount;
-        if (newAcct != null) {
-          await init(newAcct);
-        } else {
-          throw StateError('CalendarService initialization failed');
+        try {
+          if (kDebugMode) {
+            print('_ensureReady: 嘗試重新登入');
+          }
+          await AuthService.instance.signInSilently();
+          final newAcct = AuthService.instance.googleAccount;
+          if (newAcct != null) {
+            if (kDebugMode) {
+              print('_ensureReady: 使用新帳號初始化: ${newAcct.email}');
+            }
+            await init(newAcct);
+            if (kDebugMode) {
+              print('_ensureReady: 使用新帳號初始化成功');
+            }
+          } else {
+            throw StateError('無法獲取有效的 Google 帳號');
+          }
+        } catch (signInError) {
+          if (kDebugMode) {
+            print('_ensureReady: 重新登入失敗: $signInError');
+          }
+          throw StateError('CalendarService 初始化失敗: $signInError');
         }
       }
     } else {
-      throw StateError('CalendarService not initialized');
-    }
-  }
-
-  /// 增量同步：從指定時間開始同步
-  Future<void> _syncFrom(String uid, DateTime updatedMin) async {
-    await _ensureReady();
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day).toUtc();
-    final end = start.add(const Duration(days: 1));
-
-    final apiEvents = await _api!.events.list(
-      'primary',
-      timeMin: updatedMin.toUtc(),
-      timeMax: end,
-      singleEvents: true,
-      orderBy: 'startTime',
-      updatedMin: updatedMin.toUtc(),
-    );
-
-    final col = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('events');
-
-    final idsToday = <String>{};
-
-    // 1) 逐筆 upsert，處理時間戳衝突
-    for (final e in apiEvents!.items ?? <cal.Event>[]) {
-      final s = e.start?.dateTime, t = e.end?.dateTime;
-      if (s == null || t == null) continue;
-
-      final ref = col.doc(e.id);
-      final snap = await ref.get();
-
-      // 檢查時間戳衝突
-      if (snap.exists) {
-        final existingData = snap.data()!;
-        final existingUpdated = existingData['updatedAt'] as Timestamp?;
-        final eventUpdated = e.updated;
-        
-        if (existingUpdated != null && eventUpdated != null) {
-          final existingTime = existingUpdated.toDate();
-          final eventTime = eventUpdated.toUtc();
-          
-          // last-write-wins 策略
-          if (existingTime.isAfter(eventTime)) {
-            idsToday.add(e.id!);
-            continue; // 跳過這個事件，保留本地數據
-          }
-        }
+      if (kDebugMode) {
+        print('_ensureReady: 沒有可用的 Google 帳號');
       }
-
-      final data = <String, dynamic>{
-        'title': e.summary ?? 'No title',
-        'startTime': Timestamp.fromDate(s.toUtc()),
-        'endTime': Timestamp.fromDate(t.toUtc()),
-        'googleEventId': e.id,
-        'googleCalendarId': e.organizer?.email ?? 'primary',
-        'updatedAt': Timestamp.fromDate(e.updated?.toUtc() ?? now.toUtc()),
-        if (!snap.exists) 'isDone': false,
-      };
-
-      await ref.set(data, SetOptions(merge: true));
-      idsToday.add(e.id!);
+      throw StateError('CalendarService 未初始化');
     }
-
-    // 2) 對於增量同步，我們不應該刪除事件，因為API可能沒有返回所有事件
-    // 只有在完整同步時才刪除事件
-    // 這裡我們只處理從API返回的事件，不刪除其他事件
   }
 
-  /// App Resume 增量同步
-  Future<void> resumeSync(String uid) async {
+  /// 強制完整同步今日事件（手動觸發）
+  Future<void> forceSyncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步
     
-    _isSyncing = true;
-    try {
-      final now = DateTime.now();
-      
-      // 如果沒有上次同步時間，進行完整同步
-      if (_lastSyncAt == null) {
-        await syncToday(uid);
-        return;
-      }
-      
-      final updatedMin = _lastSyncAt!;
-      
-      // 執行增量同步
-      await _syncFrom(uid, updatedMin);
-      
-      // 更新並儲存lastSyncAt
-      await _saveLastSyncAt(now);
-    } catch (e) {
-      rethrow;
-    } finally {
-      _isSyncing = false;
+    if (kDebugMode) {
+      print('手動觸發完整同步');
     }
+    
+    await syncToday(uid);
+  }
+
+  /// App Resume 同步
+  Future<void> resumeSync(String uid) async {
+    if (kDebugMode) {
+      print('App Resume: 開始同步');
+    }
+    
+    // 直接使用 syncToday，因為邏輯完全一樣
+    await syncToday(uid);
   }
 
   /// Syncs today's events from *primary* calendar into Firestore `/events`.
   Future<void> syncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步
+    
+    if (kDebugMode) {
+      print('syncToday: 開始同步，UID: $uid');
+    }
     
     _isSyncing = true;
     try {
@@ -195,6 +196,10 @@ class CalendarService {
       final start = DateTime(now.year, now.month, now.day).toUtc();
       final end = start.add(const Duration(days: 1));
 
+      if (kDebugMode) {
+        print('syncToday: 查詢 Google Calendar 事件，時間範圍: $start 到 $end');
+      }
+
       final apiEvents = await _api!.events.list(
         'primary',
         timeMin: start,
@@ -202,6 +207,10 @@ class CalendarService {
         singleEvents: true,
         orderBy: 'startTime',
       );
+
+      if (kDebugMode) {
+        print('syncToday: 從 Google Calendar 獲取到 ${apiEvents!.items?.length ?? 0} 個事件');
+      }
 
       final col = FirebaseFirestore.instance
           .collection('users')
@@ -230,22 +239,86 @@ class CalendarService {
 
         await ref.set(data, SetOptions(merge: true));
         idsToday.add(e.id!);
+        
+        if (kDebugMode) {
+          print('syncToday: 同步事件: ${e.summary} (ID: ${e.id})');
+        }
       }
 
-      // 2) 移除 Google 已刪除的（可選）
+      // 2) 移除 Google 已刪除的事件
       final snap = await col
           .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('startTime', isLessThan: Timestamp.fromDate(end))
           .get();
 
       final batch = FirebaseFirestore.instance.batch();
-      for (final d in snap.docs) {
-        if (!idsToday.contains(d.id)) batch.delete(d.reference);
+      final deletedEvents = <String>[];
+      
+      if (kDebugMode) {
+        print('syncToday: API 返回的事件 ID: ${idsToday.toList()}');
+        print('syncToday: 本地事件數量: ${snap.docs.length}');
       }
-      await batch.commit();
+      
+      for (final d in snap.docs) {
+        if (kDebugMode) {
+          print('syncToday: 檢查本地事件: ${d.data()['title']} (ID: ${d.id})');
+        }
+        
+        if (!idsToday.contains(d.id)) {
+          // 在刪除前取消通知
+          final data = d.data();
+          final notifId = data['notifId'] as int?;
+          if (notifId != null) {
+            await NotificationScheduler().cancelEventNotification(d.id, notifId);
+          }
+          
+          batch.delete(d.reference);
+          deletedEvents.add(d.id);
+          if (kDebugMode) {
+            print('syncToday: 刪除事件: ${data['title']} (ID: ${d.id})');
+          }
+        } else {
+          if (kDebugMode) {
+            print('syncToday: 保留事件: ${d.data()['title']} (ID: ${d.id})');
+          }
+        }
+      }
+      
+      if (deletedEvents.isNotEmpty) {
+        await batch.commit();
+        if (kDebugMode) {
+          print('syncToday: 已刪除 ${deletedEvents.length} 個事件');
+        }
+      }
+      
+      // 3) 重新讀取今日所有事件，用於通知排程
+      final updatedSnap = await col
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('startTime', isLessThan: Timestamp.fromDate(end))
+          .orderBy('startTime')
+          .get();
+      
+      final events = updatedSnap.docs.map(EventModel.fromDoc).toList();
+      
+      // 4) 同步通知排程
+      if (events.isNotEmpty) {
+        await NotificationScheduler().sync(events);
+        if (kDebugMode) {
+          print('syncToday: 同步了 ${events.length} 個事件的通知排程');
+        }
+      }
       
       // 更新並儲存lastSyncAt
       await _saveLastSyncAt(now);
+      
+      if (kDebugMode) {
+        print('syncToday: 同步完成');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('syncToday: 同步失敗: $e');
+      }
+      rethrow;
     } finally {
       _isSyncing = false;
     }

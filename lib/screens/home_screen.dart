@@ -9,6 +9,8 @@ import '../widgets/event_card.dart';
 import '../screens/chat_screen.dart';
 import '../screens/sign_in_screen.dart';
 import '../services/notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -59,7 +61,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         }
       }
-      print('Current user: ${AuthService.instance.currentUser}');
     });
   }
 
@@ -76,12 +77,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       final uid = context.read<AuthService>().currentUser?.uid;
       if (uid != null) {
+        // 執行日曆同步
         CalendarService.instance.resumeSync(uid).catchError((e) {
           if (mounted) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text('Resume sync failed: $e')));
           }
         });
+        
+        // 額外的通知排程檢查（處理用戶手動修改 Google Calendar 的情況）
+        _checkNotificationSchedule(uid);
+      }
+    }
+  }
+
+  /// 檢查通知排程（App Resume 時調用）
+  Future<void> _checkNotificationSchedule(String uid) async {
+    try {
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(const Duration(days: 1));
+      
+      final col = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('events');
+      
+      final snap = await col
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('startTime', isLessThan: Timestamp.fromDate(end))
+          .orderBy('startTime')
+          .get();
+      
+      final events = snap.docs.map(EventModel.fromDoc).toList();
+      
+      // 過濾出未開始的事件
+      final futureEvents = events.where((event) => 
+        event.startTime.isAfter(now) && !event.isDone
+      ).toList();
+      
+      // 執行通知排程檢查
+      if (futureEvents.isNotEmpty) {
+        await NotificationScheduler().sync(futureEvents);
+        if (kDebugMode) {
+          print('App Resume: 檢查了 ${futureEvents.length} 個未來事件的通知排程');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('App Resume 通知檢查失敗: $e');
       }
     }
   }
@@ -230,64 +274,131 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   horizontal: horizontalPadding,
                   vertical: size.height * 0.01,
                 ),
-                child: Row(
+                child: Column(
                   children: [
                     // Daily Report 按鈕
-                    Expanded(
-                      child: Container(
-                        height: buttonHeight,
-                        margin: EdgeInsets.only(right: size.width * 0.02),
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // TODO: navigate to Daily Report
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD7DFE0), // Light grey-blue
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(size.width * 0.06),
-                            ),
+                    Container(
+                      width: double.infinity,
+                      height: buttonHeight,
+                      margin: EdgeInsets.only(bottom: size.height * 0.01),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // TODO: navigate to Daily Report
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD7DFE0), // Light grey-blue
+                          foregroundColor: Colors.black87,
+                          elevation: 0,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(size.width * 0.06),
                           ),
-                          child: Text('Daily Report',
-                              style: TextStyle(
-                                  fontSize: (14 * responsiveText).clamp(12.0, 18.0),
-                                  fontWeight: FontWeight.w500)),
                         ),
+                        child: Text('Daily Report',
+                            style: TextStyle(
+                                fontSize: (14 * responsiveText).clamp(12.0, 18.0),
+                                fontWeight: FontWeight.w500)),
                       ),
                     ),
-                    // 測試通知按鈕 (Debug 模式)
+                    // Debug 模式按鈕
                     if (const bool.fromEnvironment('dart.vm.product') == false)
-                      Expanded(
-                        child: Container(
-                          height: buttonHeight,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final success = await NotificationService.instance.showTestNotification();
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(success ? '測試通知已排程' : '測試通知失敗'),
+                      Row(
+                        children: [
+                          // 測試通知按鈕
+                          Expanded(
+                            child: Container(
+                              height: buttonHeight,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final success = await NotificationService.instance.showTestNotification();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(success ? '測試通知已排程' : '測試通知失敗'),
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFE8D5C4), // Light orange
+                                  foregroundColor: Colors.black87,
+                                  elevation: 0,
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(size.width * 0.06),
                                   ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE8D5C4), // Light orange
-                              foregroundColor: Colors.black87,
-                              elevation: 0,
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(size.width * 0.06),
+                                ),
+                                child: Text('測試通知',
+                                    style: TextStyle(
+                                        fontSize: (14 * responsiveText).clamp(12.0, 18.0),
+                                        fontWeight: FontWeight.w500)),
                               ),
                             ),
-                            child: Text('測試通知',
-                                style: TextStyle(
-                                    fontSize: (14 * responsiveText).clamp(12.0, 18.0),
-                                    fontWeight: FontWeight.w500)),
                           ),
-                        ),
+                          SizedBox(width: size.width * 0.02),
+                          // 檢查通知排程按鈕
+                          Expanded(
+                            child: Container(
+                              height: buttonHeight,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final uid = context.read<AuthService>().currentUser?.uid;
+                                  if (uid != null) {
+                                    try {
+                                      final now = DateTime.now();
+                                      final start = DateTime(now.year, now.month, now.day).toUtc();
+                                      final end = start.add(const Duration(days: 1));
+                                      
+                                      final col = FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(uid)
+                                          .collection('events');
+                                      
+                                      final snap = await col
+                                          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+                                          .where('startTime', isLessThan: Timestamp.fromDate(end))
+                                          .orderBy('startTime')
+                                          .get();
+                                      
+                                      final events = snap.docs.map(EventModel.fromDoc).toList();
+                                      
+                                      await NotificationScheduler().sync(events);
+                                      
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('通知排程檢查完成，處理了 ${events.length} 個事件'),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('通知排程檢查失敗: $e'),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFD4E6F1), // Light blue
+                                  foregroundColor: Colors.black87,
+                                  elevation: 0,
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(size.width * 0.06),
+                                  ),
+                                ),
+                                child: Text('檢查通知',
+                                    style: TextStyle(
+                                        fontSize: (14 * responsiveText).clamp(12.0, 18.0),
+                                        fontWeight: FontWeight.w500)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                   ],
                 ),

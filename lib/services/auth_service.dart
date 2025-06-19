@@ -12,6 +12,7 @@ class AuthService {
     scopes: [
       'email',
       // Calendar read / write
+      'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/calendar.events',
     ],
   );
