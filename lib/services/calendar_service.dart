@@ -151,19 +151,9 @@ class CalendarService {
       idsToday.add(e.id!);
     }
 
-    // 2) 移除 Google 已刪除的（可選）
-    final snap = await col
-        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('startTime', isLessThan: Timestamp.fromDate(end))
-        .get();
-
-    final batch = FirebaseFirestore.instance.batch();
-    for (final d in snap.docs) {
-      if (!idsToday.contains(d.id)) {
-        batch.delete(d.reference);
-      }
-    }
-    await batch.commit();
+    // 2) 對於增量同步，我們不應該刪除事件，因為API可能沒有返回所有事件
+    // 只有在完整同步時才刪除事件
+    // 這裡我們只處理從API返回的事件，不刪除其他事件
   }
 
   /// App Resume 增量同步
@@ -173,7 +163,14 @@ class CalendarService {
     _isSyncing = true;
     try {
       final now = DateTime.now();
-      final updatedMin = _lastSyncAt ?? DateTime(now.year, now.month, now.day);
+      
+      // 如果沒有上次同步時間，進行完整同步
+      if (_lastSyncAt == null) {
+        await syncToday(uid);
+        return;
+      }
+      
+      final updatedMin = _lastSyncAt!;
       
       // 執行增量同步
       await _syncFrom(uid, updatedMin);
@@ -265,10 +262,10 @@ class CalendarService {
         .collection('events')
         .doc(event.id);
 
-    await doc.update({
+    await doc.set({
       'isDone': newDone,
       'doneAt': newDone ? Timestamp.now() : null,
-    });
+    }, SetOptions(merge: true));
   }
 
   Future<void> startEvent(String uid, EventModel e) async {
@@ -278,10 +275,10 @@ class CalendarService {
         .collection('events')
         .doc(e.id);
 
-    await ref.update({
+    await ref.set({
       'actualStartTime': Timestamp.now(), // 記錄開始時間
       'isDone': false, // 保險起見，確保還沒完成
-    });
+    }, SetOptions(merge: true));
   }
 
   Future<void> stopEvent(String uid, EventModel e) async {
@@ -291,9 +288,9 @@ class CalendarService {
         .collection('events')
         .doc(e.id);
 
-    await ref.update({
+    await ref.set({
       'actualStartTime': null, // 清掉開始時間 → 讓 status 回 NotStart / Overdue
-    });
+    }, SetOptions(merge: true));
   }
 
   Future<void> completeEvent(String uid, EventModel e) async {
@@ -303,9 +300,9 @@ class CalendarService {
         .collection('events')
         .doc(e.id);
 
-    await ref.update({
+    await ref.set({
       'isDone': true,
       'doneAt': Timestamp.now(),
-    });
+    }, SetOptions(merge: true));
   }
 }

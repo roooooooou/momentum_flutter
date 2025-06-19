@@ -32,6 +32,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await AuthService.instance.signOut();
         // AuthGate 會自動顯示 SignInScreen
       } else {
+        // 初始化通知服務
+        try {
+          await NotificationService.instance.initialize();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('通知服務初始化失敗: $e')));
+          }
+        }
+
         // 初始同步
         final uid = context.read<AuthService>().currentUser!.uid;
         try {
@@ -49,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         }
       }
+      print('Current user: ${AuthService.instance.currentUser}');
     });
   }
 
@@ -63,7 +74,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
     
     if (state == AppLifecycleState.resumed) {
-      // App 恢復時觸發增量同步
       final uid = context.read<AuthService>().currentUser?.uid;
       if (uid != null) {
         CalendarService.instance.resumeSync(uid).catchError((e) {
@@ -247,6 +257,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
+                    // 測試通知按鈕 (Debug 模式)
+                    if (const bool.fromEnvironment('dart.vm.product') == false)
+                      Expanded(
+                        child: Container(
+                          height: buttonHeight,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final success = await NotificationService.instance.showTestNotification();
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(success ? '測試通知已排程' : '測試通知失敗'),
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE8D5C4), // Light orange
+                              foregroundColor: Colors.black87,
+                              elevation: 0,
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(size.width * 0.06),
+                              ),
+                            ),
+                            child: Text('測試通知',
+                                style: TextStyle(
+                                    fontSize: (14 * responsiveText).clamp(12.0, 18.0),
+                                    fontWeight: FontWeight.w500)),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
