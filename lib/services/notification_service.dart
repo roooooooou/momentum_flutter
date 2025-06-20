@@ -7,7 +7,7 @@ import '../models/event_model.dart';
 import '../services/auth_service.dart';
 
 // 通知偏移時間常數（開始前10分鐘）
-const int NOTIF_OFFSET_MIN = -10;
+const int notifOffsetMin = -10;
 
 class NotificationService {
   NotificationService._();
@@ -18,7 +18,7 @@ class NotificationService {
 
   bool _initialized = false;
 
-  /// 初始化通知服務 (僅 iOS)
+  /// 初始化通知服務 (iOS)
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -30,11 +30,10 @@ class NotificationService {
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      // 套件預設已經全開，但明確設定確保行為一致
       defaultPresentAlert: true,
       defaultPresentSound: true,
       defaultPresentBadge: true,
-      defaultPresentBanner: true,  
-      defaultPresentList: true,   
 
       notificationCategories: [
         DarwinNotificationCategory(
@@ -45,8 +44,6 @@ class NotificationService {
             ],
             ),
         ],
-
-        onDidReceiveLocalNotification: onDidReceiveLocalNotification,
     );
 
     final initSettings = InitializationSettings(
@@ -59,20 +56,7 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: _onNotificationTapped,
     );
 
-    // 為 iOS 設置前台通知顯示選項
-    final iosImplementation = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
-    
-    if (iosImplementation != null) {
-      await iosImplementation.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-        critical: false,
-      );
-    }
-
-    // 請求權限（僅 iOS）
+    // 請求權限
     final permissionsGranted = await _requestPermissions();
     
     if (!permissionsGranted) {
@@ -88,7 +72,7 @@ class NotificationService {
     }
   }
 
-  /// 請求通知權限 (僅 iOS)
+  /// 請求通知權限 (iOS)
   Future<bool> _requestPermissions() async {
     // iOS 權限請求
     final iosImplementation = _plugin.resolvePlatformSpecificImplementation<
@@ -99,6 +83,7 @@ class NotificationService {
         alert: true,
         badge: true,
         sound: true,
+        critical: false,
       );
       if (kDebugMode) {
         print('iOS 通知權限: $iosPermission');
@@ -114,13 +99,6 @@ class NotificationService {
   static void _onNotificationTapped(NotificationResponse response) {
     if (kDebugMode) {
       print('Notification tapped: ${response.payload}');
-    }
-  }
-
-  /// 處理前台通知（iOS 舊版本兼容性）
-  static void onDidReceiveLocalNotification(int id, String? title, String? body, String? payload) {
-    if (kDebugMode) {
-      print('前台通知接收: id=$id, title=$title, body=$body');
     }
   }
 
@@ -246,12 +224,12 @@ class NotificationService {
         body,
         scheduledDate,
         details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: payload,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
 
       if (kDebugMode) {
-        print('通知已排程: ID=$notificationId, 標題=$title, 將於${delaySeconds}秒後顯示');
+        print('通知已排程: ID=$notificationId, 標題=$title, 將於$delaySeconds秒後顯示');
       }
       
       return true;
@@ -263,7 +241,7 @@ class NotificationService {
     }
   }
 
-  /// 檢查通知權限狀態 (僅 iOS)
+  /// 檢查通知權限狀態 (iOS)
   Future<bool> areNotificationsEnabled() async {
     final iosImplementation = _plugin.resolvePlatformSpecificImplementation<
         IOSFlutterLocalNotificationsPlugin>();
@@ -293,7 +271,7 @@ class NotificationService {
       );
       
       if (kDebugMode) {
-        print('權限請求結果: $granted');
+        print('iOS 權限請求結果: $granted');
       }
       
       return granted == true;
@@ -336,7 +314,7 @@ class NotificationService {
       }
 
       // 計算觸發時間（事件開始前10分鐘）
-      final triggerTime = eventStartTime.add(Duration(minutes: NOTIF_OFFSET_MIN));
+      final triggerTime = eventStartTime.add(Duration(minutes: notifOffsetMin));
       
       // 檢查觸發時間是否在過去
       if (triggerTime.isBefore(DateTime.now())) {
@@ -371,8 +349,8 @@ class NotificationService {
         '您的任務「$title」即將開始',
         scheduledDate,
         details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: payload,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
 
       if (kDebugMode) {
@@ -458,7 +436,7 @@ class NotificationScheduler {
       await NotificationService.instance.cancelNotification(event.notifId!);
       
       // 計算新的觸發時間
-      final newTriggerTime = event.startTime.add(Duration(minutes: NOTIF_OFFSET_MIN));
+      final newTriggerTime = event.startTime.add(Duration(minutes: notifOffsetMin));
       
       // 檢查新觸發時間是否在過去
       if (newTriggerTime.isBefore(now)) {
