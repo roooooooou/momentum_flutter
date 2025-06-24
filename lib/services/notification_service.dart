@@ -6,8 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../services/auth_service.dart';
 
-// 通知偏移時間常數（開始前10分鐘）
-const int notifOffsetMin = -10;
+// 通知偏移時間常數
+const int firstNotifOffsetMin = -10;  // 第一個通知：開始前10分鐘
+const int secondNotifOffsetMin = 5;   // 第二個通知：開始後5分鐘
 
 class NotificationService {
   NotificationService._();
@@ -55,6 +56,7 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
       onDidReceiveBackgroundNotificationResponse: _onNotificationTapped,
     );
+    
 
     // 請求權限
     final permissionsGranted = await _requestPermissions();
@@ -99,63 +101,6 @@ class NotificationService {
   static void _onNotificationTapped(NotificationResponse response) {
     if (kDebugMode) {
       print('Notification tapped: ${response.payload}');
-    }
-  }
-
-  /// 顯示簡單通知
-  Future<bool> showNotification({
-    required String title,
-    required String body,
-    String? payload,
-  }) async {
-    try {
-      if (!_initialized) {
-        await initialize();
-      }
-
-      if (!_initialized) {
-        if (kDebugMode) {
-          print('通知服務初始化失敗');
-        }
-        return false;
-      }
-
-      const iosDetails = DarwinNotificationDetails(
-        presentBadge: true,
-        presentSound: true,
-        badgeNumber: 1,
-        categoryIdentifier: 'momentum_notification',
-        threadIdentifier: 'momentum_thread',
-        interruptionLevel: InterruptionLevel.active,
-        // 關鍵設置：讓前台也顯示通知
-        presentBanner: true,
-        presentList: true,
-      );
-
-      const details = NotificationDetails(
-        iOS: iosDetails,
-      );
-
-      final notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
-      
-      await _plugin.show(
-        notificationId,
-        title,
-        body,
-        details,
-        payload: payload,
-      );
-
-      if (kDebugMode) {
-        print('通知已發送: ID=$notificationId, 標題=$title');
-      }
-      
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('發送通知時發生錯誤: $e');
-      }
-      return false;
     }
   }
 
@@ -257,29 +202,6 @@ class NotificationService {
     return false;
   }
 
-  /// 強制請求通知權限
-  Future<bool> requestNotificationPermissions() async {
-    final iosImplementation = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
-    
-    if (iosImplementation != null) {
-      final granted = await iosImplementation.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-        critical: false,
-      );
-      
-      if (kDebugMode) {
-        print('iOS 權限請求結果: $granted');
-      }
-      
-      return granted == true;
-    }
-    
-    return false;
-  }
-
   /// 取消指定 ID 的通知
   Future<void> cancelNotification(int id) async {
     try {
@@ -294,12 +216,14 @@ class NotificationService {
     }
   }
 
-  /// 排程事件通知
+  /// 排程事件通知（支持偏移時間）
   Future<bool> scheduleEventNotification({
     required int notificationId,
     required String title,
     required DateTime eventStartTime,
+    required int offsetMinutes,
     String? payload,
+    bool isSecondNotification = false,
   }) async {
     try {
       if (!_initialized) {
@@ -313,8 +237,8 @@ class NotificationService {
         return false;
       }
 
-      // 計算觸發時間（事件開始前10分鐘）
-      final triggerTime = eventStartTime.add(Duration(minutes: notifOffsetMin));
+      // 計算觸發時間
+      final triggerTime = eventStartTime.add(Duration(minutes: offsetMinutes));
       
       // 檢查觸發時間是否在過去
       if (triggerTime.isBefore(DateTime.now())) {
@@ -340,13 +264,25 @@ class NotificationService {
         iOS: iosDetails,
       );
 
+      // 根據通知類型設置不同的內容
+      String notificationTitle;
+      String notificationBody;
+      
+      if (isSecondNotification) {
+        notificationTitle = '任務提醒';
+        notificationBody = '您的任務「$title」應該已經開始了，請檢查並開始執行！';
+      } else {
+        notificationTitle = '任務提醒';
+        notificationBody = '您的任務「$title」即將開始';
+      }
+
       // 轉換為時區時間
       final scheduledDate = tz.TZDateTime.from(triggerTime, tz.local);
       
       await _plugin.zonedSchedule(
         notificationId,
-        '任務提醒',
-        '您的任務「$title」即將開始',
+        notificationTitle,
+        notificationBody,
         scheduledDate,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -354,7 +290,7 @@ class NotificationService {
       );
 
       if (kDebugMode) {
-        print('事件通知已排程: ID=$notificationId, 標題=$title, 觸發時間=$triggerTime');
+        print('事件通知已排程: ID=$notificationId, 標題=$title, 觸發時間=$triggerTime, 類型=${isSecondNotification ? "第二個" : "第一個"}');
       }
       
       return true;
@@ -383,45 +319,88 @@ class NotificationScheduler {
   }
 
   /// 取消指定事件的通知
-  Future<void> cancelEventNotification(String eventId, int? notifId) async {
+  Future<void> cancelEventNotification(String eventId, int? notifId, int? secondNotifId) async {
     if (notifId != null) {
       await NotificationService.instance.cancelNotification(notifId);
       if (kDebugMode) {
-        print('取消已刪除事件的通知: eventId=$eventId, notifId=$notifId');
+        print('取消已刪除事件的第一個通知: eventId=$eventId, notifId=$notifId');
+      }
+    }
+    
+    if (secondNotifId != null) {
+      await NotificationService.instance.cancelNotification(secondNotifId);
+      if (kDebugMode) {
+        print('取消已刪除事件的第二個通知: eventId=$eventId, secondNotifId=$secondNotifId');
+      }
+    }
+  }
+
+  /// 當任務開始時取消第二個通知
+  Future<void> cancelSecondNotification(String eventId, int? secondNotifId) async {
+    if (secondNotifId != null) {
+      await NotificationService.instance.cancelNotification(secondNotifId);
+      // 清空第二個通知資訊
+      await _updateEventSecondNotificationInfo(eventId, null, null);
+      if (kDebugMode) {
+        print('任務已開始，取消第二個通知: eventId=$eventId, secondNotifId=$secondNotifId');
       }
     }
   }
 
   /// 處理單個事件的通知排程
   Future<void> _processEvent(EventModel event, DateTime now) async {
-    // 1. 事件已開始或已完成 → 取消通知
-    if (event.startTime.isBefore(now) || event.isDone) {
+    // 1. 事件已開始或已完成 → 取消所有通知
+    if (event.isDone || event.actualStartTime != null) {
       if (event.notifId != null) {
         await NotificationService.instance.cancelNotification(event.notifId!);
-        // 清空通知資訊
-        await _updateEventNotificationInfo(event.id, null, null);
-        if (kDebugMode) {
-          print('取消已開始/已完成事件的通知: ${event.title}');
-        }
+      }
+      if (event.secondNotifId != null) {
+        await NotificationService.instance.cancelNotification(event.secondNotifId!);
+      }
+      // 清空所有通知資訊
+      await _updateEventNotificationInfo(event.id, null, null, null, null);
+      if (kDebugMode) {
+        print('取消已開始/已完成事件的所有通知: ${event.title}');
       }
       return;
     }
 
-    // 2. 事件未排程通知 → 新增排程
-    if (event.notifId == null) {
-      final notificationId = _generateNotificationId(event.id);
-      final success = await NotificationService.instance.scheduleEventNotification(
-        notificationId: notificationId,
+    // 2. 事件未排程通知 → 新增雙重排程
+    if (event.notifId == null && event.secondNotifId == null) {
+      final firstNotificationId = _generateFirstNotificationId(event.id);
+      final secondNotificationId = _generateSecondNotificationId(event.id);
+      
+      // 排程第一個通知
+      final firstSuccess = await NotificationService.instance.scheduleEventNotification(
+        notificationId: firstNotificationId,
         title: event.title,
         eventStartTime: event.startTime,
+        offsetMinutes: firstNotifOffsetMin,
         payload: event.id,
+        isSecondNotification: false,
       );
       
-      if (success) {
-        // 更新事件的通知資訊（這裡需要回寫到 Firestore）
-        await _updateEventNotificationInfo(event.id, notificationId, now);
+      // 排程第二個通知
+      final secondSuccess = await NotificationService.instance.scheduleEventNotification(
+        notificationId: secondNotificationId,
+        title: event.title,
+        eventStartTime: event.startTime,
+        offsetMinutes: secondNotifOffsetMin,
+        payload: event.id,
+        isSecondNotification: true,
+      );
+      
+      if (firstSuccess || secondSuccess) {
+        // 更新事件的通知資訊
+        await _updateEventNotificationInfo(
+          event.id, 
+          firstSuccess ? firstNotificationId : null, 
+          firstSuccess ? now : null,
+          secondSuccess ? secondNotificationId : null,
+          secondSuccess ? now : null,
+        );
         if (kDebugMode) {
-          print('新增事件通知排程: ${event.title}');
+          print('新增事件雙重通知排程: ${event.title}');
         }
       }
       return;
@@ -429,37 +408,50 @@ class NotificationScheduler {
 
     // 3. 事件已修改 → 檢查是否需要重新排程
     if (event.updatedAt != null && 
-        event.notifScheduledAt != null && 
-        event.updatedAt!.isAfter(event.notifScheduledAt!)) {
+        (event.notifScheduledAt != null || event.secondNotifScheduledAt != null) && 
+        event.updatedAt!.isAfter(event.notifScheduledAt ?? DateTime(1900)) &&
+        event.updatedAt!.isAfter(event.secondNotifScheduledAt ?? DateTime(1900))) {
       
       // 取消舊通知
-      await NotificationService.instance.cancelNotification(event.notifId!);
-      
-      // 計算新的觸發時間
-      final newTriggerTime = event.startTime.add(Duration(minutes: notifOffsetMin));
-      
-      // 檢查新觸發時間是否在過去
-      if (newTriggerTime.isBefore(now)) {
-        if (kDebugMode) {
-          print('事件修改後觸發時間已過期，只取消舊通知: ${event.title}');
-        }
-        // 只取消舊通知，不排程新通知
-        await _updateEventNotificationInfo(event.id, null, null);
-        return;
+      if (event.notifId != null) {
+        await NotificationService.instance.cancelNotification(event.notifId!);
+      }
+      if (event.secondNotifId != null) {
+        await NotificationService.instance.cancelNotification(event.secondNotifId!);
       }
       
-      // 排程新通知
-      final success = await NotificationService.instance.scheduleEventNotification(
-        notificationId: event.notifId!,
+      // 重新排程通知
+      final firstNotificationId = event.notifId ?? _generateFirstNotificationId(event.id);
+      final secondNotificationId = event.secondNotifId ?? _generateSecondNotificationId(event.id);
+      
+      final firstSuccess = await NotificationService.instance.scheduleEventNotification(
+        notificationId: firstNotificationId,
         title: event.title,
         eventStartTime: event.startTime,
+        offsetMinutes: firstNotifOffsetMin,
         payload: event.id,
+        isSecondNotification: false,
       );
       
-      if (success) {
-        await _updateEventNotificationInfo(event.id, event.notifId, now);
+      final secondSuccess = await NotificationService.instance.scheduleEventNotification(
+        notificationId: secondNotificationId,
+        title: event.title,
+        eventStartTime: event.startTime,
+        offsetMinutes: secondNotifOffsetMin,
+        payload: event.id,
+        isSecondNotification: true,
+      );
+      
+      if (firstSuccess || secondSuccess) {
+        await _updateEventNotificationInfo(
+          event.id, 
+          firstSuccess ? firstNotificationId : null, 
+          firstSuccess ? now : null,
+          secondSuccess ? secondNotificationId : null,
+          secondSuccess ? now : null,
+        );
         if (kDebugMode) {
-          print('重新排程已修改事件的通知: ${event.title}');
+          print('重新排程已修改事件的雙重通知: ${event.title}');
         }
       }
       return;
@@ -471,13 +463,24 @@ class NotificationScheduler {
     }
   }
 
-  /// 生成通知 ID
-  int _generateNotificationId(String eventId) {
+  /// 生成第一個通知 ID
+  int _generateFirstNotificationId(String eventId) {
     return eventId.hashCode.abs();
   }
 
+  /// 生成第二個通知 ID
+  int _generateSecondNotificationId(String eventId) {
+    return -(eventId.hashCode.abs()); // 使用負數避免衝突
+  }
+
   /// 更新事件的通知資訊到 Firestore
-  Future<void> _updateEventNotificationInfo(String eventId, int? notifId, DateTime? scheduledAt) async {
+  Future<void> _updateEventNotificationInfo(
+    String eventId, 
+    int? notifId, 
+    DateTime? scheduledAt,
+    int? secondNotifId,
+    DateTime? secondScheduledAt,
+  ) async {
     try {
       // 從 AuthService 獲取當前用戶 ID
       final currentUser = AuthService.instance.currentUser;
@@ -497,6 +500,8 @@ class NotificationScheduler {
           .doc(eventId);
 
       final updateData = <String, dynamic>{};
+      
+      // 更新第一個通知資訊
       if (notifId != null) {
         updateData['notifId'] = notifId;
       } else {
@@ -508,15 +513,77 @@ class NotificationScheduler {
       } else {
         updateData['notifScheduledAt'] = null;
       }
+      
+      // 更新第二個通知資訊
+      if (secondNotifId != null) {
+        updateData['secondNotifId'] = secondNotifId;
+      } else {
+        updateData['secondNotifId'] = null;
+      }
+      
+      if (secondScheduledAt != null) {
+        updateData['secondNotifScheduledAt'] = Timestamp.fromDate(secondScheduledAt);
+      } else {
+        updateData['secondNotifScheduledAt'] = null;
+      }
 
       await doc.update(updateData);
       
       if (kDebugMode) {
-        print('更新事件通知資訊: eventId=$eventId, notifId=$notifId');
+        print('更新事件通知資訊: eventId=$eventId, notifId=$notifId, secondNotifId=$secondNotifId');
       }
     } catch (e) {
       if (kDebugMode) {
         print('更新事件通知資訊失敗: $e');
+      }
+    }
+  }
+
+  /// 更新事件的第二個通知資訊到 Firestore
+  Future<void> _updateEventSecondNotificationInfo(
+    String eventId,
+    int? secondNotifId,
+    DateTime? secondScheduledAt,
+  ) async {
+    try {
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser == null) {
+        if (kDebugMode) {
+          print('無法獲取當前用戶，跳過更新第二個通知資訊');
+        }
+        return;
+      }
+      
+      final uid = currentUser.uid;
+      
+      final doc = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('events')
+          .doc(eventId);
+
+      final updateData = <String, dynamic>{};
+      
+      if (secondNotifId != null) {
+        updateData['secondNotifId'] = secondNotifId;
+      } else {
+        updateData['secondNotifId'] = null;
+      }
+      
+      if (secondScheduledAt != null) {
+        updateData['secondNotifScheduledAt'] = Timestamp.fromDate(secondScheduledAt);
+      } else {
+        updateData['secondNotifScheduledAt'] = null;
+      }
+
+      await doc.update(updateData);
+      
+      if (kDebugMode) {
+        print('更新事件第二個通知資訊: eventId=$eventId, secondNotifId=$secondNotifId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('更新事件第二個通知資訊失敗: $e');
       }
     }
   }

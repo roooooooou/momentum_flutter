@@ -64,6 +64,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<!-- 通知權限 -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>需要通知權限來發送任務提醒</string>
 	<key>UIUserNotificationSettings</key>
 	<dict>
 		<key>UIUserNotificationTypeAlert</key>

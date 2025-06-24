@@ -8,11 +8,7 @@ import 'services/auth_service.dart';
 import 'providers/events_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/sign_in_screen.dart';
-import 'services/proact_coach_service.dart';
-import 'services/fake_llm_service.dart';
-import 'providers/chat_provider.dart';
 import 'services/notification_service.dart';
-import 'navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

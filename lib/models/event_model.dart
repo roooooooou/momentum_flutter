@@ -15,6 +15,8 @@ class EventModel {
   final DateTime? updatedAt;
   final int? notifId;
   final DateTime? notifScheduledAt;
+  final int? secondNotifId;
+  final DateTime? secondNotifScheduledAt;
 
   EventModel({
     required this.id,
@@ -28,6 +30,8 @@ class EventModel {
     this.updatedAt,
     this.notifId,
     this.notifScheduledAt,
+    this.secondNotifId,
+    this.secondNotifScheduledAt,
   });
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -44,6 +48,8 @@ class EventModel {
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
       notifId: d['notifId'],
       notifScheduledAt: (d['notifScheduledAt'] as Timestamp?)?.toDate(),
+      secondNotifId: d['secondNotifId'],
+      secondNotifScheduledAt: (d['secondNotifScheduledAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -71,6 +77,8 @@ class EventModel {
     DateTime? updatedAt,
     int? notifId,
     DateTime? notifScheduledAt,
+    int? secondNotifId,
+    DateTime? secondNotifScheduledAt,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -84,6 +92,8 @@ class EventModel {
       updatedAt: updatedAt ?? this.updatedAt,
       notifId: notifId ?? this.notifId,
       notifScheduledAt: notifScheduledAt ?? this.notifScheduledAt,
+      secondNotifId: secondNotifId ?? this.secondNotifId,
+      secondNotifScheduledAt: secondNotifScheduledAt ?? this.secondNotifScheduledAt,
     );
   }
 }

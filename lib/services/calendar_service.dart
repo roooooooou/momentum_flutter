@@ -268,8 +268,9 @@ class CalendarService {
           // 在刪除前取消通知
           final data = d.data();
           final notifId = data['notifId'] as int?;
-          if (notifId != null) {
-            await NotificationScheduler().cancelEventNotification(d.id, notifId);
+          final secondNotifId = data['secondNotifId'] as int?;
+          if (notifId != null || secondNotifId != null) {
+            await NotificationScheduler().cancelEventNotification(d.id, notifId, secondNotifId);
           }
           
           batch.delete(d.reference);
@@ -352,6 +353,11 @@ class CalendarService {
       'actualStartTime': Timestamp.now(), // 記錄開始時間
       'isDone': false, // 保險起見，確保還沒完成
     }, SetOptions(merge: true));
+    
+    // 取消第二個通知（因為任務已經開始）
+    if (e.secondNotifId != null) {
+      await NotificationScheduler().cancelSecondNotification(e.id, e.secondNotifId);
+    }
   }
 
   Future<void> stopEvent(String uid, EventModel e) async {
