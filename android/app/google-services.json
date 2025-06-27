@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "168552599519",
+    "project_id": "momentum-32f3e",
+    "storage_bucket": "momentum-32f3e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168552599519:android:94b15c08c130a1001cfe6a",
+        "android_client_info": {
+          "package_name": "com.example.momentum"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "168552599519-6u508c50ub83vj65hafl00d6kq6id4b4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9gQVQqeC7QqH68MoSjcbWmz6zeIlBjTM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "168552599519-6u508c50ub83vj65hafl00d6kq6id4b4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "168552599519-28ocdhsfriop2p1ofuf8id73hunpiup6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.momentum"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168552599519:android:be9f72fe4f43d02e1cfe6a",
+        "android_client_info": {
+          "package_name": "com.momentum"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "168552599519-3ln7sf9ms9qisthsuae6npvrcn3fj4os.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.momentum",
+            "certificate_hash": "56316c4f20d5a7367b78504888a3bb1fc57262b0"
+          }
+        },
+        {
+          "client_id": "168552599519-6u508c50ub83vj65hafl00d6kq6id4b4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9gQVQqeC7QqH68MoSjcbWmz6zeIlBjTM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "168552599519-6u508c50ub83vj65hafl00d6kq6id4b4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "168552599519-28ocdhsfriop2p1ofuf8id73hunpiup6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.momentum"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
