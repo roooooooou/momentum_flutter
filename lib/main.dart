@@ -9,12 +9,13 @@ import 'providers/events_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'services/notification_service.dart';
+import 'navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService.instance.initialize();
-  //await AuthService.instance.signInSilently();
+  await AuthService.instance.signInSilently();
 
   runApp(const ProcrastinationControlApp());
 }
@@ -27,10 +28,13 @@ class ProcrastinationControlApp extends StatefulWidget {
 }
 
 class _ProcrastinationControlAppState extends State<ProcrastinationControlApp> with WidgetsBindingObserver {
+  DateTime? _lastActiveDate;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _lastActiveDate = DateTime.now();
   }
 
   @override
@@ -43,9 +47,35 @@ class _ProcrastinationControlAppState extends State<ProcrastinationControlApp> w
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    // 在App層級記錄lifecycle變化，但具體同步邏輯在HomeScreen中處理
     if (state == AppLifecycleState.resumed) {
-      // 這裡可以添加全局的App resume處理邏輯
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      // 檢查是否跨日了
+      if (_lastActiveDate != null) {
+        final lastDate = DateTime(_lastActiveDate!.year, _lastActiveDate!.month, _lastActiveDate!.day);
+        if (!today.isAtSameMomentAs(lastDate)) {
+          // 跨日了，通知所有相關 provider 刷新
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              final context = NavigationService.navigatorKey.currentContext;
+              if (context != null) {
+                try {
+                  final authService = context.read<AuthService>();
+                  final eventsProvider = context.read<EventsProvider>();
+                  eventsProvider.refreshToday(authService.currentUser);
+                } catch (e) {
+                  // 如果 context 不可用，忽略錯誤
+                }
+              }
+            }
+          });
+        }
+      }
+      
+      _lastActiveDate = now;
+    } else if (state == AppLifecycleState.paused) {
+      _lastActiveDate = DateTime.now();
     }
   }
 
@@ -62,6 +92,7 @@ class _ProcrastinationControlAppState extends State<ProcrastinationControlApp> w
       child: MaterialApp(
         title: 'Procrastination-Calendar',
         theme: AppTheme.light(),
+        navigatorKey: NavigationService.navigatorKey,
         home: const AuthGate(),
       ),
     );

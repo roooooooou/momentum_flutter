@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -5,10 +6,27 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../services/auth_service.dart';
+import '../services/notification_handler.dart';
 
 // 通知偏移時間常數
 const int firstNotifOffsetMin = -10;  // 第一個通知：開始前10分鐘
 const int secondNotifOffsetMin = 5;   // 第二個通知：開始後5分鐘
+
+// ⬇️ iOS terminated 時的 top-level 函式
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse resp) {
+  _handleTap(resp.payload);
+}
+
+// ⬇️ 統一的通知點擊處理函式
+void _handleTap(String? payload) {
+  if (kDebugMode) {
+    print('通知被點擊，payload: $payload');
+  }
+  
+  // 使用 NotificationHandler 處理點擊事件
+  NotificationHandler.instance.handleNotificationTap(payload);
+}
 
 class NotificationService {
   NotificationService._();
@@ -53,8 +71,8 @@ class NotificationService {
 
     await _plugin.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-      onDidReceiveBackgroundNotificationResponse: _onNotificationTapped,
+      onDidReceiveNotificationResponse: (response) => _handleTap(response.payload),
+      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
     
 
@@ -97,12 +115,7 @@ class NotificationService {
     return false;
   }
 
-  /// 處理通知點擊事件
-  static void _onNotificationTapped(NotificationResponse response) {
-    if (kDebugMode) {
-      print('Notification tapped: ${response.payload}');
-    }
-  }
+
 
   /// 測試通知功能 (5秒後發送)
   Future<bool> showTestNotification() async {
@@ -269,11 +282,11 @@ class NotificationService {
       String notificationBody;
       
       if (isSecondNotification) {
-        notificationTitle = '任務提醒';
-        notificationBody = '您的任務「$title」應該已經開始了，請檢查並開始執行！';
+        notificationTitle = '現在開始剛剛好';
+        notificationBody = '您的任務「$title」應該已經開始了，現在開始剛剛好！';
       } else {
-        notificationTitle = '任務提醒';
-        notificationBody = '您的任務「$title」即將開始';
+        notificationTitle = '事件即將開始';
+        notificationBody = '您的任務「$title」即將開始，準備好了嗎？';
       }
 
       // 轉換為時區時間
@@ -286,7 +299,7 @@ class NotificationService {
         scheduledDate,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: payload,
+        payload: payload, // 使用事件ID作為 payload
       );
 
       if (kDebugMode) {

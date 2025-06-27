@@ -7,6 +7,7 @@ import '../models/event_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 /// Light wrapper that adds Google OAuth headers to each request.
 class _GoogleAuthClient extends http.BaseClient {
@@ -21,7 +22,7 @@ class _GoogleAuthClient extends http.BaseClient {
   }
 }
 
-class CalendarService {
+class CalendarService extends ChangeNotifier {
   CalendarService._();
   static final instance = CalendarService._();
 
@@ -32,6 +33,21 @@ class CalendarService {
   // Getters for UI state
   bool get isSyncing => _isSyncing;
   DateTime? get lastSyncAt => _lastSyncAt;
+  
+  void _setSyncingState(bool syncing) {
+    if (_isSyncing != syncing) {
+      _isSyncing = syncing;
+      if (kDebugMode) {
+        print('CalendarService: 同步狀態變更為 $_isSyncing');
+      }
+      notifyListeners();
+    }
+  }
+  
+  /// 重置同步狀態（用於調試）
+  void resetSyncState() {
+    _setSyncingState(false);
+  }
 
   /// Must be called **after** Google Sign-in succeeds.
   Future<void> init(GoogleSignInAccount account) async {
@@ -168,7 +184,13 @@ class CalendarService {
       print('手動觸發完整同步');
     }
     
-    await syncToday(uid);
+    try {
+      await syncToday(uid);
+    } catch (e) {
+      // 確保在錯誤時也重置同步狀態
+      _setSyncingState(false);
+      rethrow;
+    }
   }
 
   /// App Resume 同步
@@ -177,8 +199,17 @@ class CalendarService {
       print('App Resume: 開始同步');
     }
     
-    // 直接使用 syncToday，因為邏輯完全一樣
-    await syncToday(uid);
+    try {
+      // 直接使用 syncToday，因為邏輯完全一樣
+      await syncToday(uid);
+    } catch (e) {
+      // 確保在錯誤時也重置同步狀態
+      _setSyncingState(false);
+      if (kDebugMode) {
+        print('Resume sync 失敗: $e');
+      }
+      // 不重新拋出錯誤，避免影響 UI
+    }
   }
 
   /// Syncs today's events from *primary* calendar into Firestore `/events`.
@@ -189,7 +220,7 @@ class CalendarService {
       print('syncToday: 開始同步，UID: $uid');
     }
     
-    _isSyncing = true;
+    _setSyncingState(true);
     try {
       await _ensureReady();
       final now = DateTime.now();
@@ -321,7 +352,7 @@ class CalendarService {
       }
       rethrow;
     } finally {
-      _isSyncing = false;
+      _setSyncingState(false);
     }
   }
 

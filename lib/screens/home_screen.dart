@@ -11,6 +11,7 @@ import '../screens/sign_in_screen.dart';
 import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../navigation_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -77,6 +78,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       final uid = context.read<AuthService>().currentUser?.uid;
       if (uid != null) {
+        // 強制刷新事件提供者以更新日期範圍（處理跨日情況）
+        context.read<EventsProvider>().refreshToday(context.read<AuthService>().currentUser!);
+        
         // 執行日曆同步
         CalendarService.instance.resumeSync(uid).catchError((e) {
           if (mounted) {
@@ -182,31 +186,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         actions: [
           // 同步狀態指示器
-          if (CalendarService.instance.isSyncing)
-            Padding(
-              padding: EdgeInsets.only(right: size.width * 0.03),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: size.width * 0.04,
-                    height: size.width * 0.04,
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+          ListenableBuilder(
+            listenable: CalendarService.instance,
+            builder: (context, child) {
+              if (!CalendarService.instance.isSyncing) return const SizedBox.shrink();
+              
+              return Padding(
+                padding: EdgeInsets.only(right: size.width * 0.03),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: size.width * 0.04,
+                      height: size.width * 0.04,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                      ),
                     ),
-                  ),
-                  SizedBox(width: size.width * 0.01),
-                  Text(
-                    '同步中...',
-                    style: TextStyle(
-                      fontSize: (12 * responsiveText).clamp(10.0, 14.0),
-                      color: Colors.deepPurple,
+                    SizedBox(width: size.width * 0.01),
+                    Text(
+                      '同步中...',
+                      style: TextStyle(
+                        fontSize: (12 * responsiveText).clamp(10.0, 14.0),
+                        color: Colors.deepPurple,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: SafeArea(
