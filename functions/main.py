@@ -7,6 +7,9 @@ from firebase_admin import initialize_app
 from openai import OpenAI
 import os
 import json
+from datetime import datetime
+import pytz
+import system_prompt
 
 initialize_app()
 #
@@ -18,36 +21,43 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
     try:
         task = req.data["taskTitle"]
         dialogues = req.data["dialogues"]
-        messages = build_prompt(task, dialogues)
+        start_time = req.data["startTime"]
+        current_turn = req.data.get("currentTurn", 0)
 
+        messages = build_prompt(task, dialogues, start_time, current_turn)
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4.1-nano",
             messages=messages,
+            response_format=system_prompt.get_response_schema()
         )
         message = response.choices[0].message.content
-        #answer = json.loads(message)
-        return message
+        answer = json.loads(message)
+        return answer
 
     except Exception as e:
         raise https_fn.HttpsError(code=https_fn.HttpsErrorCode.UNKNOWN,
                                   message="Error",
                                   details=e)
 
-SYSTEM_INSTRUCTION = (
-    "You are **ProactCoach**, an evidence-based procrastination behavior therapy coach. "
-    "Your goals:\n"
-    "1. Quickly identify the user's emotional and cognitive barriers.\n"
-    "2. Apply CBT, implementation intentions, and micro-goal setting.\n"
-    "3. Reply less than 30 words.\n"
-    "4. Finish with one clear, doable step that starts with 'Action: '.\n"
-    "If the user shows distress, validate their feelings before giving advice."
-)
 
-
-def build_prompt(task: str, dialogues: list[dict]) -> list[dict]:
+def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int) -> list[dict]:
     """
     將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
     """
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_INSTRUCTION}, {"role": "system", "content": "Here's users' task: " + task}]
+    # 將任務資訊帶入 SYSTEM_INSTRUCTION 模板
+    # 使用台灣時區
+    taiwan_tz = pytz.timezone('Asia/Taipei')
+    now_taiwan = datetime.now(taiwan_tz).strftime('%Y-%m-%d %H:%M')
+    system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan)
+    
+    # 在system message中加入當前turn資訊
+    if len(dialogues) == 0:
+        # 如果還沒有對話記錄，AI應該主動開始（Turn 0）
+        system_content += f"\n\n🔄 對話狀態：目前為第 0 輪對話，請詢問使用者任務的實際內容和任務執行遇到的阻礙"
+    else:
+        system_content += f"\n\n🔄 對話狀態：目前為第 {current_turn} 輪對話"
+    
+    # 建立訊息陣列：僅保留一個 system role，後續直接接上 dialogues
+    messages: list[dict] = [{"role": "system", "content": system_content}]
     messages.extend(dialogues)
     return messages
