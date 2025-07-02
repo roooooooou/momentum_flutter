@@ -147,7 +147,7 @@ class TaskStartDialog extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChangeNotifierProvider(
-          create: (_) => ChatProvider(taskTitle: event.title),
+          create: (_) => ChatProvider(taskTitle: event.title, startTime: event.startTime),
           child: ChatScreen(taskTitle: event.title),
         ),
       ),

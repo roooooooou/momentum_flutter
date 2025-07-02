@@ -26,7 +26,7 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
 
         messages = build_prompt(task, dialogues, start_time, current_turn)
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",
+            model="gpt-4.1-mini",
             messages=messages,
             response_format=system_prompt.get_response_schema()
         )
@@ -49,13 +49,7 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     taiwan_tz = pytz.timezone('Asia/Taipei')
     now_taiwan = datetime.now(taiwan_tz).strftime('%Y-%m-%d %H:%M')
     system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan)
-    
-    # 在system message中加入當前turn資訊
-    if len(dialogues) == 0:
-        # 如果還沒有對話記錄，AI應該主動開始（Turn 0）
-        system_content += f"\n\n🔄 對話狀態：目前為第 0 輪對話，請詢問使用者任務的實際內容和任務執行遇到的阻礙"
-    else:
-        system_content += f"\n\n🔄 對話狀態：目前為第 {current_turn} 輪對話"
+    system_content += f"\n\n🔄 對話狀態：目前為第 {current_turn} 輪對話"
     
     # 建立訊息陣列：僅保留一個 system role，後續直接接上 dialogues
     messages: list[dict] = [{"role": "system", "content": system_content}]

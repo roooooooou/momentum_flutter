@@ -10,6 +10,7 @@ class ChatMessage {
   final String content;
   final DateTime createdAt;
   final Map<String, dynamic>? extra; // quick‑reply 或 metadata
+  final bool endOfDialogue; // 標記對話是否結束
 
   ChatMessage({
     String? id,
@@ -17,6 +18,7 @@ class ChatMessage {
     required this.content,
     DateTime? createdAt,
     this.extra,
+    this.endOfDialogue = false, // 默認為false
   })  : id = id ?? const Uuid().v4(),
         createdAt = createdAt ?? DateTime.now();
 }

@@ -266,7 +266,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       MaterialPageRoute(
                                         builder: (_) => ChangeNotifierProvider(
                                           create: (_) => ChatProvider(
-                                              taskTitle: list[i].title),
+                                              taskTitle: list[i].title,
+                                              startTime: list[i].startTime),
                                           child: ChatScreen(
                                               taskTitle: list[i].title),
                                         ),
