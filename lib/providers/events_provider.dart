@@ -32,9 +32,9 @@ class EventsProvider extends ChangeNotifier {
         .collection('users')
         .doc(user.uid)
         .collection('events')
-        .where('startTime', isGreaterThanOrEqualTo: startTs)
-        .where('startTime', isLessThan: endTs)
-        .orderBy('startTime')
+        .where('scheduledStartTime', isGreaterThanOrEqualTo: startTs)
+        .where('scheduledStartTime', isLessThan: endTs)
+        .orderBy('scheduledStartTime')
         .snapshots()
         .map((q) => q.docs.map(EventModel.fromDoc).toList());
 

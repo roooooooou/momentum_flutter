@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/task_start_dialog.dart';
 import '../navigation_service.dart';
 import '../models/event_model.dart';
+import '../models/enums.dart';
 import '../services/auth_service.dart';
 
 class NotificationHandler {
@@ -46,6 +47,24 @@ class NotificationHandler {
           print('事件已開始，不顯示彈窗: ${event.title}');
         }
         return;
+      }
+
+      // 🎯 實驗數據收集：記錄通知點擊
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        await ExperimentEventHelper.recordNotificationTap(
+          uid: currentUser.uid,
+          eventId: event.id,
+        );
+
+        // 🎯 實驗數據收集：記錄通知被打開（對所有可能的通知ID）
+        for (final notifId in event.notifIds) {
+          await ExperimentEventHelper.recordNotificationOpened(
+            uid: currentUser.uid,
+            eventId: event.id,
+            notifId: notifId,
+          );
+        }
       }
 
       // 顯示任務開始彈窗

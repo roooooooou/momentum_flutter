@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/calendar_service.dart';
 import '../providers/events_provider.dart';
 import '../models/event_model.dart';
+import '../models/enums.dart';
 import '../widgets/event_card.dart';
 import '../screens/chat_screen.dart';
 import '../screens/sign_in_screen.dart';
@@ -108,16 +109,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           .collection('events');
       
       final snap = await col
-          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('startTime', isLessThan: Timestamp.fromDate(end))
-          .orderBy('startTime')
+          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
+          .orderBy('scheduledStartTime')
           .get();
       
       final events = snap.docs.map(EventModel.fromDoc).toList();
       
       // 過濾出未開始的事件
       final futureEvents = events.where((event) => 
-        event.startTime.isAfter(now) && !event.isDone
+        event.scheduledStartTime.isAfter(now) && !event.isDone
       ).toList();
       
       // 執行通知排程檢查
@@ -260,14 +261,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             itemBuilder: (_, i) => EventCard(
                                 event: list[i],
                                 onAction: (a) => _handleAction(list[i], a),
-                                onOpenChat: () {
+                                onOpenChat: () async {
                                   if (mounted) {
+                                    // 🎯 實驗數據收集：記錄聊天按鈕點擊
+                                    final uid = context.read<AuthService>().currentUser?.uid;
+                                    if (uid != null) {
+                                      final chatId = ExperimentEventHelper.generateChatId(list[i].id, DateTime.now());
+                                      
+                                      await ExperimentEventHelper.recordChatTrigger(
+                                        uid: uid,
+                                        eventId: list[i].id,
+                                        chatId: chatId,
+                                      );
+                                    }
+                                    
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => ChangeNotifierProvider(
                                           create: (_) => ChatProvider(
                                               taskTitle: list[i].title,
-                                              startTime: list[i].startTime),
+                                              startTime: list[i].scheduledStartTime),
                                           child: ChatScreen(
                                               taskTitle: list[i].title),
                                         ),
@@ -366,9 +379,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           .collection('events');
                                       
                                       final snap = await col
-                                          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-                                          .where('startTime', isLessThan: Timestamp.fromDate(end))
-                                          .orderBy('startTime')
+                                          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+                                          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
+                                          .orderBy('scheduledStartTime')
                                           .get();
                                       
                                       final events = snap.docs.map(EventModel.fromDoc).toList();

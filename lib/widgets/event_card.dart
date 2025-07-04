@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
+import '../models/enums.dart';
 
 enum TaskAction { start, stop, complete }
 
@@ -89,10 +90,10 @@ class EventCard extends StatelessWidget {
           child: Row(
             children: [
               _StatusIcon(
-                status: event.status,
+                status: event.computedStatus,
                 color: circleColor,
                 size: iconSize,
-                onComplete: event.status == TaskStatus.inProgress
+                onComplete: event.computedStatus == TaskStatus.inProgress
                     ? () => onAction(TaskAction.complete)
                     : null,
               ),
@@ -121,7 +122,7 @@ class EventCard extends StatelessWidget {
                 ),
               ),
               _ActionButton(
-                status: event.status,
+                status: event.computedStatus,
                 onStart: () => onAction(TaskAction.start),
                 onStop: () => onAction(TaskAction.stop),
                 onChat: () => onOpenChat(),
@@ -139,7 +140,7 @@ class EventCard extends StatelessWidget {
   }
 
   static String _subtitleText(EventModel e) {
-    return switch (e.status) {
+    return switch (e.computedStatus) {
       TaskStatus.inProgress => 'In Progress',
       TaskStatus.overdue => 'Overdue',
       TaskStatus.notStarted => e.timeRange,
