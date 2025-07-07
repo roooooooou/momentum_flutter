@@ -12,9 +12,24 @@ class ChatCompletionResult {
   });
 }
 
+/// 聊天总结结果，包含总结内容、拖延原因和教练方法
+class ChatSummaryResult {
+  final String summary;
+  final List<String> snoozeReasons;
+  final List<String> coachMethods;
+  
+  ChatSummaryResult({
+    required this.summary,
+    required this.snoozeReasons,
+    required this.coachMethods,
+  });
+}
+
 class ProactCoachService {
   final _fn = FirebaseFunctions.instance
       .httpsCallable('procrastination_coach_completion');
+  final _summarizeFn = FirebaseFunctions.instance
+      .httpsCallable('summarize_chat');
 
   Future<ChatCompletionResult> getCompletion(
       List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn) async {
@@ -83,4 +98,23 @@ class ProactCoachService {
       : r == ChatRole.assistant
           ? 'assistant'
           : 'system';
+
+  /// 调用 summarize_chat 云函数获取对话总结
+  Future<ChatSummaryResult> summarizeChat(List<ChatMessage> messages) async {
+    // 将 ChatMessage 转换为云函数需要的格式
+    final mapped = messages
+        .map((m) => {'role': _roleToString(m.role), 'content': m.content})
+        .toList();
+    
+    print('Summarizing chat with ${mapped} messages');
+    
+    final res = await _summarizeFn.call({'messages': mapped});
+    print('Summary response: ${res.data}');
+    
+    return ChatSummaryResult(
+      summary: res.data['summary'] ?? '',
+      snoozeReasons: List<String>.from(res.data['snooze_reasons'] ?? []),
+      coachMethods: List<String>.from(res.data['coach_methods'] ?? []),
+    );
+  }
 }

@@ -96,10 +96,9 @@ def summarize_chat(req: https_fn.CallableRequest) -> any:
             """
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4.1-mini",
             messages=[
-                {"role": "system", "content": "你是一個會話摘要助理，請根據指示回傳 JSON 結果。"},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": prompt}
             ],
             response_format = system_prompt.get_summarize_schema()
         )

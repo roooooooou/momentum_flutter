@@ -93,7 +93,7 @@ def get_response_schema() -> dict:
     return responseFormat
 
 def get_summarize_schema() -> dict:
-    {
+    summarizeFormat = {
         'type': 'json_schema',
         'json_schema': {
             "name": "summarize",
@@ -102,18 +102,24 @@ def get_summarize_schema() -> dict:
                 "type": "object",
                 "properties": {
                     "snooze_reasons": {
-                        "type":"string",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     },
                     "summary": {
                         "type": "string",
                     },
                     "coach_methods": {
-                        "type":"string",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
-                "required": ["snooze_reasons", "summary", "coach_method"],
+                "required": ["snooze_reasons", "summary", "coach_methods"],
                 "additionalProperties": False
             }
         }
     }
-    return responseFormat
+    return summarizeFormat

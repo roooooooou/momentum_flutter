@@ -127,6 +127,9 @@ class ChatProvider extends ChangeNotifier {
       
       // 更新統計數據
       await _updateChatStatistics();
+      
+      // 🎯 新增：生成并存储聊天总结
+      await _generateAndSaveSummary();
     } catch (e) {
       // 實驗數據收集失敗不影響用戶體驗
       debugPrint('記錄聊天結束失敗: $e');
@@ -158,6 +161,37 @@ class ChatProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('更新聊天統計失敗: $e');
       // 不要重新拋出錯誤，避免影響用戶體驗
+    }
+  }
+
+  /// 生成并存储聊天总结
+  Future<void> _generateAndSaveSummary() async {
+    // 只有在有对话消息时才生成总结
+    if (_messages.isEmpty || _messages.length < 2) {
+      debugPrint('聊天消息太少，跳过总结生成');
+      return;
+    }
+
+    try {
+      debugPrint('開始生成聊天總結...');
+      
+      // 调用云函数获取总结
+      final summaryResult = await _coach.summarizeChat(_messages);
+      
+      // 存储总结到 Firebase
+      await ExperimentEventHelper.saveChatSummary(
+        uid: uid,
+        eventId: eventId,
+        chatId: chatId,
+        summary: summaryResult.summary,
+        snoozeReasons: summaryResult.snoozeReasons,
+        coachMethods: summaryResult.coachMethods,
+      );
+      
+      debugPrint('聊天總結生成並存儲成功');
+    } catch (e) {
+      debugPrint('生成聊天總結失敗: $e');
+      // 总结失败不影响用户体验，只记录错误
     }
   }
   

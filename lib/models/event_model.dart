@@ -560,6 +560,45 @@ class ExperimentEventHelper {
       'latencies': FieldValue.arrayUnion([latencyMs]),
     });
   }
+
+  /// 存储聊天总结数据（实验数据收集）
+  static Future<void> saveChatSummary({
+    required String uid,
+    required String eventId,
+    required String chatId,
+    required String summary,
+    required List<String> snoozeReasons,
+    required List<String> coachMethods,
+  }) async {
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId)
+        .collection('chats')
+        .doc(chatId);
+
+    // 🎯 调试：输出即将存储的总结数据
+    debugPrint('saveChatSummary - uid: $uid, eventId: $eventId, chatId: $chatId');
+    debugPrint('saveChatSummary - summary: $summary');
+    debugPrint('saveChatSummary - snoozeReasons: $snoozeReasons');
+    debugPrint('saveChatSummary - coachMethods: $coachMethods');
+
+    try {
+      // 使用 set 而不是 update，确保即使文档不存在也能写入
+      await ref.set({
+        'summary': summary,
+        'snooze_reasons': snoozeReasons,
+        'coach_methods': coachMethods,
+        'summary_created_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      debugPrint('saveChatSummary - 总结数据保存成功');
+    } catch (e) {
+      debugPrint('saveChatSummary - 保存失败: $e');
+      rethrow;
+    }
+  }
 }
 
 /// 通知實驗數據模型
