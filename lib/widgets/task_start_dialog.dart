@@ -115,6 +115,7 @@ class TaskStartDialog extends StatelessWidget {
                                 uid: uid,
                                 eventId: event.id,
                                 chatId: chatId,
+                                entryMethod: ChatEntryMethod.notification, // 🎯 新增：通知進入
                               ),
                               child: ChatScreen(taskTitle: event.title),
                             ),

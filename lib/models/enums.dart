@@ -53,4 +53,17 @@ enum ChatResult {
   static ChatResult fromValue(int value) {
     return ChatResult.values.firstWhere((e) => e.value == value);
   }
+}
+
+/// 聊天進入方式
+enum ChatEntryMethod {
+  notification(0),  // 通過通知進入
+  eventCard(1);     // 通過事件卡片進入
+
+  const ChatEntryMethod(this.value);
+  final int value;
+
+  static ChatEntryMethod fromValue(int value) {
+    return ChatEntryMethod.values.firstWhere((e) => e.value == value);
+  }
 } 

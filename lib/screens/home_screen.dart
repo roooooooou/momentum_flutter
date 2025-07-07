@@ -283,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                               uid: uid,
                                               eventId: list[i].id,
                                               chatId: chatId,
+                                              entryMethod: ChatEntryMethod.eventCard, // 🎯 新增：事件卡片進入
                                             ),
                                             child: ChatScreen(
                                                 taskTitle: list[i].title),

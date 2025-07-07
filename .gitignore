@@ -43,3 +43,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Python virtual environments
+functions/venv/
+**/venv/
+**/.venv/
+**/env/
+**/.env/
+
+# Python cache files
+functions/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Firebase debug logs
+functions/firebase-debug.log
+functions/pglite-debug.log

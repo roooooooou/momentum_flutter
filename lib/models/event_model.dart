@@ -428,12 +428,13 @@ class ExperimentEventHelper {
     }
   }
 
-  /// 記錄聊天會話開始（實驗數據收集）
+    /// 記錄聊天會話開始（實驗數據收集）
   static Future<void> recordChatStart({
     required String uid,
     required String eventId,
     required String chatId,
-  }) async {
+    required ChatEntryMethod entryMethod, // 🎯 新增：聊天進入方式
+}) async {
     final now = DateTime.now();
     final ref = _firestore
         .collection('users')
@@ -445,11 +446,12 @@ class ExperimentEventHelper {
 
     // 🎯 調試：輸出即將創建的聊天會話數據
     debugPrint('recordChatStart - uid: $uid, eventId: $eventId, chatId: $chatId');
-    debugPrint('recordChatStart - start_time: $now');
+    debugPrint('recordChatStart - entryMethod: ${entryMethod.value}, start_time: $now');
 
     try {
       await ref.set({
         'start_time': Timestamp.fromDate(now),
+        'entry_method': entryMethod.value, // 🎯 新增：記錄進入方式
         'end_time': null,
         'result': null,
         'commit_plan': false,

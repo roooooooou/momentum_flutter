@@ -18,6 +18,7 @@ class ChatProvider extends ChangeNotifier {
   final String uid;
   final String eventId;
   final String chatId;
+  final ChatEntryMethod entryMethod; // 🎯 新增：聊天進入方式
   final List<int> _latencies = []; // 記錄每次API調用的延遲
   bool _hasRecordedChatStart = false; // 避免重複記錄聊天開始
   int _totalTokens = 0; // 累積的token使用量
@@ -28,6 +29,7 @@ class ChatProvider extends ChangeNotifier {
     required this.uid,
     required this.eventId,
     required this.chatId,
+    required this.entryMethod, // 🎯 新增：必須參數
   });
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -110,6 +112,7 @@ class ChatProvider extends ChangeNotifier {
           uid: uid,
           eventId: eventId,
           chatId: chatId,
+          entryMethod: entryMethod, // 🎯 新增：傳遞進入方式
         );
         _hasRecordedChatStart = true;
       } catch (e) {
