@@ -55,6 +55,9 @@ class ProactCoachService {
     // 從響應中提取end_of_dialogue字段
     final endOfDialogue = res.data['end_of_dialogue'] ?? false;
     
+    // 🎯 新增：提取suggested_action字段
+    final suggestedAction = res.data['suggested_action'] ?? 'pending';
+    
     // 安全地提取token使用量信息
     final tokenUsageRaw = res.data['token_usage'];
     int totalTokens = 0;
@@ -75,17 +78,22 @@ class ProactCoachService {
     print('Raw answer content: "$answerContent"');
     print('Answer content type: ${answerContent.runtimeType}');
     print('Answer content length: ${answerContent?.toString().length ?? 0}');
+    print('Suggested action: $suggestedAction');
     print('Final total tokens: $totalTokens');
     
     final message = ChatMessage(
       role: ChatRole.assistant,
       content: answerContent?.toString() ?? '⚠️ 無法獲取回應內容',
       endOfDialogue: endOfDialogue,
+      extra: {
+        'suggested_action': suggestedAction,
+      },
     );
     
     // 🎯 調試：檢查創建的message
     print('Created message content: "${message.content}"');
     print('Created message endOfDialogue: ${message.endOfDialogue}');
+    print('Created message suggested_action: ${message.extra?['suggested_action']}');
     
     return ChatCompletionResult(
       message: message,

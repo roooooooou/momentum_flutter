@@ -45,6 +45,17 @@ class ChatProvider extends ChangeNotifier {
     return lastAssistantMessage.endOfDialogue;
   }
 
+  /// 🎯 新增：獲取AI建議的行動
+  String? get suggestedAction {
+    if (_messages.isEmpty) return null;
+    // 檢查最後一條助手消息的建議行動
+    final lastAssistantMessage = _messages.lastWhere(
+      (msg) => msg.role == ChatRole.assistant,
+      orElse: () => ChatMessage(role: ChatRole.assistant, content: ''),
+    );
+    return lastAssistantMessage.extra?['suggested_action'];
+  }
+
   /// 使用者送出文字
   Future<void> sendUserMessage(String text) async {
     if (text.trim().isEmpty || isDialogueEnded) return; // 對話結束時不允許發送消息

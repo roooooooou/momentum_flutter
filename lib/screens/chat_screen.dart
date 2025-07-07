@@ -7,6 +7,8 @@ import '../widgets/loading_indicator.dart';
 import '../models/enums.dart';
 import '../models/event_model.dart';
 import '../services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/calendar_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.taskTitle});
@@ -86,54 +88,25 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildInputArea(ChatProvider chat) {
-    // 如果對話已結束，顯示行動選擇按鈕
+    // 如果對話已結束，根據AI建議自動執行操作，只顯示關閉按鈕
     if (chat.isDialogueEnded) {
+      // 🎯 自動根據AI建議執行操作
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_hasExplicitAction) {
+          _autoExecuteSuggestedAction(chat);
+        }
+      });
+
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 開始任務按鈕
+            // 只顯示關閉按鈕
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => _handleActionChoice(ChatResult.start, chat),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('開始任務'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[100],
-                  foregroundColor: Colors.green[800],
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // 延後處理按鈕
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _handleActionChoice(ChatResult.snooze, chat),
-                icon: const Icon(Icons.schedule),
-                label: const Text('等等再說'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[100],
-                  foregroundColor: Colors.orange[800],
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // 直接離開按鈕
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _handleActionChoice(ChatResult.leave, chat),
+                onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close),
                 label: const Text('關閉'),
                 style: ElevatedButton.styleFrom(
@@ -187,7 +160,67 @@ class _ChatScreenState extends State<ChatScreen> {
     chat.sendUserMessage(text);
   }
   
-  /// 處理用戶明確的行動選擇
+  /// 🎯 新增：根據AI建議自動執行操作
+  void _autoExecuteSuggestedAction(ChatProvider chat) async {
+    final suggestedAction = chat.suggestedAction;
+    ChatResult result;
+
+    // 根據AI建議映射到對應的ChatResult
+    switch (suggestedAction) {
+      case 'start_now':
+        result = ChatResult.start;
+        break;
+      case 'snooze':
+        result = ChatResult.snooze;
+        break;
+      default:
+        // pending 或其他情況，預設為 snooze
+        result = ChatResult.snooze;
+        break;
+    }
+
+    print('Auto executing suggested action: $suggestedAction -> ${result.name}');
+
+    // 執行對應的操作
+    _hasExplicitAction = true;
+    
+    try {
+      // 🎯 實驗數據收集：記錄聊天結束
+      await chat.endChatSession(
+        result,
+        commitPlan: result == ChatResult.start, // 選擇開始任務表示有commitment
+      );
+      
+      // 如果AI建議開始任務，實際啟動任務
+      if (result == ChatResult.start) {
+        await _startTask(chat);
+        
+        // 顯示成功訊息
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('任務「${chat.taskTitle}」已開始！'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // 顯示錯誤訊息
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('操作失敗：$e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+  
+  /// 處理用戶明確的行動選擇（保留原有方法以備其他地方使用）
   void _handleActionChoice(ChatResult result, ChatProvider chat) async {
     _hasExplicitAction = true;
     
@@ -241,12 +274,23 @@ class _ChatScreenState extends State<ChatScreen> {
       throw Exception('用戶未登入');
     }
     
-    // 記錄任務開始（使用聊天觸發）
-    await ExperimentEventHelper.recordEventStart(
-      uid: uid,
-      eventId: chat.eventId,
-      startTrigger: StartTrigger.chat,
-      chatId: chat.chatId,
-    );
+    // 🎯 從Firestore獲取EventModel實例
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(chat.eventId)
+        .get();
+    
+    if (!doc.exists) {
+      throw Exception('找不到任務事件');
+    }
+    
+    final event = EventModel.fromDoc(doc);
+    
+    // 🎯 調用CalendarService真正啟動任務
+    await CalendarService.instance.startEvent(uid, event);
+    
+    print('Task started successfully: ${event.title}');
   }
 }
