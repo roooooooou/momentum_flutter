@@ -102,14 +102,25 @@ class TaskStartDialog extends StatelessWidget {
                       navigator.pop();
                       
                       // 導航到聊天頁面
-                      navigator.push(
-                        MaterialPageRoute(
-                          builder: (_) => ChangeNotifierProvider(
-                            create: (_) => ChatProvider(taskTitle: event.title, startTime: event.scheduledStartTime),
-                            child: ChatScreen(taskTitle: event.title),
+                      final uid = parentContext.read<AuthService>().currentUser?.uid;
+                      if (uid != null) {
+                        final chatId = ExperimentEventHelper.generateChatId(event.id, DateTime.now());
+                        
+                        navigator.push(
+                          MaterialPageRoute(
+                            builder: (_) => ChangeNotifierProvider(
+                              create: (_) => ChatProvider(
+                                taskTitle: event.title, 
+                                startTime: event.scheduledStartTime,
+                                uid: uid,
+                                eventId: event.id,
+                                chatId: chatId,
+                              ),
+                              child: ChatScreen(taskTitle: event.title),
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFB8E6B8), // 綠色

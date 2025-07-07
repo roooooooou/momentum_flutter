@@ -32,6 +32,15 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
         )
         message = response.choices[0].message.content
         answer = json.loads(message)
+        
+        # 🎯 實驗數據收集：添加token使用量信息
+        if hasattr(response, 'usage') and response.usage:
+            answer['token_usage'] = {
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
+        
         return answer
 
     except Exception as e:
@@ -55,3 +64,53 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     messages: list[dict] = [{"role": "system", "content": system_content}]
     messages.extend(dialogues)
     return messages
+
+@https_fn.on_call(secrets=["OPENAI_APIKEY"])
+def summarize_chat(req: https_fn.CallableRequest) -> any:
+    client = OpenAI(api_key=os.environ.get("OPENAI_APIKEY"))
+
+    try:
+        messages = req.data["messages"]  # list of dict: {role, content}
+        # 將對話格式化成文字
+        dialogue_text = ""
+        for m in messages:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            dialogue_text += f"{role}: {content}\n"
+
+        prompt = f"""
+            請幫我從以下對話中：
+            1. 萃取所有使用者提到的「延後/拖延」原因（以 array 回傳，若無請回傳空陣列）
+            2. 萃取AI教練提出的具體建議或方法（以 array 回傳，若無請回傳空陣列）
+            3. 用一段話摘要這次對話的重點
+
+            請用以下 JSON 格式回傳：
+            {{
+            "snooze_reasons": [ ... ],
+            "coach_methods": [ ... ],
+            "summary": "..."
+            }}
+
+            對話內容如下：
+            {dialogue_text}
+            """
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "你是一個會話摘要助理，請根據指示回傳 JSON 結果。"},
+                {"role": "user", "content": prompt}
+            ],
+            response_format = system_prompt.get_summarize_schema()
+        )
+        # 解析回傳
+        message = response.choices[0].message.content
+        result = json.loads(message)
+        return result
+
+    except Exception as e:
+        raise https_fn.HttpsError(
+            code=https_fn.HttpsErrorCode.UNKNOWN,
+            message="summarize_chat error",
+            details=str(e)
+        )

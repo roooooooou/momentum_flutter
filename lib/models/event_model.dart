@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'enums.dart';
 
@@ -305,23 +306,32 @@ class ExperimentEventHelper {
     required String eventId,
     required String notifId,
   }) async {
-    final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('notifications')
-        .doc(notifId);
+    try {
+      final now = DateTime.now();
+      final ref = _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('events')
+          .doc(eventId)
+          .collection('notifications')
+          .doc(notifId);
 
-    await ref.set({
-      'delivered_time': Timestamp.fromDate(now),
-      'opened_time': null,
-      'result': NotificationResult.dismiss.value,
-      'snooze_minutes': null,
-      'latency_sec': null,
-      'created_at': FieldValue.serverTimestamp(),
-    });
+      await ref.set({
+        'delivered_time': Timestamp.fromDate(now),
+        'opened_time': null,
+        'result': NotificationResult.dismiss.value,
+        'snooze_minutes': null,
+        'latency_sec': null,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+      
+      // 🎯 調試：確認記錄成功
+      debugPrint('通知發送記錄創建成功: notifId=$notifId');
+    } catch (e) {
+      // 🎯 調試：輸出錯誤信息
+      debugPrint('記錄通知發送失敗: notifId=$notifId, error=$e');
+      rethrow;
+    }
   }
 
   /// 記錄通知被點擊打開（實驗數據收集）
@@ -339,19 +349,35 @@ class ExperimentEventHelper {
         .collection('notifications')
         .doc(notifId);
 
-    // 獲取已存在的數據來計算延遲
-    final snap = await ref.get();
-    if (snap.exists) {
-      final data = snap.data()!;
-      final deliveredTime = (data['delivered_time'] as Timestamp?)?.toDate();
-      final latencySec = deliveredTime != null 
-          ? now.difference(deliveredTime).inSeconds 
-          : null;
+    try {
+      // 獲取已存在的數據來計算延遲
+      final snap = await ref.get();
+      if (snap.exists) {
+        final data = snap.data()!;
+        final deliveredTime = (data['delivered_time'] as Timestamp?)?.toDate();
+        final latencySec = deliveredTime != null 
+            ? now.difference(deliveredTime).inSeconds 
+            : null;
 
-      await ref.update({
-        'opened_time': Timestamp.fromDate(now),
-        'latency_sec': latencySec,
-      });
+        await ref.update({
+          'opened_time': Timestamp.fromDate(now),
+          'latency_sec': latencySec,
+        });
+      } else {
+        // 🎯 修復：如果文档不存在，创建一个新文档
+        await ref.set({
+          'delivered_time': null, // 没有发送记录
+          'opened_time': Timestamp.fromDate(now),
+          'result': NotificationResult.dismiss.value,
+          'snooze_minutes': null,
+          'latency_sec': null, // 无法计算延迟
+          'created_at': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      // 🎯 調試：輸出錯誤信息
+      debugPrint('記錄通知打開失敗: notifId=$notifId, error=$e');
+      rethrow;
     }
   }
 
@@ -371,15 +397,168 @@ class ExperimentEventHelper {
         .collection('notifications')
         .doc(notifId);
 
-    final updateData = <String, dynamic>{
-      'result': result.value,
-    };
+    try {
+      final updateData = <String, dynamic>{
+        'result': result.value,
+      };
 
-    if (result == NotificationResult.snooze && snoozeMinutes != null) {
-      updateData['snooze_minutes'] = snoozeMinutes;
+      if (result == NotificationResult.snooze && snoozeMinutes != null) {
+        updateData['snooze_minutes'] = snoozeMinutes;
+      }
+
+      // 檢查文档是否存在
+      final snap = await ref.get();
+      if (snap.exists) {
+        await ref.update(updateData);
+      } else {
+        // 🎯 修復：如果文档不存在，创建一个新文档
+        await ref.set({
+          'delivered_time': null,
+          'opened_time': null,
+          'result': result.value,
+          'snooze_minutes': snoozeMinutes,
+          'latency_sec': null,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      // 🎯 調試：輸出錯誤信息
+      debugPrint('記錄通知結果失敗: notifId=$notifId, result=${result.value}, error=$e');
+      rethrow;
     }
+  }
 
-    await ref.update(updateData);
+  /// 記錄聊天會話開始（實驗數據收集）
+  static Future<void> recordChatStart({
+    required String uid,
+    required String eventId,
+    required String chatId,
+  }) async {
+    final now = DateTime.now();
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId)
+        .collection('chats')
+        .doc(chatId);
+
+    // 🎯 調試：輸出即將創建的聊天會話數據
+    debugPrint('recordChatStart - uid: $uid, eventId: $eventId, chatId: $chatId');
+    debugPrint('recordChatStart - start_time: $now');
+
+    try {
+      await ref.set({
+        'start_time': Timestamp.fromDate(now),
+        'end_time': null,
+        'result': null,
+        'commit_plan': false,
+        'total_turns': 0,
+        'total_tokens': 0,
+        'avg_latency_ms': 0,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+      
+      debugPrint('recordChatStart - 聊天會話創建成功');
+    } catch (e) {
+      debugPrint('recordChatStart - 創建失敗: $e');
+      rethrow;
+    }
+  }
+
+  /// 記錄聊天會話結束（實驗數據收集）
+  static Future<void> recordChatEnd({
+    required String uid,
+    required String eventId,
+    required String chatId,
+    required int result, // 0-start, 1-snooze, 2-leave
+    required bool commitPlan,
+  }) async {
+    final now = DateTime.now();
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId)
+        .collection('chats')
+        .doc(chatId);
+
+    // 🎯 調試：輸出即將更新的聊天結束數據
+    debugPrint('recordChatEnd - uid: $uid, eventId: $eventId, chatId: $chatId');
+    debugPrint('recordChatEnd - result: $result, commitPlan: $commitPlan, end_time: $now');
+
+    try {
+      // 使用 set 而不是 update，確保即使文檔不存在也能寫入
+      await ref.set({
+        'end_time': Timestamp.fromDate(now),
+        'result': result,
+        'commit_plan': commitPlan,
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      debugPrint('recordChatEnd - 聊天結束記錄成功');
+    } catch (e) {
+      debugPrint('recordChatEnd - 記錄失敗: $e');
+      rethrow;
+    }
+  }
+
+  /// 更新聊天統計數據（實驗數據收集）
+  static Future<void> updateChatStats({
+    required String uid,
+    required String eventId,
+    required String chatId,
+    required int totalTurns,
+    required int totalTokens,
+    required int avgLatencyMs,
+  }) async {
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId)
+        .collection('chats')
+        .doc(chatId);
+
+    // 🎯 調試：輸出即將更新的數據
+    debugPrint('updateChatStats - uid: $uid, eventId: $eventId, chatId: $chatId');
+    debugPrint('updateChatStats - totalTurns: $totalTurns, totalTokens: $totalTokens, avgLatencyMs: $avgLatencyMs');
+
+    try {
+      // 使用 set 而不是 update，確保即使文檔不存在也能寫入
+      await ref.set({
+        'total_turns': totalTurns,
+        'total_tokens': totalTokens,
+        'avg_latency_ms': avgLatencyMs,
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      debugPrint('updateChatStats - 統計數據更新成功');
+    } catch (e) {
+      debugPrint('updateChatStats - 更新失敗: $e');
+      rethrow;
+    }
+  }
+
+  /// 添加單次對話延遲記錄（用於計算平均延遲）
+  static Future<void> recordChatLatency({
+    required String uid,
+    required String eventId,
+    required String chatId,
+    required int latencyMs,
+  }) async {
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId)
+        .collection('chats')
+        .doc(chatId);
+
+    // 使用 arrayUnion 累積延遲數據，稍後用於計算平均值
+    await ref.update({
+      'latencies': FieldValue.arrayUnion([latencyMs]),
+    });
   }
 }
 

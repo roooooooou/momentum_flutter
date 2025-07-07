@@ -32,7 +32,7 @@ start_now / snooze / pending
 
 # 結束條件
 1. commit_plan 成功 → 提醒使用者完成後回app勾選任務，給予鼓勵並結束  
-2. snooze → 給予鼓勵並結束  
+2. snooze → 使用者仍不願意開始，給予鼓勵並結束  
 3. 超過 4 輪後仍 pending → 給予鼓勵並結束
 
 # 注意
@@ -86,6 +86,32 @@ def get_response_schema() -> dict:
                     },
                 },
                 "required": ["suggested_action", "answer", "end_of_dialogue", "commit_plan"],
+                "additionalProperties": False
+            }
+        }
+    }
+    return responseFormat
+
+def get_summarize_schema() -> dict:
+    {
+        'type': 'json_schema',
+        'json_schema': {
+            "name": "summarize",
+            'strict': True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "snooze_reasons": {
+                        "type":"string",
+                    },
+                    "summary": {
+                        "type": "string",
+                    },
+                    "coach_methods": {
+                        "type":"string",
+                    }
+                },
+                "required": ["snooze_reasons", "summary", "coach_method"],
                 "additionalProperties": False
             }
         }

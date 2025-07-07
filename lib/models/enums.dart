@@ -39,4 +39,18 @@ enum NotificationResult {
   static NotificationResult fromValue(int value) {
     return NotificationResult.values.firstWhere((e) => e.value == value);
   }
+}
+
+/// 聊天結果
+enum ChatResult {
+  start(0),    // 開始任務
+  snooze(1),   // 延後
+  leave(2);    // 直接離開
+
+  const ChatResult(this.value);
+  final int value;
+
+  static ChatResult fromValue(int value) {
+    return ChatResult.values.firstWhere((e) => e.value == value);
+  }
 } 

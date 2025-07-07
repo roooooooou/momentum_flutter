@@ -52,6 +52,10 @@ class NotificationHandler {
       // 🎯 實驗數據收集：記錄通知點擊
       final currentUser = AuthService.instance.currentUser;
       if (currentUser != null) {
+        if (kDebugMode) {
+          print('🎯 記錄通知點擊: eventId=${event.id}, notifIds=${event.notifIds}');
+        }
+        
         await ExperimentEventHelper.recordNotificationTap(
           uid: currentUser.uid,
           eventId: event.id,
@@ -59,6 +63,9 @@ class NotificationHandler {
 
         // 🎯 實驗數據收集：記錄通知被打開（對所有可能的通知ID）
         for (final notifId in event.notifIds) {
+          if (kDebugMode) {
+            print('🎯 記錄通知被打開: notifId=$notifId');
+          }
           await ExperimentEventHelper.recordNotificationOpened(
             uid: currentUser.uid,
             eventId: event.id,

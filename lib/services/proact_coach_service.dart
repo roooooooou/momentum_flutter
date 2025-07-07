@@ -1,11 +1,22 @@
 import '../models/chat_message.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+/// 聊天完成结果，包含消息和token使用量
+class ChatCompletionResult {
+  final ChatMessage message;
+  final int totalTokens;
+  
+  ChatCompletionResult({
+    required this.message,
+    required this.totalTokens,
+  });
+}
+
 class ProactCoachService {
   final _fn = FirebaseFunctions.instance
       .httpsCallable('procrastination_coach_completion');
 
-  Future<ChatMessage> getCompletion(
+  Future<ChatCompletionResult> getCompletion(
       List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn) async {
     // 把 ChatMessage 轉成 Cloud Function 需要的 Map
     final mapped = history
@@ -29,10 +40,41 @@ class ProactCoachService {
     // 從響應中提取end_of_dialogue字段
     final endOfDialogue = res.data['end_of_dialogue'] ?? false;
     
-    return ChatMessage(
+    // 安全地提取token使用量信息
+    final tokenUsageRaw = res.data['token_usage'];
+    int totalTokens = 0;
+    
+    if (tokenUsageRaw != null) {
+      // 🎯 調試：檢查原始token usage數據
+      print('Token usage raw type: ${tokenUsageRaw.runtimeType}');
+      print('Token usage raw content: $tokenUsageRaw');
+      
+      // 安全地轉換並提取total_tokens
+      if (tokenUsageRaw is Map) {
+        totalTokens = (tokenUsageRaw['total_tokens'] as num?)?.toInt() ?? 0;
+      }
+    }
+    
+    // 🎯 調試：檢查answer內容
+    final answerContent = res.data['answer'];
+    print('Raw answer content: "$answerContent"');
+    print('Answer content type: ${answerContent.runtimeType}');
+    print('Answer content length: ${answerContent?.toString().length ?? 0}');
+    print('Final total tokens: $totalTokens');
+    
+    final message = ChatMessage(
       role: ChatRole.assistant,
-      content: res.data['answer'],
+      content: answerContent?.toString() ?? '⚠️ 無法獲取回應內容',
       endOfDialogue: endOfDialogue,
+    );
+    
+    // 🎯 調試：檢查創建的message
+    print('Created message content: "${message.content}"');
+    print('Created message endOfDialogue: ${message.endOfDialogue}');
+    
+    return ChatCompletionResult(
+      message: message,
+      totalTokens: totalTokens,
     );
   }
 

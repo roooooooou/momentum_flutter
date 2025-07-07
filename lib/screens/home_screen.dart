@@ -273,19 +273,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         eventId: list[i].id,
                                         chatId: chatId,
                                       );
-                                    }
-                                    
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ChangeNotifierProvider(
-                                          create: (_) => ChatProvider(
+                                      
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ChangeNotifierProvider(
+                                            create: (_) => ChatProvider(
                                               taskTitle: list[i].title,
-                                              startTime: list[i].scheduledStartTime),
-                                          child: ChatScreen(
-                                              taskTitle: list[i].title),
+                                              startTime: list[i].scheduledStartTime,
+                                              uid: uid,
+                                              eventId: list[i].id,
+                                              chatId: chatId,
+                                            ),
+                                            child: ChatScreen(
+                                                taskTitle: list[i].title),
+                                          ),
                                         ),
-                                      ),
-                                    );
+                                      );
+                                    }
                                   }
                                 }),
                           );
