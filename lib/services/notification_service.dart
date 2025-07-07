@@ -118,25 +118,7 @@ class NotificationService {
 
 
 
-  /// 測試通知功能 (5秒後發送)
-  Future<bool> showTestNotification() async {
-    if (kDebugMode) {
-      print('排程測試通知，將於5秒後發送...');
-    }
-    
-    final success = await showScheduledNotification(
-      title: '測試通知',
-      body: '這是一個測試通知，您的 Local Notification 功能運作正常！',
-      payload: 'test_notification',
-      delaySeconds: 5,
-    );
-    
-    if (kDebugMode) {
-      print('測試通知排程結果: ${success ? "成功，5秒後將顯示" : "失敗"}');
-    }
-    
-    return success;
-  }
+
 
   /// 顯示定時通知
   Future<bool> showScheduledNotification({

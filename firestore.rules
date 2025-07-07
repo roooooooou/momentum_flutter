@@ -2,6 +2,12 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 允許服務端函數讀取用戶列表（用於每日數據聚合）
+    match /users/{userId} {
+      allow read, list: if true; // 服務端函數需要讀取和列出用戶
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
     match /users/{userId}/events/{eventId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
@@ -15,6 +21,30 @@ service cloud.firestore {
         allow read, write: if request.auth != null
                            && request.auth.uid == userId;
       }
+    }
+    
+    // 應用使用會話數據
+    match /users/{userId}/app_sessions/{sessionId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+    
+    // 每日數據聚合結果
+    match /users/{userId}/daily_metrics/{dateId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+    
+    // 允許服務端函數寫入執行日志
+    match /daily_metrics_execution_log/{document} {
+      allow write: if true; // 定時器函數需要寫入執行記錄
+      allow read: if request.auth != null;
+    }
+    
+    // 允許測試定時器寫入記錄
+    match /test_scheduler/{document} {
+      allow write: if true; // 測試定時器需要寫入記錄
+      allow read: if request.auth != null;
     }
   }
 } 

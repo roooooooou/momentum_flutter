@@ -9,6 +9,7 @@ import 'providers/events_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'services/notification_service.dart';
+import 'services/app_usage_service.dart';
 import 'navigation_service.dart';
 
 void main() async {
@@ -51,6 +52,19 @@ class _ProcrastinationControlAppState extends State<ProcrastinationControlApp> w
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       
+      // 🎯 記錄應用打開（只有在用戶已登入時才記錄）
+      final context = NavigationService.navigatorKey.currentContext;
+      if (context != null) {
+        try {
+          final authService = context.read<AuthService>();
+          if (authService.currentUser != null) {
+            AppUsageService.instance.recordAppOpen();
+          }
+        } catch (e) {
+          // 如果 context 不可用，忽略錯誤
+        }
+      }
+      
       // 檢查是否跨日了
       if (_lastActiveDate != null) {
         final lastDate = DateTime(_lastActiveDate!.year, _lastActiveDate!.month, _lastActiveDate!.day);
@@ -76,6 +90,19 @@ class _ProcrastinationControlAppState extends State<ProcrastinationControlApp> w
       _lastActiveDate = now;
     } else if (state == AppLifecycleState.paused) {
       _lastActiveDate = DateTime.now();
+      
+      // 🎯 記錄應用關閉（只有在用戶已登入時才記錄）
+      final context = NavigationService.navigatorKey.currentContext;
+      if (context != null) {
+        try {
+          final authService = context.read<AuthService>();
+          if (authService.currentUser != null) {
+            AppUsageService.instance.recordAppClose();
+          }
+        } catch (e) {
+          // 如果 context 不可用，忽略錯誤
+        }
+      }
     }
   }
 

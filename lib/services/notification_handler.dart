@@ -6,6 +6,7 @@ import '../navigation_service.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
 import '../services/auth_service.dart';
+import '../services/app_usage_service.dart';
 
 class NotificationHandler {
   NotificationHandler._();
@@ -48,6 +49,9 @@ class NotificationHandler {
         }
         return;
       }
+
+      // 🎯 實驗數據收集：記錄通過通知打開應用
+      AppUsageService.instance.recordAppOpen(fromNotification: true);
 
       // 🎯 實驗數據收集：記錄通知點擊
       final currentUser = AuthService.instance.currentUser;
