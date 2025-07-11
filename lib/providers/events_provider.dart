@@ -3,11 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 
+/// 事件提供者：只顯示當天的事件
+/// 注意：雖然CalendarService同步未來一週的事件到Firebase，
+/// 但此Provider只查詢並顯示當天的事件
 class EventsProvider extends ChangeNotifier {
   Stream<List<EventModel>>? _stream;
   Stream<List<EventModel>>? get stream => _stream;
   DateTime? _currentDate;
 
+  /// 設置用戶並建立當天事件的Stream
+  /// 注意：只查詢當天事件，即使Firebase中有未來一週的事件
   void setUser(User? user) {
     if (user == null) return;
     final now = DateTime.now();
@@ -24,7 +29,7 @@ class EventsProvider extends ChangeNotifier {
     
     _currentDate = today;
     final start = today;
-    final end = start.add(const Duration(days: 1));
+    final end = start.add(const Duration(days: 1)); // 只查詢當天，不是一週
     final startTs = Timestamp.fromDate(start.toUtc());
     final endTs = Timestamp.fromDate(end.toUtc());
 

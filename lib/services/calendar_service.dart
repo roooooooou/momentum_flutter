@@ -177,12 +177,13 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// 強制完整同步今日事件（手動觸發）
+  /// 強制完整同步未來一週事件（手動觸發）
+  /// 注意：同步一週事件但UI只顯示當天
   Future<void> forceSyncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步
     
     if (kDebugMode) {
-      print('手動觸發完整同步');
+      print('手動觸發完整同步（未來一週事件）');
     }
     
     try {
@@ -194,14 +195,15 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// App Resume 同步
+  /// App Resume 同步（同步未來一週事件）
+  /// 注意：同步一週事件但UI只顯示當天
   Future<void> resumeSync(String uid) async {
     if (kDebugMode) {
-      print('App Resume: 開始同步');
+      print('App Resume: 開始同步（未來一週事件）');
     }
     
     try {
-      // 直接使用 syncToday，因為邏輯完全一樣
+      // 直接使用 syncToday，現在同步未來一週事件
       await syncToday(uid);
     } catch (e) {
       // 確保在錯誤時也重置同步狀態
@@ -213,12 +215,12 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// Syncs today's events from *primary* calendar into Firestore `/events`.
+  /// Syncs next week's events from *primary* calendar into Firestore `/events`.
   Future<void> syncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步
     
     if (kDebugMode) {
-      print('syncToday: 開始同步，UID: $uid');
+      print('syncToday: 開始同步未來一週事件，UID: $uid');
     }
     
     _setSyncingState(true);
@@ -226,10 +228,10 @@ class CalendarService extends ChangeNotifier {
       await _ensureReady();
       final now = DateTime.now();
       final start = DateTime(now.year, now.month, now.day).toUtc();
-      final end = start.add(const Duration(days: 1));
+      final end = start.add(const Duration(days: 7)); // 改為7天
 
       if (kDebugMode) {
-        print('syncToday: 查詢 Google Calendar 事件，時間範圍: $start 到 $end');
+        print('syncToday: 查詢 Google Calendar 事件，時間範圍: $start 到 $end（未來7天）');
       }
 
       final apiEvents = await _api!.events.list(
@@ -261,6 +263,7 @@ class CalendarService extends ChangeNotifier {
 
         final data = <String, dynamic>{
           'title': e.summary ?? 'No title',
+          if (e.description != null) 'description': e.description, // 添加description字段
           'scheduledStartTime': Timestamp.fromDate(s.toUtc()), // 實驗數據用
           'scheduledEndTime': Timestamp.fromDate(t.toUtc()),
           'googleEventId': e.id,
@@ -324,7 +327,7 @@ class CalendarService extends ChangeNotifier {
         }
       }
       
-      // 3) 重新讀取今日所有事件，用於通知排程
+      // 3) 重新讀取未來一週所有事件，用於通知排程
       final updatedSnap = await col
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
@@ -337,15 +340,15 @@ class CalendarService extends ChangeNotifier {
       if (events.isNotEmpty) {
         await _updateEventStatuses(uid, events, now);
         if (kDebugMode) {
-          print('syncToday: 更新了 ${events.length} 個事件的狀態');
+          print('syncToday: 更新了 ${events.length} 個事件的狀態（未來7天）');
         }
       }
 
-      // 5) 同步通知排程
+      // 5) 同步通知排程（為未來一週的事件安排通知）
       if (events.isNotEmpty) {
         await NotificationScheduler().sync(events);
         if (kDebugMode) {
-          print('syncToday: 同步了 ${events.length} 個事件的通知排程');
+          print('syncToday: 同步了 ${events.length} 個事件的通知排程（未來7天）');
         }
       }
       

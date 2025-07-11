@@ -6,6 +6,7 @@ import 'enums.dart';
 class EventModel {
   final String id;
   final String title;
+  final String? description;  // 存储但不在UI中显示
   final String? googleEventId;
   final String? googleCalendarId;
   
@@ -38,6 +39,7 @@ class EventModel {
     required this.scheduledStartTime,
     required this.scheduledEndTime,
     required this.isDone,
+    this.description,
     this.actualStartTime,
     this.completedTime,
     this.startTrigger,
@@ -57,6 +59,7 @@ class EventModel {
     return EventModel(
       id: doc.id,
       title: d['title'],
+      description: d['description'],
       scheduledEndTime: (d['scheduledEndTime'] as Timestamp).toDate(),
       isDone: d['isDone'] ?? false,
       scheduledStartTime: (d['scheduledStartTime'] as Timestamp).toDate(),
@@ -78,6 +81,7 @@ class EventModel {
   Map<String, dynamic> toFirestore() {
     return {
       'title': title,
+      if (description != null) 'description': description,
       'isDone': isDone,
       'scheduledStartTime': Timestamp.fromDate(scheduledStartTime),
       'scheduledEndTime': Timestamp.fromDate(scheduledEndTime),
@@ -115,6 +119,7 @@ class EventModel {
   EventModel copyWith({
     String? id,
     String? title,
+    String? description,
     bool? isDone,
     DateTime? scheduledStartTime,
     DateTime? scheduledEndTime,
@@ -134,6 +139,7 @@ class EventModel {
     return EventModel(
       id: id ?? this.id,
       title: title ?? this.title,
+      description: description ?? this.description,
       isDone: isDone ?? this.isDone,
       scheduledStartTime: scheduledStartTime ?? this.scheduledStartTime,
       scheduledEndTime: scheduledEndTime ?? this.scheduledEndTime,
