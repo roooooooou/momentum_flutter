@@ -19,7 +19,7 @@ def get_firestore_client():
     return firestore.client()
 
 # 🧪 测试定时器函数（每分钟执行一次）
-@scheduler_fn.on_schedule(schedule="*/5 * * * *", timezone="Asia/Taipei")  # 每5分钟执行一次
+@scheduler_fn.on_schedule(schedule="* 1 * * *", timezone="Asia/Taipei")  # 每5分钟执行一次
 def test_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
     """
     测试定时器函数：每5分钟执行一次，用于验证Cloud Scheduler是否正常工作
@@ -143,7 +143,7 @@ def summarize_chat(req: https_fn.CallableRequest) -> any:
         )
 
 
-@scheduler_fn.on_schedule(schedule="*/5 * * * *", timezone="Asia/Taipei", timeout_sec=540)  # 每天凌晨3:30執行，增加超时时间到9分钟
+@scheduler_fn.on_schedule(schedule="0 1 * * *", timezone="Asia/Taipei", timeout_sec=540)  # 每天凌晨3:30執行，增加超时时间到9分钟
 def daily_metrics_aggregation(event: scheduler_fn.ScheduledEvent) -> None:
     """
     每日數據聚合函數：計算前一天的所有指標並存儲到 daily_metrics collection
