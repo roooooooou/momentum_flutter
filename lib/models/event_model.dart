@@ -311,6 +311,7 @@ class ExperimentEventHelper {
     required String uid,
     required String eventId,
     required String notifId,
+    DateTime? scheduledTime, // 新增：通知排程時間
   }) async {
     try {
       final now = DateTime.now();
@@ -325,6 +326,7 @@ class ExperimentEventHelper {
       await ref.set({
         'delivered_time': Timestamp.fromDate(now),
         'opened_time': null,
+        'notification_scheduled_time': scheduledTime != null ? Timestamp.fromDate(scheduledTime) : null, // 新增字段
         'result': NotificationResult.dismiss.value,
         'snooze_minutes': null,
         'latency_sec': null,
@@ -332,7 +334,7 @@ class ExperimentEventHelper {
       });
       
       // 🎯 調試：確認記錄成功
-      debugPrint('通知發送記錄創建成功: notifId=$notifId');
+      debugPrint('通知發送記錄創建成功: notifId=$notifId, scheduledTime=$scheduledTime');
     } catch (e) {
       // 🎯 調試：輸出錯誤信息
       debugPrint('記錄通知發送失敗: notifId=$notifId, error=$e');
@@ -374,6 +376,7 @@ class ExperimentEventHelper {
         await ref.set({
           'delivered_time': null, // 没有发送记录
           'opened_time': Timestamp.fromDate(now),
+          'notification_scheduled_time': null, // 沒有排程記錄
           'result': NotificationResult.dismiss.value,
           'snooze_minutes': null,
           'latency_sec': null, // 无法计算延迟
@@ -421,6 +424,7 @@ class ExperimentEventHelper {
         await ref.set({
           'delivered_time': null,
           'opened_time': null,
+          'notification_scheduled_time': null, // 沒有排程記錄
           'result': result.value,
           'snooze_minutes': snoozeMinutes,
           'latency_sec': null,
@@ -614,6 +618,7 @@ class NotificationData {
   final String id;                    // 通知ID
   final DateTime? deliveredTime;      // 發送成功時間
   final DateTime? openedTime;         // 用戶點擊時間
+  final DateTime? notificationScheduledTime; // 通知排程時間
   final NotificationResult? result;   // 操作結果
   final int? snoozeMinutes;          // 延後分鐘數
   final int? latencySec;             // 延遲秒數
@@ -623,6 +628,7 @@ class NotificationData {
     required this.id,
     this.deliveredTime,
     this.openedTime,
+    this.notificationScheduledTime,
     this.result,
     this.snoozeMinutes,
     this.latencySec,
@@ -635,6 +641,7 @@ class NotificationData {
       id: doc.id,
       deliveredTime: (data['delivered_time'] as Timestamp?)?.toDate(),
       openedTime: (data['opened_time'] as Timestamp?)?.toDate(),
+      notificationScheduledTime: (data['notification_scheduled_time'] as Timestamp?)?.toDate(),
       result: data['result'] != null 
           ? NotificationResult.fromValue(data['result']) 
           : null,
@@ -648,6 +655,7 @@ class NotificationData {
     return {
       if (deliveredTime != null) 'delivered_time': Timestamp.fromDate(deliveredTime!),
       if (openedTime != null) 'opened_time': Timestamp.fromDate(openedTime!),
+      if (notificationScheduledTime != null) 'notification_scheduled_time': Timestamp.fromDate(notificationScheduledTime!),
       if (result != null) 'result': result!.value,
       if (snoozeMinutes != null) 'snooze_minutes': snoozeMinutes,
       if (latencySec != null) 'latency_sec': latencySec,

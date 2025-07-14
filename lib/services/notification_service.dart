@@ -266,10 +266,10 @@ class NotificationService {
       
       if (isSecondNotification) {
         notificationTitle = '現在開始剛剛好';
-        notificationBody = '您的任務「$title」應該已經開始了，現在開始剛剛好！';
+        notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！需要跟我聊聊嗎？';
       } else {
         notificationTitle = '事件即將開始';
-        notificationBody = '您的任務「$title」即將開始，準備好了嗎？';
+        notificationBody = '任務「$title」即將開始，有開始的動力嗎？需要跟我聊聊嗎？';
       }
 
       // 轉換為時區時間
@@ -290,10 +290,12 @@ class NotificationService {
         final currentUser = AuthService.instance.currentUser;
         if (currentUser != null) {
           final notifId = isSecondNotification ? '$payload-2nd' : '$payload-1st';
+          final scheduleTime = DateTime.now(); // 記錄排程時間
           await ExperimentEventHelper.recordNotificationDelivered(
             uid: currentUser.uid,
             eventId: payload,
             notifId: notifId,
+            scheduledTime: scheduleTime, // 傳遞排程時間
           );
         }
       }

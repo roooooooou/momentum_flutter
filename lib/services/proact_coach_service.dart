@@ -32,7 +32,7 @@ class ProactCoachService {
       .httpsCallable('summarize_chat');
 
   Future<ChatCompletionResult> getCompletion(
-      List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn) async {
+      List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn, {String? taskDescription}) async {
     // 把 ChatMessage 轉成 Cloud Function 需要的 Map
     final mapped = history
         .map((m) => {'role': _roleToString(m.role), 'content': m.content})
@@ -46,6 +46,7 @@ class ProactCoachService {
     print('current turn: ${currentTurn}');
     final res = await _fn.call({
       'taskTitle': taskTitle, 
+      'taskDescription': taskDescription, // 新增描述參數
       'dialogues': mapped,
       'startTime': formattedStartTime,
       'currentTurn': currentTurn

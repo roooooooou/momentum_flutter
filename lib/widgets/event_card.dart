@@ -93,9 +93,7 @@ class EventCard extends StatelessWidget {
                 status: event.computedStatus,
                 color: circleColor,
                 size: iconSize,
-                onComplete: event.computedStatus == TaskStatus.inProgress
-                    ? () => onAction(TaskAction.complete)
-                    : null,
+                // 移除完成功能
               ),
               SizedBox(width: horizontalSpacing),
               Expanded(
@@ -125,6 +123,7 @@ class EventCard extends StatelessWidget {
                 status: event.computedStatus,
                 onStart: () => onAction(TaskAction.start),
                 onStop: () => onAction(TaskAction.stop),
+                onComplete: () => onAction(TaskAction.complete), // 新增完成功能
                 onChat: () => onOpenChat(),
                 // Pass in responsive size parameters
                 buttonHeight: size.height * 0.045,
@@ -157,13 +156,11 @@ class _StatusIcon extends StatelessWidget {
     required this.status,
     required this.color,
     required this.size,
-    this.onComplete,
   });
 
   final TaskStatus status;
   final Color color;
   final double size;
-  final VoidCallback? onComplete;
 
   @override
   Widget build(BuildContext context) {
@@ -179,19 +176,7 @@ class _StatusIcon extends StatelessWidget {
         ? Icons.radio_button_checked_outlined
         : Icons.radio_button_unchecked;
 
-    final iconWidget = Icon(icon, size: size, color: color);
-
-    if (status == TaskStatus.inProgress && onComplete != null) {
-      return InkWell(
-        onTap: onComplete,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.all(2.0),
-          child: iconWidget,
-        ),
-      );
-    }
-    return iconWidget;
+    return Icon(icon, size: size, color: color);
   }
 }
 
@@ -203,6 +188,7 @@ class _ActionButton extends StatelessWidget {
     required this.status,
     required this.onStart,
     required this.onStop,
+    required this.onComplete,
     required this.onChat,
     required this.buttonHeight,
     required this.buttonWidth,
@@ -213,6 +199,7 @@ class _ActionButton extends StatelessWidget {
   final TaskStatus status;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onComplete;
   final VoidCallback onChat;
   final double buttonHeight;
   final double buttonWidth;
@@ -287,19 +274,38 @@ class _ActionButton extends StatelessWidget {
       );
     }
 
-    // Stop button (In Progress)
+    // Stop and Complete buttons (In Progress)
     if (status == TaskStatus.inProgress) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: buttonWidth,
-          maxWidth: buttonWidth * 1.5,
-          minHeight: buttonHeight,
-        ),
-        child: ElevatedButton(
-          onPressed: onStop,
-          style: buttonStyle,
-          child: const Text('Stop'),
-        ),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: buttonWidth,
+              maxWidth: buttonWidth * 1.5,
+              minHeight: buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: onComplete,
+              style: buttonStyle,
+              child: const Text('Done'),
+            ),
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: buttonWidth,
+              maxWidth: buttonWidth * 1.5,
+              minHeight: buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: onStop,
+              style: buttonStyle,
+              child: const Text('Stop'),
+            ),
+          ),
+        ],
       );
     }
 

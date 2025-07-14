@@ -34,9 +34,9 @@ class TaskStartDialog extends StatelessWidget {
             // 標題部分
             Column(
               children: [
-                const Text(
-                  'Start the Task',
-                  style: TextStyle(
+                Text(
+                  '"${event.title}"',
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
@@ -45,7 +45,7 @@ class TaskStartDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '"${event.title}"',
+                  '準備好了嗎？',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w500,
@@ -76,7 +76,7 @@ class TaskStartDialog extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      '現在開始',
+                      '開始任務',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
@@ -111,13 +111,17 @@ class TaskStartDialog extends StatelessWidget {
                             builder: (_) => ChangeNotifierProvider(
                               create: (_) => ChatProvider(
                                 taskTitle: event.title, 
+                                taskDescription: event.description, // 新增描述參數
                                 startTime: event.scheduledStartTime,
                                 uid: uid,
                                 eventId: event.id,
                                 chatId: chatId,
                                 entryMethod: ChatEntryMethod.notification, // 🎯 新增：通知進入
                               ),
-                              child: ChatScreen(taskTitle: event.title),
+                              child: ChatScreen(
+                                taskTitle: event.title,
+                                taskDescription: event.description, // 新增描述參數
+                              ),
                             ),
                           ),
                         );
@@ -133,7 +137,7 @@ class TaskStartDialog extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      '等等再說',
+                      '我需要幫助',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,

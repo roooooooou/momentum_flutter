@@ -15,21 +15,16 @@ import system_prompt
 initialize_app()
 
 def get_firestore_client():
-    """延迟初始化Firestore客户端，避免部署时超时"""
+    """延遲初始化Firestore客户端，避免部署超時"""
     return firestore.client()
 
 # 🧪 测试定时器函数（每分钟执行一次）
 @scheduler_fn.on_schedule(schedule="* 1 * * *", timezone="Asia/Taipei")  # 每5分钟执行一次
 def test_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
-    """
-    测试定时器函数：每5分钟执行一次，用于验证Cloud Scheduler是否正常工作
-    """
     try:
         taiwan_tz = pytz.timezone('Asia/Taipei')
         now = datetime.now(taiwan_tz)
-        
-        print(f"🎯 测试定时器执行成功！时间: {now.strftime('%Y-%m-%d %H:%M:%S')} (台湾时间)")
-        
+                
         # 可选：写入Firestore记录执行历史
         db = get_firestore_client()
         test_ref = db.collection('test_scheduler').document()
@@ -48,11 +43,12 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
 
     try:
         task = req.data["taskTitle"]
+        task_description = req.data.get("taskDescription")  # 新增描述參數
         dialogues = req.data["dialogues"]
         start_time = req.data["startTime"]
         current_turn = req.data.get("currentTurn", 0)
 
-        messages = build_prompt(task, dialogues, start_time, current_turn)
+        messages = build_prompt(task, dialogues, start_time, current_turn, task_description)
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
@@ -77,7 +73,7 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
                                   details=e)
 
 
-def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int) -> list[dict]:
+def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str = None) -> list[dict]:
     """
     將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
     """
@@ -86,6 +82,15 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     taiwan_tz = pytz.timezone('Asia/Taipei')
     now_taiwan = datetime.now(taiwan_tz).strftime('%Y-%m-%d %H:%M')
     system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan)
+    
+    # 如果有描述，在任務標題後添加描述信息
+    if task_description and task_description.strip():
+        # 在"任務："行後添加描述
+        system_content = system_content.replace(
+            f"- 任務：{task}", 
+            f"- 任務：{task}\n- 以下是使用者對於任務的描述或感受：{task_description.strip()}"
+        )
+    
     system_content += f"\n\n🔄 對話狀態：目前為第 {current_turn} 輪對話"
     
     # 建立訊息陣列：僅保留一個 system role，後續直接接上 dialogues
@@ -143,7 +148,7 @@ def summarize_chat(req: https_fn.CallableRequest) -> any:
         )
 
 
-@scheduler_fn.on_schedule(schedule="0 1 * * *", timezone="Asia/Taipei", timeout_sec=540)  # 每天凌晨3:30執行，增加超时时间到9分钟
+@scheduler_fn.on_schedule(schedule="0 1 * * *", timezone="Asia/Taipei", timeout_sec=540) 
 def daily_metrics_aggregation(event: scheduler_fn.ScheduledEvent) -> None:
     """
     每日數據聚合函數：計算前一天的所有指標並存儲到 daily_metrics collection
@@ -189,63 +194,6 @@ def daily_metrics_aggregation(event: scheduler_fn.ScheduledEvent) -> None:
                 print(f"🗂️ 數據庫中的所有collections: {collection_names}")
             except Exception as col_error:
                 print(f"❌ 獲取collections失敗: {col_error}")
-            
-            # 方法4：嘗試使用limit查詢
-            try:
-                limited_query = users_ref.limit(10).get()
-                limited_list = list(limited_query)
-                print(f"📊 方法4 - limit(10) 找到 {len(limited_list)} 個用戶")
-            except Exception as limit_error:
-                print(f"❌ limit查詢失敗: {limit_error}")
-            
-            if len(users_list) == 0:
-                print("⚠️  警告：沒有找到任何用戶")
-                # 記錄詳細信息
-                print(f"🔍 調試信息 - Collection ID: {users_ref.id}")
-                print(f"🔍 調試信息 - DB 實例: {type(db)}")
-                print(f"🔍 調試信息 - DB project: {db.project}")
-                
-                # 嘗試直接檢查是否有已知用戶ID
-                known_uid = "A1HISgLipRW3EpxFpdWjUD6Fko83"  # 從之前的手動測試中看到的
-                try:
-                    test_user_doc = db.collection('users').document(known_uid).get()
-                    print(f"🔍 已知用戶 {known_uid} 存在: {test_user_doc.exists}")
-                    if test_user_doc.exists:
-                        user_data = test_user_doc.to_dict()
-                        print(f"🔍 用戶數據: {user_data}")
-                        print(f"🔍 用戶數據長度: {len(user_data) if user_data else 0}")
-                    else:
-                        print(f"🔍 用戶文檔不存在或為空")
-                        
-                    # 嘗試檢查用戶的子集合
-                    try:
-                        events_ref = db.collection('users').document(known_uid).collection('events')
-                        events_query = events_ref.limit(1).get()
-                        events_list = list(events_query)
-                        print(f"🔍 用戶 {known_uid} 的事件數量: {len(events_list)}")
-                    except Exception as events_error:
-                        print(f"❌ 檢查用戶事件失敗: {events_error}")
-                        
-                except Exception as test_error:
-                    print(f"❌ 檢查已知用戶失敗: {test_error}")
-                    print(f"🔍 錯誤詳情: {type(test_error).__name__}: {test_error}")
-                
-                # 嘗試使用不同的方式初始化 Firestore
-                try:
-                    print("🔄 嘗試重新初始化 Firestore...")
-                    import firebase_admin
-                    from firebase_admin import credentials
-                    
-                    # 檢查當前 app 狀態
-                    try:
-                        current_app = firebase_admin.get_app()
-                        print(f"🔍 當前 Firebase App: {current_app.name}")
-                        print(f"🔍 當前 Project ID: {current_app.project_id}")
-                    except ValueError:
-                        print("❌ 沒有找到活躍的 Firebase App")
-                        
-                except Exception as init_error:
-                    print(f"❌ Firestore 重新初始化失敗: {init_error}")
                 
         except Exception as users_error:
             print(f"❌ 獲取用戶列表時發生錯誤: {users_error}")

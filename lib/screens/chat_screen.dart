@@ -11,8 +11,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/calendar_service.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.taskTitle});
+  const ChatScreen({super.key, required this.taskTitle, this.taskDescription});
   final String taskTitle; // 帶入對應任務名稱
+  final String? taskDescription; // 帶入對應任務描述
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();

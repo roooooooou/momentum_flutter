@@ -2,7 +2,8 @@
 enum StartTrigger {
   tapNotification(0),  // 點擊通知
   tapCard(1),         // 點擊卡片
-  chat(2);          // 自動開始
+  chat(2),            // 聊天開始
+  dailyReport(3);     // 每日報告完成
 
   const StartTrigger(this.value);
   final int value;

@@ -10,6 +10,7 @@ class ChatProvider extends ChangeNotifier {
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
   final String taskTitle;
+  final String? taskDescription; // 新增任務描述
   final DateTime startTime;
   int _currentTurn = 0;
   bool _hasStarted = false; // 標記是否已經開始對話
@@ -25,6 +26,7 @@ class ChatProvider extends ChangeNotifier {
 
   ChatProvider({
     required this.taskTitle, 
+    this.taskDescription, // 新增可選參數
     required this.startTime,
     required this.uid,
     required this.eventId,
@@ -76,7 +78,7 @@ class ChatProvider extends ChangeNotifier {
     final startTime = DateTime.now();
 
     try {
-      final result = await _coach.getCompletion(_messages, taskTitle, this.startTime, _currentTurn);
+      final result = await _coach.getCompletion(_messages, taskTitle, this.startTime, _currentTurn, taskDescription: taskDescription);
       _messages.add(result.message);
       
       
