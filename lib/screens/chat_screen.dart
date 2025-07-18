@@ -9,6 +9,7 @@ import '../models/event_model.dart';
 import '../services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/calendar_service.dart';
+import '../services/analytics_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.taskTitle, this.taskDescription});
@@ -196,6 +197,9 @@ class _ChatScreenState extends State<ChatScreen> {
       if (result == ChatResult.start) {
         await _startTask(chat);
         
+        // 記錄分析事件
+        await AnalyticsService().logTaskStarted('chat');
+
         // 顯示成功訊息
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -236,6 +240,9 @@ class _ChatScreenState extends State<ChatScreen> {
       if (result == ChatResult.start) {
         await _startTask(chat);
         
+        // 記錄分析事件
+        await AnalyticsService().logTaskStarted('chat');
+
         // 顯示成功訊息
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

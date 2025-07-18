@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../models/event_model.dart';
 import '../models/daily_report_model.dart';
 import '../models/enums.dart';
@@ -141,6 +142,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
 
       // 自动完成未勾选为延迟的任务
       await _completeUnselectedTasks(uid);
+
+      // 重新安排明天的每日報告通知
+      try {
+        await NotificationService.instance.scheduleDailyReportNotification();
+      } catch (e) {
+        print('重新安排每日報告通知失敗: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

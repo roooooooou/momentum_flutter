@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/calendar_service.dart';
 import '../screens/chat_screen.dart';
 import '../providers/chat_provider.dart';
+import '../services/analytics_service.dart';
 
 class TaskStartDialog extends StatelessWidget {
   final EventModel event;
@@ -164,6 +165,9 @@ class TaskStartDialog extends StatelessWidget {
       }
 
       await CalendarService.instance.startEvent(uid, event);
+      
+      // 記錄分析事件
+      await AnalyticsService().logTaskStarted('dialog');
       
       // 顯示成功訊息
       if (context.mounted) {

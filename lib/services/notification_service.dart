@@ -312,6 +312,85 @@ class NotificationService {
       return false;
     }
   }
+
+  /// 安排每日报告通知（每天晚上10点）
+  Future<bool> scheduleDailyReportNotification() async {
+    try {
+      if (!_initialized) {
+        await initialize();
+      }
+
+      if (!_initialized) {
+        if (kDebugMode) {
+          print('通知服務初始化失敗');
+        }
+        return false;
+      }
+
+      // 計算今天晚上10點的時間
+      final now = DateTime.now();
+      var today10PM = DateTime(now.year, now.month, now.day, 22, 0); // 晚上10點
+
+      // 如果已經過了今天的10點，則安排明天的10點
+      if (today10PM.isBefore(now)) {
+        today10PM = today10PM.add(const Duration(days: 1));
+      }
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        badgeNumber: 1,
+        categoryIdentifier: 'daily_report_notification',
+        threadIdentifier: 'daily_report_thread',
+        interruptionLevel: InterruptionLevel.active,
+        presentBanner: true,
+        presentList: true,
+      );
+
+      const details = NotificationDetails(
+        iOS: iosDetails,
+      );
+
+      // 轉換為時區時間
+      final scheduledDate = tz.TZDateTime.from(today10PM, tz.local);
+      
+      await _plugin.zonedSchedule(
+        999999, // 使用固定的ID給每日報告通知
+        '📋 今日任務總結',
+        '今天過得如何？來填寫每日報告，記錄今日的任務完成情況吧！',
+        scheduledDate,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'daily_report', // 特殊的payload標識
+      );
+
+      if (kDebugMode) {
+        print('每日報告通知已排程: 觸發時間=$today10PM');
+      }
+      
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('排程每日報告通知時發生錯誤: $e');
+      }
+      return false;
+    }
+  }
+
+  /// 取消每日报告通知
+  Future<void> cancelDailyReportNotification() async {
+    try {
+      await _plugin.cancel(999999);
+      if (kDebugMode) {
+        print('每日報告通知已取消');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('取消每日報告通知時發生錯誤: $e');
+      }
+    }
+  }
 }
 
 /// 通知排程器

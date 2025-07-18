@@ -12,6 +12,7 @@ import '../screens/daily_report_screen.dart';
 import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../services/analytics_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 初始化通知服務
         try {
           await NotificationService.instance.initialize();
+          // 安排每日報告通知
+          await NotificationService.instance.scheduleDailyReportNotification();
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context)
@@ -139,6 +142,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     switch (action) {
       case TaskAction.start:
         await CalendarService.instance.startEvent(uid, e);
+        await AnalyticsService().logTaskStarted('event_card');
         break;
       case TaskAction.stop:
         await CalendarService.instance.stopEvent(uid, e);

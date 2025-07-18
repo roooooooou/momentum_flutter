@@ -7,6 +7,7 @@ import '../models/event_model.dart';
 import '../models/enums.dart';
 import '../services/auth_service.dart';
 import '../services/app_usage_service.dart';
+import '../screens/daily_report_screen.dart';
 
 class NotificationHandler {
   NotificationHandler._();
@@ -23,7 +24,13 @@ class NotificationHandler {
 
     try {
       if (kDebugMode) {
-        print('處理通知點擊，事件ID: $payload');
+        print('處理通知點擊，payload: $payload');
+      }
+
+      // 特殊處理每日報告通知
+      if (payload == 'daily_report') {
+        await _handleDailyReportNotification();
+        return;
       }
 
       // 根據事件ID獲取事件資料
@@ -145,6 +152,43 @@ class NotificationHandler {
 
     if (kDebugMode) {
       print('顯示任務開始彈窗: ${event.title}');
+    }
+  }
+
+  /// 處理每日報告通知點擊
+  Future<void> _handleDailyReportNotification() async {
+    try {
+      // 記錄應用打開事件（由通知觸發）
+      await AppUsageService.instance.recordAppOpen(
+        fromNotification: true,
+      );
+
+      if (kDebugMode) {
+        print('每日報告通知被點擊，準備導航到每日報告頁面');
+      }
+
+      // 導航到每日報告頁面
+      final context = NavigationService.navigatorKey.currentContext;
+      if (context != null && context.mounted) {
+        // 確保在主線程中執行
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const DailyReportScreen(),
+              ),
+            );
+          }
+        });
+      } else {
+        if (kDebugMode) {
+          print('無法獲取有效的 BuildContext 來導航');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('處理每日報告通知時發生錯誤: $e');
+      }
     }
   }
 } 

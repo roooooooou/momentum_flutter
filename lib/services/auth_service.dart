@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/calendar_service.dart';
+import '../services/analytics_service.dart';
 
 /// Wraps FirebaseAuth + Google Sign‑In with Calendar scope.
 class AuthService {
@@ -49,6 +50,9 @@ class AuthService {
     
     // 🎯 確保在 Firestore 中創建用戶文檔
     await _ensureUserDocument(userCredential.user!);
+
+    // Log login event
+    await AnalyticsService().logLogin();
     
     return userCredential;
   }
@@ -80,6 +84,11 @@ class AuthService {
     // 🎯 確保在 Firestore 中創建用戶文檔
     if (_auth.currentUser != null) {
       await _ensureUserDocument(_auth.currentUser!);
+    }
+    
+    // Log login event if user is signed in
+    if (_auth.currentUser != null) {
+      await AnalyticsService().logLogin();
     }
   }
 
