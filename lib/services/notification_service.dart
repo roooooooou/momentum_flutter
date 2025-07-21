@@ -333,6 +333,17 @@ class NotificationService {
         return false;
       }
 
+      // 檢查今日是否有任務安排
+      final hasTasksToday = await _checkIfHasTasksToday();
+      if (!hasTasksToday) {
+        if (kDebugMode) {
+          print('今日沒有任務安排，不需要發送每日報告通知');
+        }
+        // 取消可能已經存在的通知
+        await cancelDailyReportNotification();
+        return true; // 返回true表示邏輯執行成功（雖然沒有調度通知）
+      }
+
       // 計算今天晚上10點的時間
       final now = DateTime.now();
       var today10PM = DateTime(now.year, now.month, now.day, 22, 0); // 晚上10點
@@ -340,6 +351,16 @@ class NotificationService {
       // 如果已經過了今天的10點，則安排明天的10點
       if (today10PM.isBefore(now)) {
         today10PM = today10PM.add(const Duration(days: 1));
+        
+        // 如果要調度到明天，需要檢查明天是否有任務
+        final hasTomorrowTasks = await _checkIfHasTasks(today10PM);
+        if (!hasTomorrowTasks) {
+          if (kDebugMode) {
+            print('明日沒有任務安排，不需要調度每日報告通知到明天');
+          }
+          await cancelDailyReportNotification();
+          return true;
+        }
       }
 
       const iosDetails = DarwinNotificationDetails(
@@ -381,6 +402,58 @@ class NotificationService {
         print('排程每日報告通知時發生錯誤: $e');
       }
       return false;
+    }
+  }
+
+  /// 檢查今日是否有任務安排
+  Future<bool> _checkIfHasTasksToday() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return await _checkIfHasTasks(today);
+  }
+
+  /// 檢查指定日期是否有任務安排
+  Future<bool> _checkIfHasTasks(DateTime date) async {
+    try {
+      final uid = AuthService.instance.currentUser?.uid;
+      if (uid == null) {
+        if (kDebugMode) {
+          print('用戶未登錄，無法檢查任務');
+        }
+        return false;
+      }
+
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('events')
+          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay.toUtc()))
+          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(endOfDay.toUtc()))
+          .limit(1) // 只需要檢查是否存在，不需要全部數據
+          .get();
+
+      // 檢查是否有活躍事件
+      final hasActiveTasks = snapshot.docs.any((doc) {
+        final eventData = doc.data();
+        final lifecycleStatus = eventData['lifecycleStatus'];
+        // 如果沒有lifecycleStatus字段（舊數據）或者是active狀態，都算作有任務
+        return lifecycleStatus == null || lifecycleStatus == 0; // 0 = EventLifecycleStatus.active.value
+      });
+
+      if (kDebugMode) {
+        print('檢查日期 ${date.toString().substring(0, 10)} 是否有任務: $hasActiveTasks (總事件數: ${snapshot.docs.length})');
+      }
+
+      return hasActiveTasks;
+    } catch (e) {
+      if (kDebugMode) {
+        print('檢查任務時發生錯誤: $e');
+      }
+      // 發生錯誤時，為了安全起見，假設有任務（這樣不會錯過重要通知）
+      return true;
     }
   }
 

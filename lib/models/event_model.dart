@@ -16,6 +16,10 @@ class EventModel {
   final DateTime? actualStartTime;
   final DateTime? completedTime;
   
+  // === 數據收集 - 持續時間 ===
+  final int? expectedDurationMin;      // 期望持續時間（分鐘）
+  final int? actualDurationMin;        // 實際持續時間（分鐘）
+  
   // === 互動 ===
   final StartTrigger? startTrigger;     // enum:int 0-tap_notif 1-tap_card 2-chat 3-auto
   final String? chatId;                 // evt42_20250703T0130
@@ -64,6 +68,8 @@ class EventModel {
     this.googleEventId,
     this.googleCalendarId,
     this.notifScheduledAt,
+    this.expectedDurationMin,
+    this.actualDurationMin,
       }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -94,6 +100,8 @@ class EventModel {
       googleEventId: d['googleEventId'],
       googleCalendarId: d['googleCalendarId'],
       notifScheduledAt: (d['notifScheduledAt'] as Timestamp?)?.toDate(),
+      expectedDurationMin: d['expectedDurationMin'],
+      actualDurationMin: d['actualDurationMin'],
     );
   }
 
@@ -121,6 +129,8 @@ class EventModel {
       if (googleEventId != null) 'googleEventId': googleEventId,
       if (googleCalendarId != null) 'googleCalendarId': googleCalendarId,
       if (notifScheduledAt != null) 'notifScheduledAt': Timestamp.fromDate(notifScheduledAt!),
+      if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
+      if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
     };
   }
 
@@ -194,6 +204,8 @@ class EventModel {
     String? googleEventId,
     String? googleCalendarId,
     DateTime? notifScheduledAt,
+    int? expectedDurationMin,
+    int? actualDurationMin,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -219,6 +231,8 @@ class EventModel {
       googleEventId: googleEventId ?? this.googleEventId,
       googleCalendarId: googleCalendarId ?? this.googleCalendarId,
       notifScheduledAt: notifScheduledAt ?? this.notifScheduledAt,
+      expectedDurationMin: expectedDurationMin ?? this.expectedDurationMin,
+      actualDurationMin: actualDurationMin ?? this.actualDurationMin,
     );
   }
 }
@@ -278,12 +292,36 @@ class ExperimentEventHelper {
         .collection('events')
         .doc(eventId);
 
+    // 獲取事件數據以計算實際持續時間和期望持續時間
+    final snap = await ref.get();
+    int? actualDurationMin;
+    int? expectedDurationMin;
+    
+    if (snap.exists) {
+      final data = snap.data()!;
+      final actualStartTime = (data['actualStartTime'] as Timestamp?)?.toDate();
+      final scheduledStartTime = (data['scheduledStartTime'] as Timestamp?)?.toDate();
+      final scheduledEndTime = (data['scheduledEndTime'] as Timestamp?)?.toDate();
+      
+      // 計算實際持續時間（完成時間 - 實際開始時間）
+      if (actualStartTime != null) {
+        actualDurationMin = now.difference(actualStartTime).inMinutes;
+      }
+      
+      // 計算期望持續時間（計劃結束時間 - 計劃開始時間）
+      if (scheduledStartTime != null && scheduledEndTime != null) {
+        expectedDurationMin = scheduledEndTime.difference(scheduledStartTime).inMinutes;
+      }
+    }
+
     await ref.set({
       'isDone': true,
       'completedTime': Timestamp.fromDate(now),
       'status': TaskStatus.completed.value,
       'updatedAt': Timestamp.fromDate(now),
       if (chatId != null) 'chatId': chatId,
+      if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
+      if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
     }, SetOptions(merge: true));
   }
 
@@ -394,6 +432,7 @@ class ExperimentEventHelper {
         'result': NotificationResult.dismiss.value,
         'snooze_minutes': null,
         'latency_sec': null,
+        'notif_to_click_sec': null,
         'created_at': FieldValue.serverTimestamp(),
       });
       
@@ -427,13 +466,14 @@ class ExperimentEventHelper {
       if (snap.exists) {
         final data = snap.data()!;
         final deliveredTime = (data['delivered_time'] as Timestamp?)?.toDate();
-        final latencySec = deliveredTime != null 
+        final notifToClickSec = deliveredTime != null 
             ? now.difference(deliveredTime).inSeconds 
             : null;
 
         await ref.update({
           'opened_time': Timestamp.fromDate(now),
-          'latency_sec': latencySec,
+          'latency_sec': notifToClickSec, // 保持向後兼容
+          'notif_to_click_sec': notifToClickSec, // 新字段
         });
       } else {
         // 🎯 修復：如果文档不存在，创建一个新文档
@@ -444,6 +484,7 @@ class ExperimentEventHelper {
           'result': NotificationResult.dismiss.value,
           'snooze_minutes': null,
           'latency_sec': null, // 无法计算延迟
+          'notif_to_click_sec': null, // 无法计算延迟
           'created_at': FieldValue.serverTimestamp(),
         });
       }
@@ -492,6 +533,7 @@ class ExperimentEventHelper {
           'result': result.value,
           'snooze_minutes': snoozeMinutes,
           'latency_sec': null,
+          'notif_to_click_sec': null,
           'created_at': FieldValue.serverTimestamp(),
         });
       }
@@ -853,7 +895,8 @@ class NotificationData {
   final DateTime? notificationScheduledTime; // 通知排程時間
   final NotificationResult? result;   // 操作結果
   final int? snoozeMinutes;          // 延後分鐘數
-  final int? latencySec;             // 延遲秒數
+  final int? latencySec;             // 延遲秒數（保留向後兼容）
+  final int? notifToClickSec;        // 通知發送到點擊的秒數
   final DateTime? createdAt;         // 創建時間
 
   NotificationData({
@@ -864,6 +907,7 @@ class NotificationData {
     this.result,
     this.snoozeMinutes,
     this.latencySec,
+    this.notifToClickSec,
     this.createdAt,
   });
 
@@ -879,6 +923,7 @@ class NotificationData {
           : null,
       snoozeMinutes: data['snooze_minutes'],
       latencySec: data['latency_sec'],
+      notifToClickSec: data['notif_to_click_sec'],
       createdAt: (data['created_at'] as Timestamp?)?.toDate(),
     );
   }
@@ -891,6 +936,7 @@ class NotificationData {
       if (result != null) 'result': result!.value,
       if (snoozeMinutes != null) 'snooze_minutes': snoozeMinutes,
       if (latencySec != null) 'latency_sec': latencySec,
+      if (notifToClickSec != null) 'notif_to_click_sec': notifToClickSec,
       if (createdAt != null) 'created_at': Timestamp.fromDate(createdAt!),
     };
   }

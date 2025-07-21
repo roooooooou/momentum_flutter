@@ -23,18 +23,38 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   bool _isLoading = true;
 
   // 问卷答案状态
+  // 1. 今日延遲的任務
   final Set<String> _selectedDelayedTasks = {};
   final Set<String> _selectedDelayReasons = {};
   final TextEditingController _delayOtherController = TextEditingController();
   
+  // 2. 對今天表現的感受 (1-5)
+  int _overallSatisfaction = 3;
+  
+  // 3. 明天還想不想開始任務
+  final TextEditingController _tomorrowMotivationController = TextEditingController();
+  
+  // 4. 今天有沒有跟Coach聊天
+  bool? _hadChatWithCoach; // null = 未選擇
+  
+  // 5. Coach聊天的幫助評分 (1-5)
+  int _coachHelpRating = 3;
+  
+  // 6. 為什麼沒有跟Coach聊天（第4題為否時顯示）
+  final Set<String> _selectedNoChatReasons = {};
+  final TextEditingController _noChatOtherController = TextEditingController();
+  
+  // 7. AI Coach有什麼幫助（第4題為是時顯示）
   final Set<String> _selectedChatHelp = {};
   final TextEditingController _chatOtherController = TextEditingController();
   
-  int _overallRating = 3;
-  int _aiHelpRating = 3;
-  bool _noChatToday = false; // 今日沒有跟Coach聊天
+  // 8. 明天還想跟AI聊嗎（第4題為是時顯示）
+  bool? _wantChatTomorrow; // null = 未選擇
   
-  final Set<String> _selectedLikelyDelayedTasks = {};
+  // 9. 希望AI改變什麼（第4題為是時顯示）
+  final TextEditingController _aiImprovementController = TextEditingController();
+  
+  // 10. 狀況或心得
   final TextEditingController _notesController = TextEditingController();
 
   @override
@@ -46,7 +66,10 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   @override
   void dispose() {
     _delayOtherController.dispose();
+    _tomorrowMotivationController.dispose();
+    _noChatOtherController.dispose();
     _chatOtherController.dispose();
+    _aiImprovementController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -62,7 +85,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       final tomorrow = today.add(const Duration(days: 1));
       final dayAfterTomorrow = tomorrow.add(const Duration(days: 1));
 
-      // 今日事件
+      // 今日事件 - 只查询活跃事件
       final todayQuery = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -72,7 +95,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
           .orderBy('scheduledStartTime')
           .get();
 
-      // 明日事件
+      // 明日事件 - 只查询活跃事件
       final tomorrowQuery = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -83,8 +106,15 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
           .get();
 
       setState(() {
-        _todayEvents = todayQuery.docs.map(EventModel.fromDoc).toList();
-        _tomorrowEvents = tomorrowQuery.docs.map(EventModel.fromDoc).toList();
+        _todayEvents = todayQuery.docs
+            .map(EventModel.fromDoc)
+            .where((event) => event.isActive) // 只显示活跃事件
+            .toList();
+        
+        _tomorrowEvents = tomorrowQuery.docs
+            .map(EventModel.fromDoc)
+            .where((event) => event.isActive) // 只显示活跃事件
+            .toList();
         
         // 筛选出延迟或未完成的任务
         _delayedEvents = _todayEvents.where((event) {
@@ -108,6 +138,21 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     final uid = context.read<AuthService>().currentUser?.uid;
     if (uid == null) return;
 
+    // 验证必填字段
+    if (_hadChatWithCoach == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請回答是否有跟Coach聊天')),
+      );
+      return;
+    }
+
+    if (_hadChatWithCoach == true && _wantChatTomorrow == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請回答明天是否還想跟AI聊天')),
+      );
+      return;
+    }
+
     try {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
@@ -120,15 +165,23 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         delayReasons: _selectedDelayReasons.toList(),
         delayOtherReason: _delayOtherController.text.trim().isEmpty 
             ? null : _delayOtherController.text.trim(),
+        overallSatisfaction: _overallSatisfaction,
+        tomorrowMotivation: _tomorrowMotivationController.text.trim().isEmpty 
+            ? null : _tomorrowMotivationController.text.trim(),
+        hadChatWithCoach: _hadChatWithCoach!,
+        coachHelpRating: _hadChatWithCoach == true ? _coachHelpRating : null,
+        noChatReasons: _selectedNoChatReasons.toList(),
+        noChatOtherReason: _noChatOtherController.text.trim().isEmpty 
+            ? null : _noChatOtherController.text.trim(),
         chatHelpfulness: _selectedChatHelp.toList(),
         chatOtherHelp: _chatOtherController.text.trim().isEmpty 
             ? null : _chatOtherController.text.trim(),
-        overallSatisfaction: _overallRating,
-        aiHelpRating: _aiHelpRating,
-        noChatToday: _noChatToday,
-        likelyDelayedTaskIds: _selectedLikelyDelayedTasks.toList(),
+        wantChatTomorrow: _wantChatTomorrow,
+        aiImprovementSuggestions: _aiImprovementController.text.trim().isEmpty 
+            ? null : _aiImprovementController.text.trim(),
         notes: _notesController.text.trim().isEmpty 
             ? null : _notesController.text.trim(),
+        likelyDelayedTaskIds: [], // 暂时保留空数组
         createdAt: now,
       );
 
@@ -181,31 +234,104 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSection1DelayedTasks(),
-                  const SizedBox(height: 24),
-                  _buildSection2ChatHelp(),
-                  const SizedBox(height: 24),
-                  _buildSection3OverallRating(),
-                  const SizedBox(height: 24),
-                  _buildSection4AIHelpRating(),
-                  const SizedBox(height: 24),
-                  _buildSection5LikelyDelayedTasks(),
-                  const SizedBox(height: 24),
-                  _buildSection6Notes(),
-                  const SizedBox(height: 32),
-                  _buildSubmitButton(),
-                ],
-              ),
-            ),
+          : _todayEvents.isEmpty 
+              ? _buildNoTasksToday()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildQuestion1DelayedTasks(),
+                      const SizedBox(height: 24),
+                      _buildQuestion2OverallSatisfaction(),
+                      const SizedBox(height: 24),
+                      _buildQuestion3TomorrowMotivation(),
+                      const SizedBox(height: 24),
+                      _buildQuestion4HadChatWithCoach(),
+                      const SizedBox(height: 24),
+                      
+                      // 条件显示问题5、6、7、8、9
+                      if (_hadChatWithCoach == true) ...[
+                        _buildQuestion5CoachHelpRating(),
+                        const SizedBox(height: 24),
+                        _buildQuestion6ChatHelpfulness(),
+                        const SizedBox(height: 24),
+                        _buildQuestion7WantChatTomorrow(),
+                        const SizedBox(height: 24),
+                        _buildQuestion8AIImprovement(),
+                        const SizedBox(height: 24),
+                      ],
+                      
+                      if (_hadChatWithCoach == false) ...[
+                        _buildQuestion6NoChatReasons(),
+                        const SizedBox(height: 24),
+                      ],
+                      
+                      _buildQuestion9Notes(),
+                      const SizedBox(height: 32),
+                      _buildSubmitButton(),
+                    ],
+                  ),
+                ),
     );
   }
 
-  Widget _buildSection1DelayedTasks() {
+  Widget _buildNoTasksToday() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.beach_access,
+              size: 80,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              '🎉 今日沒有安排任務',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '既然今天沒有任務安排，就不需要填寫每日報告了！\n好好休息，為明天的任務做準備吧！',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('返回主頁'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[400],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestion1DelayedTasks() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -296,7 +422,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     )).toList();
   }
 
-  Widget _buildSection2ChatHelp() {
+  Widget _buildQuestion2OverallSatisfaction() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -304,12 +430,270 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '2. 今日 AI Coach 聊天介入是否對你有幫助？',
+              '2. 對今天自己執行任務的表現的感受',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             const Text(
-              '（多選）',
+              '1 = 非常不滿意，幾乎都沒完成\n5 = 非常滿意，幾乎都做到或超過預期',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(5, (index) {
+                final rating = index + 1;
+                return GestureDetector(
+                  onTap: () => setState(() => _overallSatisfaction = rating),
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: _overallSatisfaction >= rating ? Colors.amber : Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.star, color: Colors.white),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                '評分: $_overallSatisfaction / 5',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestion3TomorrowMotivation() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '3. 回顧今天的任務，明天還想不想開始',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '簡答題',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            
+            TextField(
+              controller: _tomorrowMotivationController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: '例如：今天完成得不錯，明天想繼續保持；或者覺得任務太難，明天想調整...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestion4HadChatWithCoach() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '4. 今天有沒有跟Coach聊天？',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            
+            Column(
+              children: [
+                RadioListTile<bool>(
+                  title: const Text('是'),
+                  value: true,
+                  groupValue: _hadChatWithCoach,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _hadChatWithCoach = value;
+                      // 清空相反条件的数据
+                      if (value == true) {
+                        _selectedNoChatReasons.clear();
+                        _noChatOtherController.clear();
+                      } else {
+                        _coachHelpRating = 3; // 重置评分
+                        _selectedChatHelp.clear();
+                        _chatOtherController.clear();
+                        _wantChatTomorrow = null;
+                        _aiImprovementController.clear();
+                      }
+                    });
+                  },
+                ),
+                RadioListTile<bool>(
+                  title: const Text('否'),
+                  value: false,
+                  groupValue: _hadChatWithCoach,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _hadChatWithCoach = value;
+                      // 清空相反条件的数据
+                      if (value == false) {
+                        _coachHelpRating = 3; // 重置评分
+                        _selectedChatHelp.clear();
+                        _chatOtherController.clear();
+                        _wantChatTomorrow = null;
+                        _aiImprovementController.clear();
+                      } else {
+                        _selectedNoChatReasons.clear();
+                        _noChatOtherController.clear();
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestion5CoachHelpRating() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '5. Coach聊天的幫助？',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '1 = 沒有幫助，甚至讓我分心\n5 = 幫助很大，讓我輕鬆完成',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(5, (index) {
+                final rating = index + 1;
+                return GestureDetector(
+                  onTap: () => setState(() => _coachHelpRating = rating),
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: _coachHelpRating >= rating ? Colors.blue : Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.star, color: Colors.white),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                '評分: $_coachHelpRating / 5',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestion6NoChatReasons() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '6. 今天為什麼沒有跟Coach聊天？',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '多選',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            
+            ..._buildNoChatReasonOptions(),
+            
+            if (_selectedNoChatReasons.contains('other')) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _noChatOtherController,
+                decoration: const InputDecoration(
+                  hintText: '請填寫其他原因...',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildNoChatReasonOptions() {
+    final reasons = [
+      {'id': 'tasks_completed', 'text': '任務都完成了'},
+      {'id': 'no_help', 'text': '沒有幫助'},
+      {'id': 'no_time', 'text': '時間不夠'},
+      {'id': 'missed_notification', 'text': '錯過通知'},
+      {'id': 'dont_want_to_use', 'text': '不想使用'},
+      {'id': 'other', 'text': '其他'},
+    ];
+
+    return reasons.map((reason) => CheckboxListTile(
+      title: Text(reason['text']!),
+      value: _selectedNoChatReasons.contains(reason['id']),
+      onChanged: (bool? value) {
+        setState(() {
+          if (value == true) {
+            _selectedNoChatReasons.add(reason['id']!);
+          } else {
+            _selectedNoChatReasons.remove(reason['id']!);
+          }
+        });
+      },
+      dense: true,
+    )).toList();
+  }
+
+  Widget _buildQuestion6ChatHelpfulness() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '6. 今日跟Coach聊一聊有什麼幫助？',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '多選',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -336,11 +720,10 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   List<Widget> _buildChatHelpOptions() {
     final options = [
       {'id': 'start_task', 'text': '幫助我啟動任務'},
-      {'id': 'clarify_task', 'text': '幫助我釐清任務怎麼做'},
-      {'id': 'motivation', 'text': '讓我比較有動力'},
+      {'id': 'break_down_task', 'text': '幫我分解任務'},
+      {'id': 'motivation', 'text': '提供動力'},
       {'id': 'no_help', 'text': '沒有幫助'},
       {'id': 'uncertain', 'text': '不確定'},
-      {'id': 'no_chat', 'text': '今天沒有跟Coach聊天'},
       {'id': 'other', 'text': '其他'},
     ];
 
@@ -360,9 +743,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     )).toList();
   }
 
-
-
-  Widget _buildSection3OverallRating() {
+  Widget _buildQuestion7WantChatTomorrow() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -370,117 +751,65 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '3. 對今天自己執行任務的整體感受',
+              '7. 你明天還想再開始任務前跟Coach聊嗎',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '1 = 非常不滿意，幾乎都沒完成\n5 = 非常滿意，幾乎都做到或超過預期',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(5, (index) {
-                final rating = index + 1;
-                return GestureDetector(
-                  onTap: () => setState(() => _overallRating = rating),
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: _overallRating >= rating ? Colors.amber : Colors.grey[300],
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.star, color: Colors.white),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                '評分: $_overallRating / 5',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection4AIHelpRating() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '4. 對 AI Coach 介入後的任務感覺',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '1 = 沒有幫助，甚至讓我分心\n5 = 幫助很大，讓我輕鬆完成',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(5, (index) {
-                final rating = index + 1;
-                final isEnabled = !_noChatToday;
-                return GestureDetector(
-                  onTap: isEnabled ? () => setState(() {
-                    _aiHelpRating = rating;
-                  }) : null,
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: isEnabled
-                          ? (_aiHelpRating >= rating ? Colors.blue : Colors.grey[300])
-                          : Colors.grey[200],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.star, 
-                      color: isEnabled ? Colors.white : Colors.grey[400],
-                    ),
-                  ),
-                );
-              }),
             ),
             const SizedBox(height: 12),
             
-            // 添加"今日沒有跟Coach聊天"選項
-            CheckboxListTile(
-              title: const Text('今日沒有跟Coach聊天'),
-              value: _noChatToday,
-              onChanged: (bool? value) {
-                setState(() {
-                  _noChatToday = value ?? false;
-                  if (_noChatToday) {
-                    _aiHelpRating = 1; // 重置評分為最低
-                  }
-                });
-              },
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 8),
-            
-            Center(
-              child: Text(
-                _noChatToday ? '無法評分' : '評分: $_aiHelpRating / 5',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _noChatToday ? Colors.grey : null,
+            Column(
+              children: [
+                RadioListTile<bool>(
+                  title: const Text('是'),
+                  value: true,
+                  groupValue: _wantChatTomorrow,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _wantChatTomorrow = value;
+                    });
+                  },
                 ),
+                RadioListTile<bool>(
+                  title: const Text('否'),
+                  value: false,
+                  groupValue: _wantChatTomorrow,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _wantChatTomorrow = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestion8AIImprovement() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '8. 可以改進的話希望Coach可以改變什麼',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '簡答題',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            
+            TextField(
+              controller: _aiImprovementController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: '例如：回應速度、對話風格、提供的建議類型等...',
+                border: OutlineInputBorder(),
               ),
             ),
           ],
@@ -489,7 +818,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     );
   }
 
-  Widget _buildSection5LikelyDelayedTasks() {
+  Widget _buildQuestion9Notes() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -497,51 +826,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '5. 明天最有可能延遲的任務是什麼？',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '（請勾選一個最有可能延遲的任務）',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
-            
-            if (_tomorrowEvents.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('📅 明日沒有安排任務'),
-              )
-            else
-              ..._tomorrowEvents.map((event) => CheckboxListTile(
-                title: Text(event.title),
-                subtitle: Text(event.timeRange),
-                value: _selectedLikelyDelayedTasks.contains(event.id),
-                onChanged: (bool? value) {
-                  setState(() {
-                    if (value == true) {
-                      _selectedLikelyDelayedTasks.add(event.id);
-                    } else {
-                      _selectedLikelyDelayedTasks.remove(event.id);
-                    }
-                  });
-                },
-              )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection6Notes() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '6. 有沒有什麼狀況或心得要記錄？',
+              '9. 有什麼狀況或心得與任務有關想紀錄？',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),

@@ -6,27 +6,42 @@ class DailyReportModel {
   final String uid;
   final DateTime date; // 报告日期
   
-  // 1. 今日被延遲的任務
+  // 1. 今日延遲的任務有哪些？（勾選）
   final List<String> delayedTaskIds; // 被延迟的任务ID列表
   final List<String> delayReasons; // 延迟原因（多选）
   final String? delayOtherReason; // 其他原因
   
-  // 2. LLM 聊天介入帮助度
-  final List<String> chatHelpfulness; // 聊天帮助度（多选）
-  final String? chatOtherHelp; // 其他帮助
-  
-  // 3. 整体感受评分 (1-5)
+  // 2. 對今天自己執行任務的表現的感受（1-5）
   final int overallSatisfaction;
   
-  // 4. AI 介入后任务感觉评分 (1-5)
-  final int aiHelpRating;
-  final bool noChatToday; // 今日沒有跟Coach聊天
+  // 3. 回顧今天的任務，明天還想不想開始（簡答）
+  final String? tomorrowMotivation;
   
-  // 5. 明天最有可能延遲的任務
-  final List<String> likelyDelayedTaskIds; // 明天可能延迟的任务ID
+  // 4. 今天有沒有跟Coach聊天？（是非）
+  final bool hadChatWithCoach;
   
-  // 6. 心得记录
-  final String? notes; // 开放式记录
+  // 5. Coach聊天的幫助？（1-5分）（如果第4題為是才顯示）
+  final int? coachHelpRating;
+  
+  // 6. 今天為什麼沒有跟Coach聊天？（如果第4題為否才顯示）
+  final List<String> noChatReasons;
+  final String? noChatOtherReason;
+  
+  // 7. 今日AI Coach聊一聊有什麼幫助？（如果第4題為是才顯示）
+  final List<String> chatHelpfulness;
+  final String? chatOtherHelp;
+  
+  // 8. 你明天還想再開始任務前跟ai聊嗎（如果第4題為是才顯示）
+  final bool? wantChatTomorrow;
+  
+  // 9. 可以改進的話希望ai可以改變什麼（如果第4題為是才顯示）
+  final String? aiImprovementSuggestions;
+  
+  // 10. 有什麼狀況或心得與任務有關想紀錄？（簡答）
+  final String? notes;
+  
+  // 明天最有可能延遲的任務（保留原有功能）
+  final List<String> likelyDelayedTaskIds;
   
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -38,13 +53,18 @@ class DailyReportModel {
     required this.delayedTaskIds,
     required this.delayReasons,
     this.delayOtherReason,
+    required this.overallSatisfaction,
+    this.tomorrowMotivation,
+    required this.hadChatWithCoach,
+    this.coachHelpRating,
+    required this.noChatReasons,
+    this.noChatOtherReason,
     required this.chatHelpfulness,
     this.chatOtherHelp,
-    required this.overallSatisfaction,
-    required this.aiHelpRating,
-    required this.noChatToday,
-    required this.likelyDelayedTaskIds,
+    this.wantChatTomorrow,
+    this.aiImprovementSuggestions,
     this.notes,
+    required this.likelyDelayedTaskIds,
     required this.createdAt,
     this.updatedAt,
   });
@@ -58,13 +78,18 @@ class DailyReportModel {
       delayedTaskIds: List<String>.from(data['delayedTaskIds'] ?? []),
       delayReasons: List<String>.from(data['delayReasons'] ?? []),
       delayOtherReason: data['delayOtherReason'],
+      overallSatisfaction: data['overallSatisfaction'] ?? 1,
+      tomorrowMotivation: data['tomorrowMotivation'],
+      hadChatWithCoach: data['hadChatWithCoach'] ?? false,
+      coachHelpRating: data['coachHelpRating'],
+      noChatReasons: List<String>.from(data['noChatReasons'] ?? []),
+      noChatOtherReason: data['noChatOtherReason'],
       chatHelpfulness: List<String>.from(data['chatHelpfulness'] ?? []),
       chatOtherHelp: data['chatOtherHelp'],
-      overallSatisfaction: data['overallSatisfaction'] ?? 1,
-      aiHelpRating: data['aiHelpRating'] ?? 1,
-      noChatToday: data['noChatToday'] ?? false,
-      likelyDelayedTaskIds: List<String>.from(data['likelyDelayedTaskIds'] ?? []),
+      wantChatTomorrow: data['wantChatTomorrow'],
+      aiImprovementSuggestions: data['aiImprovementSuggestions'],
       notes: data['notes'],
+      likelyDelayedTaskIds: List<String>.from(data['likelyDelayedTaskIds'] ?? []),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
@@ -77,13 +102,18 @@ class DailyReportModel {
       'delayedTaskIds': delayedTaskIds,
       'delayReasons': delayReasons,
       if (delayOtherReason != null) 'delayOtherReason': delayOtherReason,
+      'overallSatisfaction': overallSatisfaction,
+      if (tomorrowMotivation != null) 'tomorrowMotivation': tomorrowMotivation,
+      'hadChatWithCoach': hadChatWithCoach,
+      if (coachHelpRating != null) 'coachHelpRating': coachHelpRating,
+      'noChatReasons': noChatReasons,
+      if (noChatOtherReason != null) 'noChatOtherReason': noChatOtherReason,
       'chatHelpfulness': chatHelpfulness,
       if (chatOtherHelp != null) 'chatOtherHelp': chatOtherHelp,
-      'overallSatisfaction': overallSatisfaction,
-      'aiHelpRating': aiHelpRating,
-      'noChatToday': noChatToday,
-      'likelyDelayedTaskIds': likelyDelayedTaskIds,
+      if (wantChatTomorrow != null) 'wantChatTomorrow': wantChatTomorrow,
+      if (aiImprovementSuggestions != null) 'aiImprovementSuggestions': aiImprovementSuggestions,
       if (notes != null) 'notes': notes,
+      'likelyDelayedTaskIds': likelyDelayedTaskIds,
       'createdAt': Timestamp.fromDate(createdAt),
       if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
     };
@@ -96,13 +126,18 @@ class DailyReportModel {
     List<String>? delayedTaskIds,
     List<String>? delayReasons,
     String? delayOtherReason,
+    int? overallSatisfaction,
+    String? tomorrowMotivation,
+    bool? hadChatWithCoach,
+    int? coachHelpRating,
+    List<String>? noChatReasons,
+    String? noChatOtherReason,
     List<String>? chatHelpfulness,
     String? chatOtherHelp,
-    int? overallSatisfaction,
-    int? aiHelpRating,
-    bool? noChatToday,
-    List<String>? likelyDelayedTaskIds,
+    bool? wantChatTomorrow,
+    String? aiImprovementSuggestions,
     String? notes,
+    List<String>? likelyDelayedTaskIds,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -113,13 +148,18 @@ class DailyReportModel {
       delayedTaskIds: delayedTaskIds ?? this.delayedTaskIds,
       delayReasons: delayReasons ?? this.delayReasons,
       delayOtherReason: delayOtherReason ?? this.delayOtherReason,
+      overallSatisfaction: overallSatisfaction ?? this.overallSatisfaction,
+      tomorrowMotivation: tomorrowMotivation ?? this.tomorrowMotivation,
+      hadChatWithCoach: hadChatWithCoach ?? this.hadChatWithCoach,
+      coachHelpRating: coachHelpRating ?? this.coachHelpRating,
+      noChatReasons: noChatReasons ?? this.noChatReasons,
+      noChatOtherReason: noChatOtherReason ?? this.noChatOtherReason,
       chatHelpfulness: chatHelpfulness ?? this.chatHelpfulness,
       chatOtherHelp: chatOtherHelp ?? this.chatOtherHelp,
-      overallSatisfaction: overallSatisfaction ?? this.overallSatisfaction,
-      aiHelpRating: aiHelpRating ?? this.aiHelpRating,
-      noChatToday: noChatToday ?? this.noChatToday,
-      likelyDelayedTaskIds: likelyDelayedTaskIds ?? this.likelyDelayedTaskIds,
+      wantChatTomorrow: wantChatTomorrow ?? this.wantChatTomorrow,
+      aiImprovementSuggestions: aiImprovementSuggestions ?? this.aiImprovementSuggestions,
       notes: notes ?? this.notes,
+      likelyDelayedTaskIds: likelyDelayedTaskIds ?? this.likelyDelayedTaskIds,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
