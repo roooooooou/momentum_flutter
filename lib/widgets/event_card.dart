@@ -212,26 +212,46 @@ class _EventCardState extends State<EventCard> {
     
     // 计算动态结束时间
     DateTime targetEndTime;
+    DateTime referenceTime = now;
+    
     if (event.actualStartTime != null) {
-      // 如果有实际开始时间，使用实际开始时间 + 任务时长
-      final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
-      targetEndTime = event.actualStartTime!.add(taskDuration);
+      if (event.pauseAt != null && event.resumeAt != null) {
+        // 🎯 修复：正确处理暂停后继续的时间计算
+        // 原定任务时长
+        final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+        // 已经工作的时间（从开始到暂停）
+        final workedDuration = event.pauseAt!.difference(event.actualStartTime!);
+        // 剩余工作时间 = 原定任务时长 - 已经工作的时间
+        final remainingWorkDuration = originalTaskDuration - workedDuration;
+        // 调整后的结束时间 = 继续时间 + 剩余工作时间
+        targetEndTime = event.resumeAt!.add(remainingWorkDuration);
+        
+
+      } else if (event.pauseAt != null) {
+        // 如果只有暂停时间但没有继续时间（暂停状态）
+        // 原定任务时长
+        final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+        // 已经工作的时间
+        final workedDuration = event.pauseAt!.difference(event.actualStartTime!);
+        // 剩余工作时间 = 原定任务时长 - 已经工作的时间
+        final remainingWorkDuration = originalTaskDuration - workedDuration;
+        // 调整后的结束时间 = 当前时间 + 剩余工作时间
+        targetEndTime = now.add(remainingWorkDuration);
+        
+      } else {
+        // 没有暂停，使用原来的逻辑
+        final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+        targetEndTime = event.actualStartTime!.add(taskDuration);
+        
+      }
     } else {
       // 如果没有实际开始时间，使用原定结束时间
       targetEndTime = event.scheduledEndTime;
-    }
-    
-    // 🎯 新增：如果任务有暂停时间，使用暂停时间计算剩余时间
-    DateTime referenceTime;
-    if (event.pauseAt != null) {
-      // 使用暂停时间作为参考时间
-      referenceTime = event.pauseAt!;
+      
       if (kDebugMode) {
-        print('_getCountdownText: 使用暂停时间计算: ${event.title}, pauseAt: $referenceTime');
+        print('_getCountdownText: 未开始计算: ${event.title}');
+        print('  原定结束时间: $targetEndTime');
       }
-    } else {
-      // 使用当前时间
-      referenceTime = now;
     }
     
     final difference = targetEndTime.difference(referenceTime);
@@ -263,20 +283,24 @@ class _EventCardState extends State<EventCard> {
     
     // 计算动态结束时间（基于实际开始时间）
     if (event.actualStartTime != null) {
-      final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
-      final targetEndTime = event.actualStartTime!.add(taskDuration);
-      final difference = targetEndTime.difference(pauseTime);
+      // 🎯 修复：正确处理暂停状态的剩余时间计算
+      // 原定任务时长
+      final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+      // 已经工作的时间（从开始到暂停）
+      final workedDuration = pauseTime.difference(event.actualStartTime!);
+      // 剩余工作时间 = 原定任务时长 - 已经工作的时间
+      final remainingWorkDuration = originalTaskDuration - workedDuration;
       
-      if (difference.isNegative) {
-        // 如果暂停时已经超过结束时间
-        final overdue = pauseTime.difference(targetEndTime);
+      if (remainingWorkDuration.isNegative) {
+        // 如果已经超过原定工作时间
+        final overdue = workedDuration - originalTaskDuration;
         final hours = overdue.inHours;
         final minutes = overdue.inMinutes.remainder(60);
         return '已超時 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
       } else {
-        // 显示暂停时的剩余时间
-        final hours = difference.inHours;
-        final minutes = difference.inMinutes.remainder(60);
+        // 显示剩余工作时间
+        final hours = remainingWorkDuration.inHours;
+        final minutes = remainingWorkDuration.inMinutes.remainder(60);
         return '剩餘 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
       }
     }

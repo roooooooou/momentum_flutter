@@ -702,10 +702,46 @@ class CalendarService extends ChangeNotifier {
   /// 排程任務完成提醒通知
   Future<void> _scheduleCompletionNotification(EventModel event) async {
     try {
-      // 計算動態結束時間（實際開始時間 + 任務時長）
+      // 🎯 修复：正确处理暂停后继续的通知排程
       final now = DateTime.now();
-      final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
-      final targetEndTime = now.add(taskDuration);
+      DateTime targetEndTime;
+      
+      if (event.actualStartTime != null && event.pauseAt != null && event.resumeAt != null) {
+        // 如果任务有暂停时间和继续时间，需要调整结束时间
+        // 原定任务时长
+        final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+        // 已经工作的时间（从开始到暂停）
+        final workedDuration = event.pauseAt!.difference(event.actualStartTime!);
+        // 剩余工作时间
+        final remainingWorkDuration = originalTaskDuration - workedDuration;
+        // 调整后的结束时间 = 继续时间 + 剩余工作时间
+        targetEndTime = event.resumeAt!.add(remainingWorkDuration);
+        
+        if (kDebugMode) {
+          print('_scheduleCompletionNotification: 暂停后继续 ${event.title}, 已工作时间: ${workedDuration.inMinutes}分钟, 剩余工作时间: ${remainingWorkDuration.inMinutes}分钟, 继续时间: ${event.resumeAt}, 调整后结束时间: $targetEndTime');
+        }
+      } else if (event.actualStartTime != null && event.pauseAt != null) {
+        // 如果只有暂停时间但没有继续时间（暂停状态）
+        // 原定任务时长
+        final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+        // 已经工作的时间
+        final workedDuration = event.pauseAt!.difference(event.actualStartTime!);
+        // 剩余工作时间
+        final remainingWorkDuration = originalTaskDuration - workedDuration;
+        // 调整后的结束时间 = 当前时间 + 剩余工作时间
+        targetEndTime = now.add(remainingWorkDuration);
+        
+        if (kDebugMode) {
+          print('_scheduleCompletionNotification: 暂停状态 ${event.title}, 已工作时间: ${workedDuration.inMinutes}分钟, 剩余工作时间: ${remainingWorkDuration.inMinutes}分钟, 调整后结束时间: $targetEndTime');
+        }
+      } else if (event.actualStartTime != null) {
+        // 没有暂停时间，使用原来的逻辑
+        final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+        targetEndTime = event.actualStartTime!.add(taskDuration);
+      } else {
+        // 如果没有实际开始时间，使用原定结束时间
+        targetEndTime = event.scheduledEndTime;
+      }
       
       // 計算延遲秒數
       final delaySeconds = targetEndTime.difference(now).inSeconds;
@@ -768,9 +804,27 @@ class CalendarService extends ChangeNotifier {
     final now = DateTime.now();
     final ref = await DataPathService.instance.getUserEventDoc(uid, e.id);
 
-    // 根據當前時間和任務時長判斷新狀態
+    // 🎯 修复：正确处理暂停后继续的状态判断
     TaskStatus newStatus;
-    if (e.actualStartTime != null) {
+    if (e.actualStartTime != null && e.pauseAt != null) {
+      // 如果任务有暂停时间，需要调整结束时间
+      // 原定任务时长
+      final originalTaskDuration = e.scheduledEndTime.difference(e.scheduledStartTime);
+      // 已经工作的时间
+      final workedDuration = e.pauseAt!.difference(e.actualStartTime!);
+      // 剩余工作时间
+      final remainingWorkDuration = originalTaskDuration - workedDuration;
+      // 调整后的结束时间 = 继续时间 + 剩余工作时间
+      final adjustedEndTime = now.add(remainingWorkDuration);
+      
+      // 由于我们刚刚继续任务，现在应该是在进行中状态
+      newStatus = TaskStatus.inProgress;
+      
+      if (kDebugMode) {
+        print('continueEvent: 暂停后继续 ${e.title}, 已工作时间: ${workedDuration.inMinutes}分钟, 剩余工作时间: ${remainingWorkDuration.inMinutes}分钟, 继续时间: $now, 调整后结束时间: $adjustedEndTime');
+      }
+    } else if (e.actualStartTime != null) {
+      // 没有暂停时间，使用原来的逻辑
       final taskDuration = e.scheduledEndTime.difference(e.scheduledStartTime);
       final dynamicEndTime = e.actualStartTime!.add(taskDuration);
       newStatus = now.isAfter(dynamicEndTime) ? TaskStatus.overtime : TaskStatus.inProgress;
@@ -781,7 +835,7 @@ class CalendarService extends ChangeNotifier {
 
     await ref.set({
       'status': newStatus.value,
-      'pauseAt': null, // 🎯 新增：清除暫停時間
+      'resumeAt': Timestamp.fromDate(now), // 🎯 新增：記錄繼續時間
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
 

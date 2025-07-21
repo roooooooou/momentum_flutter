@@ -22,6 +22,7 @@ class EventModel {
   final int? actualDurationMin;        // 實際持續時間（分鐘）
   final int? pauseCount;               // 暫停次數
   final DateTime? pauseAt;             // 🎯 新增：暫停時間
+  final DateTime? resumeAt;            // 🎯 新增：繼續時間
   
   // === 互動 ===
   final StartTrigger? startTrigger;     // enum:int 0-tap_notif 1-tap_card 2-chat 3-auto
@@ -75,6 +76,7 @@ class EventModel {
     this.actualDurationMin,
     this.pauseCount,
     this.pauseAt,
+    this.resumeAt,
       }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -109,6 +111,7 @@ class EventModel {
         actualDurationMin: d['actualDurationMin'],
         pauseCount: d['pauseCount'],
         pauseAt: (d['pauseAt'] as Timestamp?)?.toDate(),
+        resumeAt: (d['resumeAt'] as Timestamp?)?.toDate(),
       );
   }
 
@@ -140,6 +143,7 @@ class EventModel {
         if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
         if (pauseCount != null) 'pauseCount': pauseCount,
         if (pauseAt != null) 'pauseAt': Timestamp.fromDate(pauseAt!),
+        if (resumeAt != null) 'resumeAt': Timestamp.fromDate(resumeAt!),
       };
   }
 
@@ -169,9 +173,34 @@ class EventModel {
     
     // 如果任務已開始
     if (actualStartTime != null) {
-      // 計算動態結束時間（實際開始時間 + 任務時長）
-      final taskDuration = scheduledEndTime.difference(scheduledStartTime);
-      final dynamicEndTime = actualStartTime!.add(taskDuration);
+      // 🎯 修复：正确处理暂停后继续的状态判断
+      DateTime dynamicEndTime;
+      
+      if (pauseAt != null && resumeAt != null) {
+        // 如果任务有暂停时间和继续时间，需要调整结束时间
+        // 原定任务时长
+        final originalTaskDuration = scheduledEndTime.difference(scheduledStartTime);
+        // 已经工作的时间（从开始到暂停）
+        final workedDuration = pauseAt!.difference(actualStartTime!);
+        // 剩余工作时间
+        final remainingWorkDuration = originalTaskDuration - workedDuration;
+        // 调整后的结束时间 = 继续时间 + 剩余工作时间
+        dynamicEndTime = resumeAt!.add(remainingWorkDuration);
+      } else if (pauseAt != null) {
+        // 如果只有暂停时间但没有继续时间（暂停状态）
+        // 原定任务时长
+        final originalTaskDuration = scheduledEndTime.difference(scheduledStartTime);
+        // 已经工作的时间
+        final workedDuration = pauseAt!.difference(actualStartTime!);
+        // 剩余工作时间
+        final remainingWorkDuration = originalTaskDuration - workedDuration;
+        // 调整后的结束时间 = 当前时间 + 剩余工作时间
+        dynamicEndTime = now.add(remainingWorkDuration);
+      } else {
+        // 没有暂停时间，使用原来的逻辑
+        final taskDuration = scheduledEndTime.difference(scheduledStartTime);
+        dynamicEndTime = actualStartTime!.add(taskDuration);
+      }
       
       // 如果超過動態結束時間，返回超時狀態
       if (now.isAfter(dynamicEndTime)) {
@@ -213,10 +242,12 @@ class EventModel {
     String? googleEventId,
     String? googleCalendarId,
     DateTime? notifScheduledAt,
-          int? expectedDurationMin,
-      int? actualDurationMin,
-      int? pauseCount,
-    }) {
+    int? expectedDurationMin,
+    int? actualDurationMin,
+    int? pauseCount,
+    DateTime? pauseAt,
+    DateTime? resumeAt,
+  }) {
     return EventModel(
       id: id ?? this.id,
       title: title ?? this.title,
@@ -241,10 +272,12 @@ class EventModel {
       googleEventId: googleEventId ?? this.googleEventId,
       googleCalendarId: googleCalendarId ?? this.googleCalendarId,
       notifScheduledAt: notifScheduledAt ?? this.notifScheduledAt,
-              expectedDurationMin: expectedDurationMin ?? this.expectedDurationMin,
-        actualDurationMin: actualDurationMin ?? this.actualDurationMin,
-        pauseCount: pauseCount ?? this.pauseCount,
-      );
+      expectedDurationMin: expectedDurationMin ?? this.expectedDurationMin,
+      actualDurationMin: actualDurationMin ?? this.actualDurationMin,
+      pauseCount: pauseCount ?? this.pauseCount,
+      pauseAt: pauseAt ?? this.pauseAt,
+      resumeAt: resumeAt ?? this.resumeAt,
+    );
   }
 }
 
