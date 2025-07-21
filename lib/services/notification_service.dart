@@ -291,18 +291,33 @@ class NotificationService {
         payload: payload, // 使用事件ID作為 payload
       );
 
-      // 🎯 實驗數據收集：記錄通知發送成功（只针对普通事件通知，不包括自定义通知）
-      if (payload != null && customTitle == null) {
+      // 🎯 實驗數據收集：記錄通知發送成功
+      if (payload != null) {
         final currentUser = AuthService.instance.currentUser;
         if (currentUser != null) {
-          final notifId = isSecondNotification ? '$payload-2nd' : '$payload-1st';
-          final scheduleTime = DateTime.now(); // 記錄排程時間
-          await ExperimentEventHelper.recordNotificationDelivered(
-            uid: currentUser.uid,
-            eventId: payload,
-            notifId: notifId,
-            scheduledTime: scheduleTime, // 傳遞排程時間
-          );
+          String? notifId;
+          String? eventId;
+          
+          if (payload.startsWith('task_completion_')) {
+            // 完成提醒通知
+            eventId = payload.replaceFirst('task_completion_', '');
+            notifId = '$eventId-complete';
+          } else if (customTitle == null) {
+            // 普通事件通知（开始前通知）
+            eventId = payload;
+            notifId = isSecondNotification ? '$payload-2nd' : '$payload-1st';
+          }
+          // 其他自定义通知不记录
+          
+          if (notifId != null && eventId != null) {
+            final scheduleTime = DateTime.now(); // 記錄排程時間
+            await ExperimentEventHelper.recordNotificationDelivered(
+              uid: currentUser.uid,
+              eventId: eventId,
+              notifId: notifId,
+              scheduledTime: scheduleTime, // 傳遞排程時間
+            );
+          }
         }
       }
 

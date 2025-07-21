@@ -3,7 +3,7 @@ import '../models/event_model.dart';
 import '../models/enums.dart';
 import 'dart:async';
 
-enum TaskAction { start, stop, complete }
+enum TaskAction { start, stop, complete, continue_ }
 
 class EventCard extends StatefulWidget {
   const EventCard(
@@ -36,7 +36,7 @@ class _EventCardState extends State<EventCard> {
   }
 
   void _startTimer() {
-    // 只有当任务进行中或超时时才启动计时器
+    // 只有当任务进行中或超时时才启动计时器（暂停状态不启动计时器）
     if (widget.event.computedStatus == TaskStatus.inProgress || 
         widget.event.computedStatus == TaskStatus.overtime) {
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -79,7 +79,7 @@ class _EventCardState extends State<EventCard> {
     late final Color statusColor;
     late final Color circleColor;
 
-    switch (widget.event.status) {
+    switch (widget.event.computedStatus) {
       case TaskStatus.inProgress:
         bg = const Color(0xFFEFEBE2); // Light grey-green
         statusColor = const Color(0xFF8D9B97); // Grey-green for in-progress
@@ -100,6 +100,11 @@ class _EventCardState extends State<EventCard> {
         statusColor = const Color(0XFF6F7C71);
         circleColor = const Color(0xFF99A59D);
         break;
+      case TaskStatus.paused:
+        bg = const Color(0xFFF0E8F5); // Light purple-ish for paused
+        statusColor = const Color(0xFF9B8AA0); // Purple-grey for paused
+        circleColor = const Color(0xFF8A7CA8); // Darker purple for paused
+        break;
       case TaskStatus.notStarted:
       default:
         bg = const Color(0xFFEFEBE2); // Light grey
@@ -112,7 +117,7 @@ class _EventCardState extends State<EventCard> {
       final horizontalSpacing = constraints.maxWidth * 0.03;
 
       return Opacity(
-        opacity: widget.event.status == TaskStatus.completed ? 0.85 : 1,
+        opacity: widget.event.computedStatus == TaskStatus.completed ? 0.85 : 1,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: cardHPadding,
@@ -174,6 +179,7 @@ class _EventCardState extends State<EventCard> {
                 onStart: () => widget.onAction(TaskAction.start),
                 onStop: () => widget.onAction(TaskAction.stop),
                 onComplete: () => widget.onAction(TaskAction.complete), // 新增完成功能
+                onContinue: () => widget.onAction(TaskAction.continue_), // 新增繼續功能
                 onChat: () => widget.onOpenChat(),
                 // Pass in responsive size parameters
                 buttonHeight: size.height * 0.045,
@@ -195,6 +201,7 @@ class _EventCardState extends State<EventCard> {
       TaskStatus.overdue => 'Overdue',
       TaskStatus.notStarted => e.timeRange,
       TaskStatus.completed => 'Complete',
+      TaskStatus.paused => '已暫停 - ${_getPausedTimeText(e)}', // 暫停狀態顯示暫停信息
     };
   }
 
@@ -230,6 +237,34 @@ class _EventCardState extends State<EventCard> {
     final seconds = difference.inSeconds.remainder(60);
     return '剩餘 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
+
+  /// 获取暂停状态的时间文本
+  static String _getPausedTimeText(EventModel event) {
+    final now = DateTime.now();
+    
+    // 计算动态结束时间（基于实际开始时间）
+    if (event.actualStartTime != null) {
+      final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+      final targetEndTime = event.actualStartTime!.add(taskDuration);
+      final difference = targetEndTime.difference(now);
+      
+      if (difference.isNegative) {
+        // 如果已经超过结束时间
+        final overdue = now.difference(targetEndTime);
+        final hours = overdue.inHours;
+        final minutes = overdue.inMinutes.remainder(60);
+        return '已超時 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
+      } else {
+        // 显示剩余时间
+        final hours = difference.inHours;
+        final minutes = difference.inMinutes.remainder(60);
+        return '剩餘 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
+      }
+    }
+    
+    // 如果没有实际开始时间，显示原定时间
+    return event.timeRange;
+  }
 }
 
 // -------------------------------------------------------------------------
@@ -262,6 +297,8 @@ class _StatusIcon extends StatelessWidget {
       icon = Icons.radio_button_checked_outlined;
     } else if (status == TaskStatus.overtime) {
       icon = Icons.access_time_filled; // 超時使用時鐘圖標
+    } else if (status == TaskStatus.paused) {
+      icon = Icons.pause_circle_outline; // 暫停使用暫停圖標
     } else {
       icon = Icons.radio_button_unchecked;
     }
@@ -279,6 +316,7 @@ class _ActionButton extends StatelessWidget {
     required this.onStart,
     required this.onStop,
     required this.onComplete,
+    required this.onContinue,
     required this.onChat,
     required this.buttonHeight,
     required this.buttonWidth,
@@ -290,6 +328,7 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onComplete;
+  final VoidCallback onContinue;
   final VoidCallback onChat;
   final double buttonHeight;
   final double buttonWidth;
@@ -305,8 +344,8 @@ class _ActionButton extends StatelessWidget {
     Color textColor = Colors.black87;
 
     // 根據任務狀態決定按鈕顏色
-    if (status == TaskStatus.inProgress || status == TaskStatus.overtime || status == TaskStatus.notStarted) {
-      // Stop 按鈕使用較淺的綠色
+    if (status == TaskStatus.inProgress || status == TaskStatus.overtime || status == TaskStatus.notStarted || status == TaskStatus.paused) {
+      // Stop/Continue 按鈕使用較淺的綠色
       buttonColor = const Color(0xFFCED2C9);
     } else {
       // Start 按鈕使用較暖的奶油色
@@ -364,6 +403,41 @@ class _ActionButton extends StatelessWidget {
       );
     }
 
+    // Continue button (Paused state)
+    if (status == TaskStatus.paused) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: buttonWidth,
+              maxWidth: buttonWidth * 1.5,
+              minHeight: buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: onChat,
+              style: buttonStyle,
+              child: const Text('Chat'),
+            ),
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: buttonWidth,
+              maxWidth: buttonWidth * 1.5,
+              minHeight: buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: onContinue,
+              style: buttonStyle,
+              child: const Text('Continue'),
+            ),
+          ),
+        ],
+      );
+    }
+
     // Stop and Complete buttons (In Progress and Overtime)
     if (status == TaskStatus.inProgress || status == TaskStatus.overtime) {
       return Column(
@@ -392,7 +466,7 @@ class _ActionButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onStop,
               style: buttonStyle,
-              child: const Text('Stop'),
+              child: const Text('Pause'),
             ),
           ),
         ],

@@ -20,14 +20,26 @@ import '../services/analytics_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  /// 靜態方法：重新整理commit plans顯示
+  static Future<void> refreshCommitPlans(BuildContext context, String uid) async {
+    final state = context.findAncestorStateOfType<_HomeScreenState>();
+    if (state != null) {
+      await state._loadCommitPlanTasks(uid);
+    }
+  }
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<EventModel> _cached = const [];
+  List<EventModel> _commitPlanTasks = []; // 有commit plan但未完成的任務
+  List<Map<String, dynamic>> _commitPlanData = []; // 儲存commit plan的詳細資料
   bool _isInitialSync = true;
   final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
+  bool _isLoadingCommitPlans = false; // 防止重複載入commit plans
+  DateTime? _lastCommitPlanLoadTime; // 記錄上次載入時間
 
   @override
   void initState() {
@@ -56,6 +68,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final uid = context.read<AuthService>().currentUser!.uid;
         try {
           await CalendarService.instance.syncToday(uid);
+          // 載入有commit plan的任務
+          await _loadCommitPlanTasks(uid);
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context)
@@ -109,6 +123,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         }
         
+        // 載入有commit plan的任務（帶節流機制）
+        final now = DateTime.now();
+        if (_lastCommitPlanLoadTime == null || 
+            now.difference(_lastCommitPlanLoadTime!).inSeconds > 5) {
+          _lastCommitPlanLoadTime = now;
+          _loadCommitPlanTasks(uid);
+        }
+        
         // 重置通知打开标志，确保下次resume时正常检查
         AppUsageService.instance.resetNotificationFlag();
       }
@@ -151,6 +173,84 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (kDebugMode) {
         print('App Resume 通知檢查失敗: $e');
       }
+    }
+  }
+
+  /// 查詢有commit plan但未完成的任務及其commit plan內容
+  Future<void> _loadCommitPlanTasks(String uid) async {
+    if (_isLoadingCommitPlans) return; // 防止重複呼叫
+    _isLoadingCommitPlans = true;
+    
+    try {
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(const Duration(days: 1));
+      
+      final col = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('events');
+      
+      final snap = await col
+          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
+          .orderBy('scheduledStartTime')
+          .get();
+      
+      final events = snap.docs.map(EventModel.fromDoc).toList();
+      
+      final List<Map<String, dynamic>> commitPlanData = [];
+      
+      // 檢查每個未完成的事件是否有commit plan
+      for (final event in events) {
+        // 只檢查未完成、活躍且從未被移動或刪除過的事件
+        if (event.isDone || !event.isActive) continue;
+        
+        // 查詢chats sub-collection，獲取最新的有commit plan的聊天記錄
+        final chatsSnap = await col
+            .doc(event.id)
+            .collection('chats')
+            .where('commit_plan', isEqualTo: true)
+            .get();
+            
+        // 在内存中排序并获取最新的记录
+        final chatDocs = chatsSnap.docs;
+        if (chatDocs.isNotEmpty) {
+          chatDocs.sort((a, b) {
+            final aTime = (a.data()['start_time'] as Timestamp).toDate();
+            final bTime = (b.data()['start_time'] as Timestamp).toDate();
+            return bTime.compareTo(aTime); // 降序排序
+          });
+        
+                  // 使用排序后的第一条记录
+          final chatDoc = chatDocs.first;
+          final chatData = chatDoc.data();
+          final commitPlanText = chatData['commit_plan_text'] ?? ''; // commit plan文本字段
+          
+          commitPlanData.add({
+            'event': event,
+            'commitPlan': commitPlanText,
+            'chatId': chatDoc.id,
+          });
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _commitPlanTasks = commitPlanData.map((data) => data['event'] as EventModel).toList();
+          _commitPlanData = commitPlanData; // 儲存完整的commit plan資料
+        });
+      }
+      
+      if (kDebugMode) {
+        print('Loaded ${commitPlanData.length} tasks with commit plans');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error loading commit plan tasks: $e');
+      }
+    } finally {
+      _isLoadingCommitPlans = false; // 重置載入狀態
     }
   }
 
@@ -283,6 +383,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case TaskAction.complete:
         await CalendarService.instance.completeEvent(uid, e);
         break;
+      case TaskAction.continue_:
+        await CalendarService.instance.continueEvent(uid, e);
+        await AnalyticsService().logTaskStarted('event_card_continue');
+        break;
     }
   }
 
@@ -375,6 +479,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return Column(
             children: [
               SizedBox(height: verticalSpacing),
+              
+              // Commit Plan Tasks Section
+              if (_commitPlanTasks.isNotEmpty) ...[
+                _buildCommitPlanSection(constraints, horizontalPadding, titleFontSize),
+                SizedBox(height: verticalSpacing * 1.5),
+              ],
+              
               Text("Today's Tasks",
                   style: TextStyle(
                       fontSize: titleFontSize,
@@ -485,6 +596,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           );
         }),
+      ),
+    );
+  }
+
+  /// 构建Commit Plan任务section
+  Widget _buildCommitPlanSection(BoxConstraints constraints, double horizontalPadding, double titleFontSize) {
+    final responsiveText = MediaQuery.textScalerOf(context).scale(1.0);
+    
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.app_registration,
+                color: Colors.orange[700],
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'App修正',
+                style: TextStyle(
+                  fontSize: (14 * responsiveText).clamp(12.0, 16.0),
+                  fontWeight: FontWeight.w500,
+                  color: Colors.orange[800],
+                ),
+              ),
+            ],
+          ),
+          
+          // Commit Plans List
+          ..._commitPlanData.map((data) {
+            final commitPlan = data['commitPlan'] as String;
+            final event = data['event'] as EventModel;
+            
+            if (commitPlan.isEmpty) return const SizedBox.shrink();
+            
+            return GestureDetector(
+              onTap: () => _handleAction(event, TaskAction.start),
+              child: Container(
+                margin: const EdgeInsets.only(top: 8),
+                child: Text(
+                  commitPlan,
+                  style: TextStyle(
+                    fontSize: (20 * responsiveText).clamp(13.0, 17.0),
+                    color: const Color(0xFF2D3748),
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ],
       ),
     );
   }

@@ -47,9 +47,10 @@ bool get isArchived;  // 是否为已归档事件
    - 将原事件文档重命名为 `原ID_moved_时间戳`
    - 标记为 `moved` 状态并保存历史数据
 
-2. **创建新状态**：
+2. **创建全新事件**：
    - 删除原文档
-   - 重新创建原ID文档，保存Google Calendar的新数据
+   - 重新创建原ID文档，使用Google Calendar的新数据
+   - 创建完全干净的新事件状态（不继承任何原事件的状态）
    - 设置 `previousEventId` 关联到历史记录
 
 ```dart
@@ -70,11 +71,15 @@ batch.set(movedRef, movedData);
 // 2) 删除原文档
 batch.delete(localDoc.reference);
 
-// 3) 重新创建原ID文档 (ID: "abc123xyz")
+// 3) 重新创建原ID文档 (ID: "abc123xyz") - 全新的事件
 final newData = {
-  // ... Google Calendar的新数据
+  // ... 只有Google Calendar的新数据
   'previousEventId': movedEventId, // 关联到历史记录
   'lifecycleStatus': EventLifecycleStatus.active.value,
+  'isDone': false, // 重置为未完成
+  'createdAt': now,
+  // 🎯 不继承 actualStartTime、startTrigger、chatId、status 等状态
+  // 让移动后的事件从干净的状态开始
 };
 batch.set(originalRef, newData);
 ```
@@ -208,7 +213,7 @@ bool _hasTimeChanged(DateTime localStart, DateTime localEnd,
    - 创建移动记录保存历史状态
    - 原文档更新为新状态
    - 通过previousEventId链接历史
-3. **实验数据**: 移动时会复制重要的实验字段到新状态
+3. **实验数据**: 移动时创建全新状态，不继承原事件的任何状态字段
 4. **历史追踪**: 支持多次移动的完整历史链
 
 ## 兼容性

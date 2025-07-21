@@ -20,6 +20,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   List<EventModel> _todayEvents = [];
   List<EventModel> _tomorrowEvents = [];
   List<EventModel> _delayedEvents = [];
+  List<EventModel> _startedButIncompleteEvents = []; // 今天開始但沒有完成的任務
   bool _isLoading = true;
 
   // 问卷答案状态
@@ -27,6 +28,9 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   final Set<String> _selectedDelayedTasks = {};
   final Set<String> _selectedDelayReasons = {};
   final TextEditingController _delayOtherController = TextEditingController();
+  
+  // 1.5. 今天開始但沒有完成任務的原因（簡答題）
+  final TextEditingController _incompleteReasonController = TextEditingController();
   
   // 2. 對今天表現的感受 (1-5)
   int _overallSatisfaction = 3;
@@ -66,6 +70,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   @override
   void dispose() {
     _delayOtherController.dispose();
+    _incompleteReasonController.dispose();
     _tomorrowMotivationController.dispose();
     _noChatOtherController.dispose();
     _chatOtherController.dispose();
@@ -119,7 +124,12 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         // 筛选出延迟或未完成的任务
         _delayedEvents = _todayEvents.where((event) {
           final status = event.computedStatus;
-          return !event.isDone && (status == TaskStatus.overdue || status == TaskStatus.notStarted);
+          return !event.isDone && (status == TaskStatus.overdue || status == TaskStatus.notStarted || status == TaskStatus.paused);
+        }).toList();
+        
+        // 筛选出今天開始但沒有完成的任務（有actualStartTime但isDone=false）
+        _startedButIncompleteEvents = _todayEvents.where((event) {
+          return event.actualStartTime != null && !event.isDone;
         }).toList();
         
         _isLoading = false;
@@ -165,6 +175,8 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         delayReasons: _selectedDelayReasons.toList(),
         delayOtherReason: _delayOtherController.text.trim().isEmpty 
             ? null : _delayOtherController.text.trim(),
+        incompleteReason: _incompleteReasonController.text.trim().isEmpty 
+            ? null : _incompleteReasonController.text.trim(),
         overallSatisfaction: _overallSatisfaction,
         tomorrowMotivation: _tomorrowMotivationController.text.trim().isEmpty 
             ? null : _tomorrowMotivationController.text.trim(),
@@ -243,6 +255,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                     children: [
                       _buildQuestion1DelayedTasks(),
                       const SizedBox(height: 24),
+                      
+                      // 1.5. 條件顯示：今天開始但沒有完成任務的原因
+                      if (_startedButIncompleteEvents.isNotEmpty) ...[
+                        _buildQuestion1_5IncompleteReason(),
+                        const SizedBox(height: 24),
+                      ],
+                      
                       _buildQuestion2OverallSatisfaction(),
                       const SizedBox(height: 24),
                       _buildQuestion3TomorrowMotivation(),
@@ -420,6 +439,66 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       },
       dense: true,
     )).toList();
+  }
+
+  Widget _buildQuestion1_5IncompleteReason() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '1.5. 今天開始但沒有完成任務的原因？',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '簡答題',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            
+            // 顯示今天開始但沒完成的任務列表
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '📝 今天已開始但尚未完成的任務：',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._startedButIncompleteEvents.map((event) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• ${event.title}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  )),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            TextField(
+              controller: _incompleteReasonController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: '例如：任務比預期困難、中途被其他事情打斷、缺乏動力繼續...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildQuestion2OverallSatisfaction() {

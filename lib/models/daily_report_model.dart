@@ -11,6 +11,9 @@ class DailyReportModel {
   final List<String> delayReasons; // 延迟原因（多选）
   final String? delayOtherReason; // 其他原因
   
+  // 1.5. 今天開始但沒有完成任務的原因？（簡答）
+  final String? incompleteReason; // 开始但未完成任务的原因
+  
   // 2. 對今天自己執行任務的表現的感受（1-5）
   final int overallSatisfaction;
   
@@ -53,6 +56,7 @@ class DailyReportModel {
     required this.delayedTaskIds,
     required this.delayReasons,
     this.delayOtherReason,
+    this.incompleteReason,
     required this.overallSatisfaction,
     this.tomorrowMotivation,
     required this.hadChatWithCoach,
@@ -78,6 +82,7 @@ class DailyReportModel {
       delayedTaskIds: List<String>.from(data['delayedTaskIds'] ?? []),
       delayReasons: List<String>.from(data['delayReasons'] ?? []),
       delayOtherReason: data['delayOtherReason'],
+      incompleteReason: data['incompleteReason'],
       overallSatisfaction: data['overallSatisfaction'] ?? 1,
       tomorrowMotivation: data['tomorrowMotivation'],
       hadChatWithCoach: data['hadChatWithCoach'] ?? false,
@@ -102,6 +107,7 @@ class DailyReportModel {
       'delayedTaskIds': delayedTaskIds,
       'delayReasons': delayReasons,
       if (delayOtherReason != null) 'delayOtherReason': delayOtherReason,
+      if (incompleteReason != null) 'incompleteReason': incompleteReason,
       'overallSatisfaction': overallSatisfaction,
       if (tomorrowMotivation != null) 'tomorrowMotivation': tomorrowMotivation,
       'hadChatWithCoach': hadChatWithCoach,
@@ -126,6 +132,7 @@ class DailyReportModel {
     List<String>? delayedTaskIds,
     List<String>? delayReasons,
     String? delayOtherReason,
+    String? incompleteReason,
     int? overallSatisfaction,
     String? tomorrowMotivation,
     bool? hadChatWithCoach,
@@ -148,6 +155,7 @@ class DailyReportModel {
       delayedTaskIds: delayedTaskIds ?? this.delayedTaskIds,
       delayReasons: delayReasons ?? this.delayReasons,
       delayOtherReason: delayOtherReason ?? this.delayOtherReason,
+      incompleteReason: incompleteReason ?? this.incompleteReason,
       overallSatisfaction: overallSatisfaction ?? this.overallSatisfaction,
       tomorrowMotivation: tomorrowMotivation ?? this.tomorrowMotivation,
       hadChatWithCoach: hadChatWithCoach ?? this.hadChatWithCoach,

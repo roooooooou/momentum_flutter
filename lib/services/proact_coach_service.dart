@@ -59,6 +59,9 @@ class ProactCoachService {
     // 🎯 新增：提取suggested_action字段
     final suggestedAction = res.data['suggested_action'] ?? 'pending';
     
+    // 🎯 新增：提取commit_plan字段
+    final commitPlan = res.data['commit_plan'];
+    
     // 安全地提取token使用量信息
     final tokenUsageRaw = res.data['token_usage'];
     int totalTokens = 0;
@@ -88,6 +91,7 @@ class ProactCoachService {
       endOfDialogue: endOfDialogue,
       extra: {
         'suggested_action': suggestedAction,
+        if (commitPlan != null && commitPlan.toString().isNotEmpty) 'commit_plan': commitPlan.toString(),
       },
     );
     

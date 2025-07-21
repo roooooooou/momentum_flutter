@@ -19,7 +19,8 @@ enum TaskStatus {
   inProgress(1),   // 進行中
   completed(2),    // 已完成
   overdue(3),      // 逾期（未開始但過了開始時間）
-  overtime(4);     // 超時（已開始但超過預計結束時間）
+  overtime(4),     // 超時（已開始但超過預計結束時間）
+  paused(5);       // 暫停（已開始但暫時停止）
 
   const TaskStatus(this.value);
   final int value;

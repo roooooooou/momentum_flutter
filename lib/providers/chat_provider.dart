@@ -127,11 +127,24 @@ class ChatProvider extends ChangeNotifier {
     await _fetchAssistantReply();
   }
 
+  bool _hasEndedChat = false; // 标记是否已经结束聊天
+
   /// 結束聊天會話並記錄實驗數據
   Future<void> endChatSession(ChatResult result, {bool commitPlan = false}) async {
-    if (!_hasRecordedChatStart) return; // 如果沒有記錄開始，就不記錄結束
+    if (!_hasRecordedChatStart || _hasEndedChat) return; // 如果没有开始记录或已经结束，就不再记录
     
     try {
+      // 获取AI回应中的commit plan文本
+      String? commitPlanText;
+      if (commitPlan && _messages.isNotEmpty) {
+        // 查找最后一条有commit_plan的AI消息
+        final lastAssistantMessage = _messages.lastWhere(
+          (msg) => msg.role == ChatRole.assistant && msg.extra?['commit_plan'] != null,
+          orElse: () => ChatMessage(role: ChatRole.assistant, content: ''),
+        );
+        commitPlanText = lastAssistantMessage.extra?['commit_plan'];
+      }
+      
       // 記錄聊天結束
       await ExperimentEventHelper.recordChatEnd(
         uid: uid,
@@ -139,13 +152,16 @@ class ChatProvider extends ChangeNotifier {
         chatId: chatId,
         result: result.value,
         commitPlan: commitPlan,
+        commitPlanText: commitPlanText, // 传递commit plan文本
       );
       
       // 更新統計數據
       await _updateChatStatistics();
       
-      // 🎯 新增：生成并存储聊天总结
+      // 🎯 新增：生成並儲存聊天總結
       await _generateAndSaveSummary();
+      
+      _hasEndedChat = true; // 标记聊天已结束
     } catch (e) {
       // 實驗數據收集失敗不影響用戶體驗
       debugPrint('記錄聊天結束失敗: $e');
@@ -180,7 +196,7 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  /// 生成并存储聊天总结
+  /// 生成並儲存聊天總結
   Future<void> _generateAndSaveSummary() async {
     // 只有在有对话消息时才生成总结
     if (_messages.isEmpty || _messages.length < 2) {
@@ -194,7 +210,7 @@ class ChatProvider extends ChangeNotifier {
       // 调用云函数获取总结
       final summaryResult = await _coach.summarizeChat(_messages);
       
-      // 存储总结到 Firebase
+      // 儲存總結到 Firebase
       await ExperimentEventHelper.saveChatSummary(
         uid: uid,
         eventId: eventId,
@@ -234,6 +250,7 @@ class ChatProvider extends ChangeNotifier {
     _hasStarted = false; // 重置開始狀態
     _latencies.clear(); // 重置延遲記錄
     _hasRecordedChatStart = false; // 重置記錄狀態
+    _hasEndedChat = false; // 重置结束状态
     _totalTokens = 0; // 重置token計數
     notifyListeners();
   }

@@ -271,6 +271,17 @@ class NotificationHandler {
         fromNotification: true,
       );
 
+      // 🎯 實驗數據收集：記錄完成提醒通知被點擊
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        final notifId = '$eventId-complete';
+        await ExperimentEventHelper.recordNotificationOpened(
+          uid: currentUser.uid,
+          eventId: eventId,
+          notifId: notifId,
+        );
+      }
+
       if (kDebugMode) {
         print('任務完成提醒通知被點擊: $eventId');
       }
@@ -318,7 +329,7 @@ class NotificationHandler {
     // 確保在主線程中執行
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (context.mounted) {
-        showDialog(
+        showDialog<bool>(
           context: context,
           barrierDismissible: true,
           builder: (context) => AlertDialog(
@@ -332,12 +343,14 @@ class NotificationHandler {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () {
+                  Navigator.of(context).pop(false); // false = 稍後再說
+                },
                 child: const Text('稍後再說'),
               ),
               ElevatedButton(
                 onPressed: () async {
-                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(true); // true = 已完成
                   // 執行完成操作
                   await _completeTask(event);
                 },
@@ -345,12 +358,45 @@ class NotificationHandler {
               ),
             ],
           ),
-        );
+        ).then((result) async {
+          // 🎯 實驗數據收集：記錄完成提醒通知結果
+          if (result == true) {
+            // true = 用戶點擊「已完成」
+            await _recordCompletionNotificationResult(event.id, NotificationResult.start);
+          } else {
+            // false = 用戶點擊「稍後再說」, null = 用戶點擊外部區域或返回鍵關閉
+            await _recordCompletionNotificationResult(event.id, NotificationResult.dismiss);
+          }
+        });
       }
     });
 
     if (kDebugMode) {
       print('顯示任務完成確認對話框: ${event.title}');
+    }
+  }
+
+  /// 記錄完成提醒通知的操作結果
+  Future<void> _recordCompletionNotificationResult(String eventId, NotificationResult result) async {
+    try {
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        final notifId = '$eventId-complete';
+        await ExperimentEventHelper.recordNotificationResult(
+          uid: currentUser.uid,
+          eventId: eventId,
+          notifId: notifId,
+          result: result,
+        );
+        
+        if (kDebugMode) {
+          print('記錄完成提醒通知結果: eventId=$eventId, result=${result.name}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('記錄完成提醒通知結果失敗: $e');
+      }
     }
   }
 

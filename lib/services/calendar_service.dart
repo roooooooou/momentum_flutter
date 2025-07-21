@@ -487,7 +487,7 @@ class CalendarService extends ChangeNotifier {
     // 2) 删除原文档
     batch.delete(localDoc.reference);
     
-    // 3) 重新创建原ID的文档（使用Google Calendar的新数据）
+    // 3) 重新创建原ID的文档（使用Google Calendar的新数据）- 创建全新的event
     final originalRef = col.doc(originalEventId);
     final newData = <String, dynamic>{
       'title': apiEvent.summary ?? localData['title'],
@@ -500,19 +500,11 @@ class CalendarService extends ChangeNotifier {
       'previousEventId': movedEventId, // 关联到移动记录
       'updatedAt': Timestamp.fromDate(apiEvent.updated?.toUtc() ?? now.toUtc()),
       'createdAt': Timestamp.fromDate(now),
-      'isDone': false, // 移动后重置完成状态
+      'isDone': false, // 移动后重置为未完成
+      // 🎯 不继承任何原事件的状态，创建全新的event
+      // 不复制 actualStartTime、startTrigger、chatId、status、completedTime 等字段
+      // 让新事件从干净的状态开始
     };
-    
-    // 如果原事件有重要的实验数据，可以选择性保留
-    if (localData['actualStartTime'] != null) {
-      newData['actualStartTime'] = localData['actualStartTime'];
-    }
-    if (localData['startTrigger'] != null) {
-      newData['startTrigger'] = localData['startTrigger'];
-    }
-    if (localData['chatId'] != null) {
-      newData['chatId'] = localData['chatId'];
-    }
     
     batch.set(originalRef, newData);
     
@@ -669,26 +661,58 @@ class CalendarService extends ChangeNotifier {
   }
 
   Future<void> stopEvent(String uid, EventModel e) async {
-    // 🎯 計算新狀態：根據當前時間決定是未開始還是逾期
-    final newStatus = DateTime.now().isAfter(e.scheduledStartTime) 
-        ? TaskStatus.overdue 
-        : TaskStatus.notStarted;
-    
-    // 一次性設置所有需要的字段，避免時序問題
+    // 🎯 設置為暫停狀態（保留開始時間）並增加暫停次數
     final ref = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .collection('events')
         .doc(e.id);
 
+    // 獲取當前暫停次數並增加1
+    final snap = await ref.get();
+    int currentPauseCount = 0;
+    if (snap.exists) {
+      final data = snap.data()!;
+      currentPauseCount = (data['pauseCount'] as int?) ?? 0;
+    }
+
     await ref.set({
-      'actualStartTime': null,           // 清空開始時間
-      'status': newStatus.value,         // 設置新狀態  
+      'status': TaskStatus.paused.value,  // 設置為暫停狀態
+      'pauseCount': currentPauseCount + 1, // 增加暫停次數
       'updatedAt': Timestamp.fromDate(DateTime.now()), // 更新時間
     }, SetOptions(merge: true));
 
-    // 取消任務完成提醒通知
+    // 取消任務完成提醒通知（暫停時不需要提醒）
     await _cancelCompletionNotification(e.id);
+  }
+
+  Future<void> continueEvent(String uid, EventModel e) async {
+    // 🎯 恢復任務：從暫停狀態恢復到進行中或超時狀態
+    final now = DateTime.now();
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(e.id);
+
+    // 根據當前時間和任務時長判斷新狀態
+    TaskStatus newStatus;
+    if (e.actualStartTime != null) {
+      final taskDuration = e.scheduledEndTime.difference(e.scheduledStartTime);
+      final dynamicEndTime = e.actualStartTime!.add(taskDuration);
+      newStatus = now.isAfter(dynamicEndTime) ? TaskStatus.overtime : TaskStatus.inProgress;
+    } else {
+      // 如果沒有實際開始時間，設為進行中
+      newStatus = TaskStatus.inProgress;
+    }
+
+    await ref.set({
+      'status': newStatus.value,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    }, SetOptions(merge: true));
+
+    // 重新排程任務完成提醒通知
+    await _scheduleCompletionNotification(e);
   }
 
   Future<void> completeEvent(String uid, EventModel e) async {

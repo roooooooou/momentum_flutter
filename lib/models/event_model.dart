@@ -6,7 +6,7 @@ import 'enums.dart';
 class EventModel {
   final String id;
   final String title;
-  final String? description;  // 存储但不在UI中显示
+  final String? description;  // 儲存但不在UI中顯示
   final String? googleEventId;
   final String? googleCalendarId;
   
@@ -19,6 +19,7 @@ class EventModel {
   // === 數據收集 - 持續時間 ===
   final int? expectedDurationMin;      // 期望持續時間（分鐘）
   final int? actualDurationMin;        // 實際持續時間（分鐘）
+  final int? pauseCount;               // 暫停次數
   
   // === 互動 ===
   final StartTrigger? startTrigger;     // enum:int 0-tap_notif 1-tap_card 2-chat 3-auto
@@ -70,6 +71,7 @@ class EventModel {
     this.notifScheduledAt,
     this.expectedDurationMin,
     this.actualDurationMin,
+    this.pauseCount,
       }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -99,10 +101,11 @@ class EventModel {
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
       googleEventId: d['googleEventId'],
       googleCalendarId: d['googleCalendarId'],
-      notifScheduledAt: (d['notifScheduledAt'] as Timestamp?)?.toDate(),
-      expectedDurationMin: d['expectedDurationMin'],
-      actualDurationMin: d['actualDurationMin'],
-    );
+              notifScheduledAt: (d['notifScheduledAt'] as Timestamp?)?.toDate(),
+        expectedDurationMin: d['expectedDurationMin'],
+        actualDurationMin: d['actualDurationMin'],
+        pauseCount: d['pauseCount'],
+      );
   }
 
   Map<String, dynamic> toFirestore() {
@@ -129,9 +132,10 @@ class EventModel {
       if (googleEventId != null) 'googleEventId': googleEventId,
       if (googleCalendarId != null) 'googleCalendarId': googleCalendarId,
       if (notifScheduledAt != null) 'notifScheduledAt': Timestamp.fromDate(notifScheduledAt!),
-      if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
-      if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
-    };
+              if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
+        if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
+        if (pauseCount != null) 'pauseCount': pauseCount,
+      };
   }
 
   String get timeRange {
@@ -204,9 +208,10 @@ class EventModel {
     String? googleEventId,
     String? googleCalendarId,
     DateTime? notifScheduledAt,
-    int? expectedDurationMin,
-    int? actualDurationMin,
-  }) {
+          int? expectedDurationMin,
+      int? actualDurationMin,
+      int? pauseCount,
+    }) {
     return EventModel(
       id: id ?? this.id,
       title: title ?? this.title,
@@ -231,9 +236,10 @@ class EventModel {
       googleEventId: googleEventId ?? this.googleEventId,
       googleCalendarId: googleCalendarId ?? this.googleCalendarId,
       notifScheduledAt: notifScheduledAt ?? this.notifScheduledAt,
-      expectedDurationMin: expectedDurationMin ?? this.expectedDurationMin,
-      actualDurationMin: actualDurationMin ?? this.actualDurationMin,
-    );
+              expectedDurationMin: expectedDurationMin ?? this.expectedDurationMin,
+        actualDurationMin: actualDurationMin ?? this.actualDurationMin,
+        pauseCount: pauseCount ?? this.pauseCount,
+      );
   }
 }
 
@@ -591,6 +597,7 @@ class ExperimentEventHelper {
     required String chatId,
     required int result, // 0-start, 1-snooze, 2-leave
     required bool commitPlan,
+    String? commitPlanText, // 新增：commit plan文本
   }) async {
     final now = DateTime.now();
     final ref = _firestore
@@ -611,6 +618,7 @@ class ExperimentEventHelper {
         'end_time': Timestamp.fromDate(now),
         'result': result,
         'commit_plan': commitPlan,
+        if (commitPlanText != null) 'commit_plan_text': commitPlanText, // 儲存commit plan文字
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       
@@ -679,7 +687,7 @@ class ExperimentEventHelper {
     });
   }
 
-  /// 存储聊天总结数据（实验数据收集）
+  /// 儲存聊天總結資料（實驗資料收集）
   static Future<void> saveChatSummary({
     required String uid,
     required String eventId,
@@ -696,7 +704,7 @@ class ExperimentEventHelper {
         .collection('chats')
         .doc(chatId);
 
-    // 🎯 调试：输出即将存储的总结数据
+    // 🎯 除錯：輸出即將儲存的總結資料
     debugPrint('saveChatSummary - uid: $uid, eventId: $eventId, chatId: $chatId');
     debugPrint('saveChatSummary - summary: $summary');
     debugPrint('saveChatSummary - snoozeReasons: $snoozeReasons');

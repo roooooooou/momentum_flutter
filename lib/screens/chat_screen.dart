@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/calendar_service.dart';
 import '../services/analytics_service.dart';
+import 'home_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.taskTitle, this.taskDescription});
@@ -24,6 +25,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   bool _hasExplicitAction = false; // 標記用戶是否已經明確選擇行動
   ChatProvider? _chatProvider; // 保存ChatProvider引用
+  String? _currentUid; // 保存当前用户ID
 
   @override
   void initState() {
@@ -39,6 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.didChangeDependencies();
     // 安全地保存ChatProvider引用，以便在dispose中使用
     _chatProvider = context.read<ChatProvider>();
+    _currentUid = context.read<AuthService>().currentUser?.uid;
   }
 
   @override
@@ -50,6 +53,8 @@ class _ChatScreenState extends State<ChatScreen> {
         ChatResult.leave,
         commitPlan: _chatProvider!.hasCommitmentToPlan,
       );
+      
+
     }
     
     _controller.dispose();
@@ -99,30 +104,36 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       });
 
+      // 根據AI建議的action顯示不同按鈕
+      final suggestedAction = chat.suggestedAction;
+      
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 开始任务按钮
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _startTaskAndClose(chat),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('開始任務'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB8E6B8), // 绿色
-                  foregroundColor: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            // 只在建議start_now時顯示開始任務按鈕
+            if (suggestedAction == 'start_now') ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _startTaskAndClose(chat),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('開始任務'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB8E6B8), // 绿色
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8), // 按钮间距
-            // 关闭按钮
+              const SizedBox(height: 8),
+            ],
+            
+            // 關閉按鈕（始終顯示）
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -188,15 +199,20 @@ class _ChatScreenState extends State<ChatScreen> {
     // 根據AI建議映射到對應的ChatResult
     switch (suggestedAction) {
       case 'start_now':
-        // 不再自动开始任务，只记录聊天结束
+        // 用戶願意立即開始任務
         result = ChatResult.start;
         break;
       case 'snooze':
+        // 用戶有commit plan但不想立即開始
         result = ChatResult.snooze;
         break;
+      case 'give_up':
+        // 用戶不願意開始任務
+        result = ChatResult.giveUp;
+        break;
       default:
-        // pending 或其他情況，預設為 snooze
-        result = ChatResult.snooze;
+        // pending 或其他情況，預設為 give_up
+        result = ChatResult.giveUp;
         break;
     }
 
@@ -214,6 +230,14 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // 移除自动开始任务的逻辑，让用户手动选择
       // 即使AI建议开始任务，也不自动启动，由用户点击"开始任务"按钮来决定
+      
+      // 刷新主页面的commit plan显示
+      if (result == ChatResult.start && mounted) {
+        final uid = context.read<AuthService>().currentUser?.uid;
+        if (uid != null) {
+          await HomeScreen.refreshCommitPlans(context, uid);
+        }
+      }
       
       print('Chat session ended with result: ${result.name}');
     } catch (e) {
@@ -274,7 +298,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
         
-        // 确保返回到主页面，而不仅仅是返回上一页
+        // 确保返回到主页面，并刷新commit plan显示
+        final uid = context.read<AuthService>().currentUser?.uid;
+        if (uid != null) {
+          await HomeScreen.refreshCommitPlans(context, uid);
+        }
+        
+        // 返回主页面
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
