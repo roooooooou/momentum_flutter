@@ -6,6 +6,7 @@ import 'package:momentum/services/auth_service.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'data_path_service.dart';
 import '../services/notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -273,10 +274,47 @@ class CalendarService extends ChangeNotifier {
         print('syncToday: 從日历 $targetCalendarId 獲取到 ${apiEvents!.items?.length ?? 0} 個事件');
       }
 
-      final col = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('events');
+      // 使用 DataPathService 获取正确的 events 集合
+      final col = await DataPathService.instance.getUserEventsCollection(uid);
+
+      // 确保数据结构存在
+      try {
+        final groupName = await DataPathService.instance.getUserGroupName(uid);
+        final dataDoc = FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection(groupName)
+            .doc('data');
+        
+        // 检查并创建必要的文档结构
+        final docSnapshot = await dataDoc.get();
+        if (!docSnapshot.exists) {
+          await dataDoc.set({
+            'created_at': FieldValue.serverTimestamp(),
+          });
+          
+          // 创建必要的子集合文档
+          final batch = FirebaseFirestore.instance.batch();
+          batch.set(dataDoc.collection('events').doc('_config'), {
+            'created_at': FieldValue.serverTimestamp(),
+          });
+          batch.set(dataDoc.collection('daily_metrics').doc('_config'), {
+            'created_at': FieldValue.serverTimestamp(),
+          });
+          batch.set(dataDoc.collection('app_sessions').doc('_config'), {
+            'created_at': FieldValue.serverTimestamp(),
+          });
+          await batch.commit();
+          
+          if (kDebugMode) {
+            print('syncToday: 创建了必要的数据结构');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('syncToday: 检查/创建数据结构时出错: $e');
+        }
+      }
 
       // 创建事件映射：googleEventId -> Google Calendar事件
       final apiEventMap = <String, cal.Event>{};
@@ -295,17 +333,27 @@ class CalendarService extends ChangeNotifier {
           .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
           .get();
 
+      if (kDebugMode) {
+        print('syncToday: 本地查询时间范围: $start 到 $end');
+        print('syncToday: 找到 ${localSnap.docs.length} 个本地事件');
+        for (final doc in localSnap.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final localStart = (data['scheduledStartTime'] as Timestamp?)?.toDate();
+          print('  本地事件: ${data['title']}, 时间: $localStart, ID: ${doc.id}');
+        }
+      }
+
       final batch = FirebaseFirestore.instance.batch();
       final archivedEvents = <String>[];
       final newEventIds = <String>[];
 
       // 2) 处理每个本地事件
       for (final localDoc in localSnap.docs) {
-        final localData = localDoc.data();
+        final localData = localDoc.data() as Map<String, dynamic>?;
         final localEventId = localDoc.id;
-        final googleEventId = localData['googleEventId'] as String?;
-        final localCalendarId = localData['googleCalendarId'] as String?;
-        final currentLifecycleStatus = localData['lifecycleStatus'] as int?;
+        final googleEventId = localData?['googleEventId'] as String?;
+        final localCalendarId = localData?['googleCalendarId'] as String?;
+        final currentLifecycleStatus = localData?['lifecycleStatus'] as int?;
         
         // 跳过已经被归档的事件
         if (currentLifecycleStatus != null && currentLifecycleStatus != EventLifecycleStatus.active.value) {
@@ -315,15 +363,19 @@ class CalendarService extends ChangeNotifier {
         if (googleEventId != null && apiEventMap.containsKey(googleEventId)) {
           // 事件在Google Calendar中存在，检查是否有变化
           final apiEvent = apiEventMap[googleEventId]!;
-          final apiStart = apiEvent.start!.dateTime!;
-          final apiEnd = apiEvent.end!.dateTime!;
-          final localStart = (localData['scheduledStartTime'] as Timestamp).toDate();
-          final localEnd = (localData['scheduledEndTime'] as Timestamp).toDate();
+          final apiStart = apiEvent.start?.dateTime;
+          final apiEnd = apiEvent.end?.dateTime;
+          
+          if (apiStart == null || apiEnd == null) continue;
+          final localStart = (localData?['scheduledStartTime'] as Timestamp?)?.toDate();
+          final localEnd = (localData?['scheduledEndTime'] as Timestamp?)?.toDate();
+          
+          if (localStart == null || localEnd == null) continue;
           
           // 检查时间是否发生变化（移动）
           if (_hasTimeChanged(localStart, localEnd, apiStart, apiEnd)) {
             if (kDebugMode) {
-              print('syncToday: 检测到事件移动: ${localData['title']} (ID: $localEventId)');
+              print('syncToday: 检测到事件移动: ${localData?['title']} (ID: $localEventId)');
               print('  从 ${localStart.toIso8601String()} - ${localEnd.toIso8601String()}');
               print('  到 ${apiStart.toIso8601String()} - ${apiEnd.toIso8601String()}');
             }
@@ -339,7 +391,7 @@ class CalendarService extends ChangeNotifier {
           final lifecycleStatus = await _determineEventFate(googleEventId, localCalendarId, targetCalendarId);
           
           if (kDebugMode) {
-            print('syncToday: 事件不存在于当前日历: ${localData['title']} (ID: $localEventId), 状态: ${lifecycleStatus.displayName}');
+            print('syncToday: 事件不存在于当前日历: ${localData?['title']} (ID: $localEventId), 状态: ${lifecycleStatus.displayName}');
           }
           
           await _archiveEvent(col, localDoc, lifecycleStatus, now, batch);
@@ -348,16 +400,33 @@ class CalendarService extends ChangeNotifier {
       }
 
       // 3) 添加新事件
+      if (kDebugMode) {
+        print('syncToday: 开始检查新事件...');
+        print('syncToday: Google Calendar API 返回的事件:');
+        for (final apiEvent in apiEvents!.items ?? <cal.Event>[]) {
+          final s = apiEvent.start?.dateTime;
+          print('  API事件: ${apiEvent.summary ?? 'No title'}, 时间: $s, ID: ${apiEvent.id}');
+        }
+      }
+      
       for (final apiEvent in apiEvents!.items ?? <cal.Event>[]) {
         final s = apiEvent.start?.dateTime, t = apiEvent.end?.dateTime;
         if (s == null || t == null || apiEvent.id == null) continue;
 
         // 检查是否为新事件（在本地不存在或已被归档）
-        final existingDocsList = localSnap.docs.where((doc) => 
-          doc.id == apiEvent.id && 
-          (doc.data()['lifecycleStatus'] == null || 
-           doc.data()['lifecycleStatus'] == EventLifecycleStatus.active.value)
-        ).toList();
+        final existingDocsList = localSnap.docs.where((doc) {
+          // 1) 首先检查ID是否匹配
+          if (doc.id != apiEvent.id) return false;
+          
+          // 2) 然后检查事件是否为活跃状态
+          final data = doc.data() as Map<String, dynamic>?;
+          final lifecycleStatus = data?['lifecycleStatus'] as int?;
+          
+          // 如果没有lifecycleStatus字段（旧数据）或者是active状态，都算作活跃事件
+          final isActive = lifecycleStatus == null || lifecycleStatus == EventLifecycleStatus.active.value;
+          
+          return isActive;
+        }).toList();
         final existingDoc = existingDocsList.isNotEmpty ? existingDocsList.first : null;
 
         if (existingDoc == null) {
@@ -380,7 +449,8 @@ class CalendarService extends ChangeNotifier {
           newEventIds.add(apiEvent.id!);
           
           if (kDebugMode) {
-            print('syncToday: 创建新事件: ${apiEvent.summary} (ID: ${apiEvent.id})');
+            print('syncToday: 创建新事件: ${apiEvent.summary ?? 'No title'} (ID: ${apiEvent.id})');
+            print('  事件时间: ${s.toLocal()} (本地) / ${s.toUtc()} (UTC)');
           }
         }
       }
@@ -595,11 +665,7 @@ class CalendarService extends ChangeNotifier {
       );
       
       // 需要額外清空 completedTime
-      final doc = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('events')
-          .doc(event.id);
+      final doc = await DataPathService.instance.getUserEventDoc(uid, event.id);
 
       await doc.set({
         'isDone': false,
@@ -614,6 +680,19 @@ class CalendarService extends ChangeNotifier {
       uid: uid,
       eventId: e.id,
       startTrigger: StartTrigger.tapCard,
+    );
+
+    // 📅 排程任務完成提醒通知
+    await _scheduleCompletionNotification(e);
+  }
+
+  /// 從聊天開始任務（用於聊天頁面的開始任務按鈕）
+  Future<void> startEventFromChat(String uid, EventModel e) async {
+    // 🎯 實驗數據收集：記錄聊天觸發（包含actualStartTime, updatedAt, isDone等）
+    await ExperimentEventHelper.recordEventStart(
+      uid: uid,
+      eventId: e.id,
+      startTrigger: StartTrigger.chat,
     );
 
     // 📅 排程任務完成提醒通知
@@ -662,24 +741,22 @@ class CalendarService extends ChangeNotifier {
 
   Future<void> stopEvent(String uid, EventModel e) async {
     // 🎯 設置為暫停狀態（保留開始時間）並增加暫停次數
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(e.id);
+    final ref = await DataPathService.instance.getUserEventDoc(uid, e.id);
+    final now = DateTime.now();
 
-    // 獲取當前暫停次數並增加1
+    // 获取当前暫停次數並增加1
     final snap = await ref.get();
+    final data = snap.data() as Map<String, dynamic>;
     int currentPauseCount = 0;
-    if (snap.exists) {
-      final data = snap.data()!;
+    if (data.containsKey('pauseCount')) {
       currentPauseCount = (data['pauseCount'] as int?) ?? 0;
     }
 
     await ref.set({
       'status': TaskStatus.paused.value,  // 設置為暫停狀態
       'pauseCount': currentPauseCount + 1, // 增加暫停次數
-      'updatedAt': Timestamp.fromDate(DateTime.now()), // 更新時間
+      'pauseAt': Timestamp.fromDate(now), // 🎯 新增：記錄暫停時間
+      'updatedAt': Timestamp.fromDate(now), // 更新時間
     }, SetOptions(merge: true));
 
     // 取消任務完成提醒通知（暫停時不需要提醒）
@@ -689,11 +766,7 @@ class CalendarService extends ChangeNotifier {
   Future<void> continueEvent(String uid, EventModel e) async {
     // 🎯 恢復任務：從暫停狀態恢復到進行中或超時狀態
     final now = DateTime.now();
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(e.id);
+    final ref = await DataPathService.instance.getUserEventDoc(uid, e.id);
 
     // 根據當前時間和任務時長判斷新狀態
     TaskStatus newStatus;
@@ -708,6 +781,7 @@ class CalendarService extends ChangeNotifier {
 
     await ref.set({
       'status': newStatus.value,
+      'pauseAt': null, // 🎯 新增：清除暫停時間
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
 
@@ -734,49 +808,65 @@ class CalendarService extends ChangeNotifier {
 
   /// 更新事件狀態（用於同步時檢查overdue/notStarted狀態）
   Future<void> _updateEventStatuses(String uid, List<EventModel> events, DateTime now) async {
-    final batch = FirebaseFirestore.instance.batch();
-    bool hasBatchUpdates = false;
+    try {
+      // 使用 DataPathService 获取正确的 events 集合
+      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+      final batch = FirebaseFirestore.instance.batch();
+      bool hasBatchUpdates = false;
 
-    for (final event in events) {
-      // 跳過已完成的任務
-      if (event.isDone) continue;
+      for (final event in events) {
+        // 跳過已完成的任務
+        if (event.isDone) continue;
 
-      TaskStatus newStatus;
-      
-      if (event.actualStartTime != null) {
-        // 任務已開始但未完成 → 保持進行中
-        newStatus = TaskStatus.inProgress;
-      } else {
-        // 任務未開始，根據時間判斷狀態
-        if (now.isAfter(event.scheduledStartTime)) {
-          // 已過預定開始時間 → 逾期
-          newStatus = TaskStatus.overdue;
+        TaskStatus newStatus;
+        
+        if (event.actualStartTime != null) {
+          // 🎯 修复关键bug：如果任务已被暂停，保持暂停状态，不要强制改为进行中
+          if (event.status == TaskStatus.paused) {
+            // 保持暂停状态，不更新
+            continue;
+          }
+          
+          // 任務已開始但未完成，且未被暂停 → 判断是进行中还是超时
+          final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+          final dynamicEndTime = event.actualStartTime!.add(taskDuration);
+          
+          if (now.isAfter(dynamicEndTime)) {
+            newStatus = TaskStatus.overtime;
+          } else {
+            newStatus = TaskStatus.inProgress;
+          }
         } else {
-          // 尚未到預定開始時間 → 未開始
-          newStatus = TaskStatus.notStarted;
+          // 任務未開始，根據時間判斷狀態
+          if (now.isAfter(event.scheduledStartTime)) {
+            // 已過預定開始時間 → 逾期
+            newStatus = TaskStatus.overdue;
+          } else {
+            // 尚未到預定開始時間 → 未開始
+            newStatus = TaskStatus.notStarted;
+          }
+        }
+
+        // 檢查是否需要更新狀態
+        if (event.status != newStatus) {
+          final ref = eventsCollection.doc(event.id);
+
+          batch.update(ref, {
+            'status': newStatus.value,
+            'updatedAt': Timestamp.fromDate(now),
+          });
+          
+          hasBatchUpdates = true;
+          
+          if (kDebugMode) {
+            print('_updateEventStatuses: 更新事件狀態: ${event.title} -> ${newStatus.name}');
+          }
+        } else {
+          if (kDebugMode && event.status == TaskStatus.paused) {
+            print('_updateEventStatuses: 保持暂停状态: ${event.title}');
+          }
         }
       }
-
-      // 檢查是否需要更新狀態
-      if (event.status != newStatus) {
-        final ref = FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('events')
-            .doc(event.id);
-
-        batch.update(ref, {
-          'status': newStatus.value,
-          'updatedAt': Timestamp.fromDate(now),
-        });
-        
-        hasBatchUpdates = true;
-        
-        if (kDebugMode) {
-          print('_updateEventStatuses: 更新事件狀態: ${event.title} -> ${newStatus.name}');
-        }
-      }
-    }
 
     // 批量提交更新
     if (hasBatchUpdates) {
@@ -784,6 +874,12 @@ class CalendarService extends ChangeNotifier {
       if (kDebugMode) {
         print('_updateEventStatuses: 批量狀態更新完成');
       }
+    }
+    } catch (e) {
+      if (kDebugMode) {
+        print('_updateEventStatuses: 更新事件狀態失敗: $e');
+      }
+      rethrow;
     }
   }
 

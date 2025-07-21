@@ -8,6 +8,8 @@ import '../models/event_model.dart';
 import '../models/enums.dart';
 import '../services/auth_service.dart';
 import '../services/notification_handler.dart';
+import '../services/data_path_service.dart';
+import '../services/experiment_config_service.dart';
 
 // 通知偏移時間常數
 const int firstNotifOffsetMin = -10;  // 第一個通知：開始前10分鐘
@@ -212,6 +214,66 @@ class NotificationService {
     }
   }
 
+  /// 取消用户的所有通知（用于组别切换时）
+  Future<void> cancelAllUserNotifications(String uid) async {
+    try {
+      if (kDebugMode) {
+        print('开始取消用户 $uid 的所有通知...');
+      }
+
+      // 获取用户今天的所有事件
+      final now = DateTime.now();
+      final localToday = DateTime(now.year, now.month, now.day);
+      final localTomorrow = localToday.add(const Duration(days: 1));
+      final start = localToday.toUtc();
+      final end = localTomorrow.toUtc();
+
+      // 获取用户的事件集合（使用DataPathService确保路径正确）
+      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+      
+      final snap = await eventsCollection
+          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
+          .get();
+
+      final events = snap.docs.map(EventModel.fromDoc).toList();
+      
+      int cancelledCount = 0;
+      
+      // 取消每个事件的所有通知
+      for (final event in events) {
+        if (event.notifIds.isNotEmpty) {
+          // 取消第一个通知
+          final firstNotificationId = event.id.hashCode.abs();
+          await cancelNotification(firstNotificationId);
+          
+          // 取消第二个通知
+          final secondNotificationId = -(event.id.hashCode.abs());
+          await cancelNotification(secondNotificationId);
+          
+          // 取消任务完成提醒通知
+          final completionNotificationId = 'task_completion_${event.id}'.hashCode.abs();
+          await cancelNotification(completionNotificationId);
+          
+          cancelledCount++;
+          
+          if (kDebugMode) {
+            print('已取消事件 ${event.title} 的所有通知');
+          }
+        }
+      }
+
+      // 不取消每日报告通知
+      if (kDebugMode) {
+        print('组别切换：成功取消用户 $uid 的 $cancelledCount 个事件的通知，保留每日报告通知');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('取消用户所有通知时发生错误: $e');
+      }
+    }
+  }
+
   /// 排程事件通知（支持偏移時間）
   Future<bool> scheduleEventNotification({
     required int notificationId,
@@ -262,7 +324,7 @@ class NotificationService {
         iOS: iosDetails,
       );
 
-      // 根據通知類型設置不同的內容
+      // 根據通知類型和用户组設置不同的內容
       String notificationTitle;
       String notificationBody;
       
@@ -270,12 +332,44 @@ class NotificationService {
         // 使用自定义标题和内容（用于任务完成提醒）
         notificationTitle = customTitle;
         notificationBody = customBody;
-      } else if (isSecondNotification) {
-        notificationTitle = '現在開始剛剛好';
-        notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！需要跟我聊聊嗎？';
       } else {
-        notificationTitle = '事件即將開始';
-        notificationBody = '任務「$title」即將開始，有開始的動力嗎？需要跟我聊聊嗎？';
+        // 检查用户分组以确定通知内容
+        final currentUser = AuthService.instance.currentUser;
+        bool isControlGroup = false;
+        
+        if (currentUser != null) {
+          try {
+            isControlGroup = await ExperimentConfigService.instance.isControlGroup(currentUser.uid);
+          } catch (e) {
+            if (kDebugMode) {
+              print('检查用户分组失败，使用默认实验组通知: $e');
+            }
+          }
+        }
+        
+        if (isSecondNotification) {
+          notificationTitle = '現在開始剛剛好';
+          if (isControlGroup) {
+            // 对照组：不提及聊天功能
+            notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！';
+          } else {
+            // 实验组：保持原有文本
+            notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！需要跟我聊聊嗎？';
+          }
+        } else {
+          notificationTitle = '事件即將開始';
+          if (isControlGroup) {
+            // 对照组：不提及聊天功能
+            notificationBody = '任務「$title」即將開始，準備好開始了嗎？';
+          } else {
+            // 实验组：保持原有文本
+            notificationBody = '任務「$title」即將開始，有開始的動力嗎？需要跟我聊聊嗎？';
+          }
+        }
+        
+        if (kDebugMode) {
+          print('通知内容设置: 用户组=${isControlGroup ? "对照组" : "实验组"}, 标题="$notificationTitle", 内容="$notificationBody"');
+        }
       }
 
       // 轉換為時區時間
@@ -355,7 +449,7 @@ class NotificationService {
           print('今日沒有任務安排，不需要發送每日報告通知');
         }
         // 取消可能已經存在的通知
-        await cancelDailyReportNotification();
+        //await cancelDailyReportNotification();
         return true; // 返回true表示邏輯執行成功（雖然沒有調度通知）
       }
 
@@ -373,7 +467,7 @@ class NotificationService {
           if (kDebugMode) {
             print('明日沒有任務安排，不需要調度每日報告通知到明天');
           }
-          await cancelDailyReportNotification();
+          //await cancelDailyReportNotification();
           return true;
         }
       }
@@ -441,25 +535,49 @@ class NotificationService {
       final startOfDay = DateTime(date.year, date.month, date.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('events')
+      if (kDebugMode) {
+        print('檢查任務範圍: ${startOfDay.toUtc()} 到 ${endOfDay.toUtc()}');
+      }
+
+      final eventsCol = await DataPathService.instance.getUserEventsCollection(uid);
+      final snapshot = await eventsCol
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay.toUtc()))
           .where('scheduledStartTime', isLessThan: Timestamp.fromDate(endOfDay.toUtc()))
-          .limit(1) // 只需要檢查是否存在，不需要全部數據
-          .get();
-
-      // 檢查是否有活躍事件
-      final hasActiveTasks = snapshot.docs.any((doc) {
-        final eventData = doc.data();
-        final lifecycleStatus = eventData['lifecycleStatus'];
-        // 如果沒有lifecycleStatus字段（舊數據）或者是active狀態，都算作有任務
-        return lifecycleStatus == null || lifecycleStatus == 0; // 0 = EventLifecycleStatus.active.value
-      });
+          .get(); // 移除limit(1)，获取所有事件进行详细检查
 
       if (kDebugMode) {
-        print('檢查日期 ${date.toString().substring(0, 10)} 是否有任務: $hasActiveTasks (總事件數: ${snapshot.docs.length})');
+        print('找到 ${snapshot.docs.length} 个事件');
+      }
+
+      // 檢查是否有活躍事件
+      bool hasActiveTasks = false;
+      int activeCount = 0;
+      int inactiveCount = 0;
+
+      for (final doc in snapshot.docs) {
+        final eventData = doc.data() as Map<String, dynamic>;
+        final lifecycleStatus = eventData['lifecycleStatus'] as int?;
+        final title = eventData['title'] as String? ?? 'Unknown';
+        
+        // 如果沒有lifecycleStatus字段（舊數據）或者是active狀態，都算作有任務
+        final isActive = lifecycleStatus == null || lifecycleStatus == 0; // 0 = EventLifecycleStatus.active.value
+        
+        if (isActive) {
+          activeCount++;
+          hasActiveTasks = true;
+          if (kDebugMode) {
+            print('✅ 活跃事件: $title (lifecycleStatus: $lifecycleStatus)');
+          }
+        } else {
+          inactiveCount++;
+          if (kDebugMode) {
+            print('❌ 非活跃事件: $title (lifecycleStatus: $lifecycleStatus)');
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('檢查日期 ${date.toString().substring(0, 10)} 是否有任務: $hasActiveTasks (活跃: $activeCount, 非活跃: $inactiveCount)');
       }
 
       return hasActiveTasks;
@@ -483,6 +601,16 @@ class NotificationService {
       if (kDebugMode) {
         print('取消每日報告通知時發生錯誤: $e');
       }
+    }
+  }
+
+  /// 测试每日报告通知检查（用于调试）
+  Future<void> testDailyReportCheck() async {
+    if (kDebugMode) {
+      print('=== 开始测试每日报告通知检查 ===');
+      final hasTasksToday = await _checkIfHasTasksToday();
+      print('今日是否有任务: $hasTasksToday');
+      print('=== 测试完成 ===');
     }
   }
 }
@@ -516,11 +644,8 @@ class NotificationScheduler {
     try {
       final currentUser = AuthService.instance.currentUser;
       if (currentUser != null) {
-        final doc = FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser.uid)
-            .collection('events')
-            .doc(eventId);
+        // 使用 DataPathService 获取正确的事件文档引用
+        final doc = await DataPathService.instance.getUserEventDoc(currentUser.uid, eventId);
         
         await doc.update({
           'notifIds': ['${eventId}-1st'], // 只保留第一個通知
@@ -692,11 +817,8 @@ class NotificationScheduler {
       
       final uid = currentUser.uid;
       
-      final doc = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('events')
-          .doc(eventId);
+      // 使用 DataPathService 获取正确的事件文档引用
+      final doc = await DataPathService.instance.getUserEventDoc(uid, eventId);
 
       final updateData = <String, dynamic>{
         'notifIds': notifIds,

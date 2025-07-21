@@ -57,7 +57,7 @@ class ProactCoachService {
     final endOfDialogue = res.data['end_of_dialogue'] ?? false;
     
     // 🎯 新增：提取suggested_action字段
-    final suggestedAction = res.data['suggested_action'] ?? 'pending';
+    final suggestedAction = res.data['user_action'] ?? 'pending';
     
     // 🎯 新增：提取commit_plan字段
     final commitPlan = res.data['commit_plan'];

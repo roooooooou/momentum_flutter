@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_service.dart';
+import 'data_path_service.dart';
 
 /// 应用使用数据收集服务
 class AppUsageService {
@@ -36,11 +37,8 @@ class AppUsageService {
       final sessionId = _generateSessionId();
       _currentSessionId = sessionId; // 🎯 保存会话ID供关闭时使用
       
-      final ref = _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('app_sessions')
-          .doc(sessionId);
+      // 使用 DataPathService 获取正确的 app_sessions 文档引用
+      final ref = await DataPathService.instance.getUserAppSessionDoc(currentUser.uid, sessionId);
 
       await ref.set({
         'start_time': Timestamp.fromDate(_sessionStartTime!),
@@ -81,11 +79,8 @@ class AppUsageService {
         return;
       }
 
-      final ref = _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('app_sessions')
-          .doc(_currentSessionId!); // 🎯 使用保存的会话ID
+      // 使用 DataPathService 获取正确的 app_sessions 文档引用
+      final ref = await DataPathService.instance.getUserAppSessionDoc(currentUser.uid, _currentSessionId!);
 
       await ref.update({
         'end_time': Timestamp.fromDate(endTime),

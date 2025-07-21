@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/data_path_service.dart';
 import '../models/event_model.dart';
 import '../models/daily_report_model.dart';
 import '../models/enums.dart';
@@ -90,21 +91,18 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       final tomorrow = today.add(const Duration(days: 1));
       final dayAfterTomorrow = tomorrow.add(const Duration(days: 1));
 
+      // 使用 DataPathService 获取用户events集合
+      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+
       // 今日事件 - 只查询活跃事件
-      final todayQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('events')
+      final todayQuery = await eventsCollection
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(today.toUtc()))
           .where('scheduledStartTime', isLessThan: Timestamp.fromDate(tomorrow.toUtc()))
           .orderBy('scheduledStartTime')
           .get();
 
       // 明日事件 - 只查询活跃事件
-      final tomorrowQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('events')
+      final tomorrowQuery = await eventsCollection
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(tomorrow.toUtc()))
           .where('scheduledStartTime', isLessThan: Timestamp.fromDate(dayAfterTomorrow.toUtc()))
           .orderBy('scheduledStartTime')
@@ -197,13 +195,10 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         createdAt: now,
       );
 
-      // 保存到Firebase
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('daily_reports')
-          .doc('${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}')
-          .set(report.toFirestore());
+      // 保存到Firebase - 使用新的数据结构
+      final dateString = '${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}';
+      final dailyReportCollection = await DataPathService.instance.getUserDailyReportCollection(uid, dateString);
+      await dailyReportCollection.doc(report.id).set(report.toFirestore());
 
       // 自动完成未勾选为延迟的任务
       await _completeUnselectedTasks(uid);
@@ -953,39 +948,27 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   /// 自动完成未勾选为延迟的任务
   Future<void> _completeUnselectedTasks(String uid) async {
     try {
-      final now = DateTime.now();
+      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
       
-      // 找出所有延迟事件中未被勾选的任务
-      final unselectedTasks = _delayedEvents.where((event) => 
-        !_selectedDelayedTasks.contains(event.id)
-      ).toList();
+      // 获取所有未完成且未被选为延迟的任务
+      final uncompletedEvents = _todayEvents.where((event) => 
+        !event.isDone && !_selectedDelayedTasks.contains(event.id));
 
-      // 批量更新未勾选的任务为完成状态
+      // 批量更新这些任务为已完成
       final batch = FirebaseFirestore.instance.batch();
-      
-      for (final event in unselectedTasks) {
-        final eventRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('events')
-            .doc(event.id);
-
-        batch.update(eventRef, {
+      for (final event in uncompletedEvents) {
+        final ref = eventsCollection.doc(event.id);
+        batch.update(ref, {
           'isDone': true,
-          'completedTime': Timestamp.fromDate(now),
+          'completedTime': Timestamp.fromDate(DateTime.now()),
           'status': TaskStatus.completed.value,
-          'startTrigger': StartTrigger.dailyReport.value, // 使用新的触发方式
-          'updatedAt': Timestamp.fromDate(now),
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
         });
       }
-
-      // 提交批量更新
       await batch.commit();
-      
-      print('自动完成了 ${unselectedTasks.length} 个未勾选的任务');
     } catch (e) {
-      print('自动完成任务失败: $e');
-      // 不抛出错误，避免影响报告保存
+      debugPrint('自动完成未选择的任务失败: $e');
+      rethrow;
     }
   }
 } 

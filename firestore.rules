@@ -8,6 +8,20 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
     
+    // === 新的分組數據結構支持 ===
+    
+    // 對照組數據訪問規則
+    match /users/{userId}/control/{path=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 實驗組數據訪問規則  
+    match /users/{userId}/experiment/{path=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // === 兼容舊數據結構（逐步遷移期間） ===
+    
     match /users/{userId}/events/{eventId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
@@ -23,23 +37,25 @@ service cloud.firestore {
       }
     }
     
-    // 應用使用會話數據
+    // 舊的應用使用會話數據
     match /users/{userId}/app_sessions/{sessionId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
     }
     
-    // 每日數據聚合結果
+    // 舊的每日數據聚合結果
     match /users/{userId}/daily_metrics/{dateId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
     }
     
-    // 每日報告數據
+    // 舊的每日報告數據
     match /users/{userId}/daily_reports/{reportId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
     }
+    
+    // === 系統管理相關 ===
     
     // 允許服務端函數寫入執行日志
     match /daily_metrics_execution_log/{document} {
@@ -51,6 +67,12 @@ service cloud.firestore {
     match /test_scheduler/{document} {
       allow write: if true; // 測試定時器需要寫入記錄
       allow read: if request.auth != null;
+    }
+    
+    // 實驗配置統計（管理員查看用）
+    match /experiment_stats/{document} {
+      allow read: if request.auth != null;
+      allow write: if true; // 允許函數寫入統計數據
     }
   }
 } 

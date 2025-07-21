@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/providers/chat_provider.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/calendar_service.dart';
@@ -8,49 +7,26 @@ import '../models/event_model.dart';
 import '../models/enums.dart';
 import '../widgets/event_card.dart';
 import '../widgets/task_start_dialog.dart';
-import '../screens/chat_screen.dart';
 import '../screens/daily_report_screen.dart';
 import '../services/notification_service.dart';
 import '../services/notification_handler.dart';
 import '../services/app_usage_service.dart';
-import '../services/data_path_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../services/analytics_service.dart';
+import '../services/data_path_service.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
-  /// 靜態方法：重新整理commit plans顯示
-  static Future<void> refreshCommitPlans(BuildContext context, String uid) async {
-    final state = context.findAncestorStateOfType<_HomeScreenState>();
-    if (state != null) {
-      await state._loadCommitPlanTasks(uid);
-    }
-  }
-
-  /// 靜態方法：強制刷新commit plans（用於從聊天頁面返回時）
-  static Future<void> forceRefreshCommitPlans(BuildContext context, String uid) async {
-    final state = context.findAncestorStateOfType<_HomeScreenState>();
-    if (state != null) {
-      // 重置節流時間，強制刷新
-      state._lastCommitPlanLoadTime = null;
-      await state._loadCommitPlanTasks(uid);
-    }
-  }
+class ControlHomeScreen extends StatefulWidget {
+  const ControlHomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<ControlHomeScreen> createState() => _ControlHomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _ControlHomeScreenState extends State<ControlHomeScreen> with WidgetsBindingObserver {
   List<EventModel> _cached = const [];
-  List<EventModel> _commitPlanTasks = []; // 有commit plan但未完成的任務
-  List<Map<String, dynamic>> _commitPlanData = []; // 儲存commit plan的詳細資料
   bool _isInitialSync = true;
   final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
-  bool _isLoadingCommitPlans = false; // 防止重複載入commit plans
-  DateTime? _lastCommitPlanLoadTime; // 記錄上次載入時間
 
   @override
   void initState() {
@@ -79,8 +55,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final uid = context.read<AuthService>().currentUser!.uid;
         try {
           await CalendarService.instance.syncToday(uid);
-          // 載入有commit plan的任務
-          await _loadCommitPlanTasks(uid);
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context)
@@ -134,14 +108,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         }
         
-        // 載入有commit plan的任務（帶節流機制）
-        final now = DateTime.now();
-        if (_lastCommitPlanLoadTime == null || 
-            now.difference(_lastCommitPlanLoadTime!).inSeconds > 5) {
-          _lastCommitPlanLoadTime = now;
-          _loadCommitPlanTasks(uid);
-        }
-        
         // 重置通知打开标志，确保下次resume时正常检查
         AppUsageService.instance.resetNotificationFlag();
       }
@@ -151,14 +117,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 檢查通知排程（App Resume 時調用）
   Future<void> _checkNotificationSchedule(String uid) async {
     try {
-      // 修复时区问题：使用台湾时区计算今天的范围
       final now = DateTime.now();
-      final localToday = DateTime(now.year, now.month, now.day); // 本地午夜
-      final localTomorrow = localToday.add(const Duration(days: 1)); // 本地明天午夜
-      
-      // 转换为UTC用于Firestore查询
-      final start = localToday.toUtc();
-      final end = localTomorrow.toUtc();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(const Duration(days: 1));
       
       // 使用 DataPathService 获取正确的 events 集合
       final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
@@ -169,8 +130,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           .orderBy('scheduledStartTime')
           .get();
       
-      final allEvents = snap.docs.map(EventModel.fromDoc).toList();
-      final events = allEvents.where((event) => event.isActive).toList();
+      final events = snap.docs.map(EventModel.fromDoc).toList();
       
       // 過濾出未開始的事件
       final futureEvents = events.where((event) => 
@@ -191,110 +151,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// 查詢有commit plan但未完成的任務及其commit plan內容
-  Future<void> _loadCommitPlanTasks(String uid) async {
-    if (_isLoadingCommitPlans) return; // 防止重複呼叫
-    _isLoadingCommitPlans = true;
-    
-    try {
-      // 修复时区问题：使用台湾时区计算今天的范围
-      final now = DateTime.now();
-      final localToday = DateTime(now.year, now.month, now.day); // 本地午夜
-      final localTomorrow = localToday.add(const Duration(days: 1)); // 本地明天午夜
-      
-      // 转换为UTC用于Firestore查询
-      final start = localToday.toUtc();
-      final end = localTomorrow.toUtc();
-      
-      if (kDebugMode) {
-        print('_loadCommitPlanTasks: 本地时间范围 ${localToday.toString()} 到 ${localTomorrow.toString()}');
-        print('_loadCommitPlanTasks: UTC查询时间范围 ${start.toString()} 到 ${end.toString()}');
-      }
-      
-      // 使用 DataPathService 获取正确的 events 集合
-      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
-      
-      final snap = await eventsCollection
-          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
-          .orderBy('scheduledStartTime')
-          .get();
-      
-      final allEvents = snap.docs.map(EventModel.fromDoc).toList();
-      final events = allEvents.where((event) => event.isActive).toList();
-      
-      final List<Map<String, dynamic>> commitPlanData = [];
-      
-      // 檢查每個未完成的事件是否有commit plan
-      for (final event in events) {
-        if (event.isDone || !event.isActive) continue;
-        
-        // 使用 DataPathService 获取正确的 chats 集合
-        final chatsCollection = await DataPathService.instance.getUserEventChatsCollection(uid, event.id);
-        final chatsSnap = await chatsCollection
-            .where('commit_plan', isNotEqualTo: '')
-            .where('commit_plan', isNotEqualTo: null)
-            .get();
-            
-        // 在内存中排序并获取最新的记录
-        final chatDocs = chatsSnap.docs;
-        if (chatDocs.isNotEmpty) {
-          chatDocs.sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aTime = (aData['start_time'] as Timestamp?)?.toDate();
-            final bTime = (bData['start_time'] as Timestamp?)?.toDate();
-            if (aTime == null || bTime == null) return 0;
-            return bTime.compareTo(aTime); // 降序排序
-          });
-        
-          // 使用排序后的第一条记录
-          final chatDoc = chatDocs.first;
-          final chatData = chatDoc.data() as Map<String, dynamic>;
-          final commitPlanText = chatData['commit_plan'] as String? ?? ''; // commit plan文本字段
-          
-          // 只有commit plan文本不为空时才添加到列表中
-          if (commitPlanText.isNotEmpty) {
-            commitPlanData.add({
-              'event': event,
-              'commitPlan': commitPlanText,
-              'chatId': chatDoc.id,
-            });
-          }
-        }
-      }
-      
-      if (mounted) {
-        setState(() {
-          _commitPlanTasks = commitPlanData.map((data) => data['event'] as EventModel).toList();
-          _commitPlanData = commitPlanData; // 儲存完整的commit plan資料
-        });
-      }
-      
-      if (kDebugMode) {
-        print('_loadCommitPlanTasks: 找到 ${commitPlanData.length} 个有commit plan的任务');
-      }
-    } catch (e) {
-      debugPrint('加载commit plan任务失败: $e');
-      if (kDebugMode) {
-        print('_loadCommitPlanTasks 错误详情: $e');
-      }
-    } finally {
-      _isLoadingCommitPlans = false; // 重置載入狀態
-    }
-  }
-
   /// 檢查是否有任務需要顯示開始對話框（App Resume 時調用）
   Future<void> _checkPendingTaskStart(String uid) async {
     try {
-      // 修复时区问题：使用台湾时区计算今天的范围
       final now = DateTime.now();
-      final localToday = DateTime(now.year, now.month, now.day); // 本地午夜
-      final localTomorrow = localToday.add(const Duration(days: 1)); // 本地明天午夜
-      
-      // 转换为UTC用于Firestore查询
-      final start = localToday.toUtc();
-      final end = localTomorrow.toUtc();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(const Duration(days: 1));
       
       // 使用 DataPathService 获取正确的 events 集合
       final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
@@ -305,8 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           .orderBy('scheduledStartTime')
           .get();
       
-      final allEvents = snap.docs.map(EventModel.fromDoc).toList();
-      final events = allEvents.where((event) => event.isActive).toList();
+      final events = snap.docs.map(EventModel.fromDoc).toList();
       
       // 找到應該開始但還沒開始的任務
       final pendingEvents = events.where((event) {
@@ -330,54 +191,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 當前時間必須在時間窗口內
         final inTimeWindow = now.isAfter(event.scheduledStartTime) && now.isBefore(latestShowTime);
 
-        
         return inTimeWindow;
       }).toList();
       
       if (pendingEvents.isNotEmpty) {
-        // 检查是否已有TaskStartDialog在显示
-        if (NotificationHandler.instance.isTaskStartDialogShowing) {
-          if (kDebugMode) {
-            print('已有TaskStartDialog在顯示，跳過pending task檢查');
+        // 🎯 对照组不显示任务开始对话框
+        if (kDebugMode) {
+          print('对照组发现 ${pendingEvents.length} 个待开始任务，但不显示任务开始对话框');
+          for (final event in pendingEvents) {
+            print('  - ${event.title}: 应于 ${event.scheduledStartTime.toLocal()} 开始');
           }
-          return;
         }
         
-        // 检查是否在聊天页面
-        if (context.findAncestorWidgetOfExactType<ChatScreen>() != null) {
-          if (kDebugMode) {
-            print('當前在聊天頁面，不顯示pending task的TaskStartDialog');
-          }
-          return;
-        }
-        
-        // 選擇最早應該開始的任務
-        pendingEvents.sort((a, b) => a.scheduledStartTime.compareTo(b.scheduledStartTime));
-        final mostUrgentTask = pendingEvents.first;
-        
-        // 記錄已顯示過對話框
-        _shownDialogTaskIds.add(mostUrgentTask.id);
-        
-        // 設置對話框顯示狀態
-        NotificationHandler.instance.setTaskStartDialogShowing(true);
-        
-        if (mounted) {
-          // 顯示任務開始對話框
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => TaskStartDialog(event: mostUrgentTask),
-          ).then((_) {
-            // 對話框關閉時重置狀態
-            NotificationHandler.instance.setTaskStartDialogShowing(false);
-          });
-          
-          if (kDebugMode) {
-            print('顯示任務開始對話框: ${mostUrgentTask.title}');
-          }
-        } else {
-          // 如果context不可用，重置狀態
-          NotificationHandler.instance.setTaskStartDialogShowing(false);
+        // 对照组只记录任务ID，避免重复检查，但不显示对话框
+        for (final event in pendingEvents) {
+          _shownDialogTaskIds.add(event.id);
         }
       }
       
@@ -424,12 +252,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-
-
-
-
-
-
   @override
   Widget build(BuildContext context) {
     final stream = context.watch<EventsProvider>().stream;
@@ -458,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Icon(Icons.diamond_outlined,
                 color: Colors.deepPurple, size: iconSize),
             SizedBox(width: size.width * 0.02),
-            Text("home page",
+            Text("app_config = 0",
                 style: TextStyle(
                     fontSize: (16 * responsiveText).clamp(14.0, 20.0),
                     color: Colors.deepPurple,
@@ -480,12 +302,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return Column(
             children: [
               SizedBox(height: verticalSpacing),
-              
-              // Commit Plan Tasks Section
-              if (_commitPlanTasks.isNotEmpty) ...[
-                _buildCommitPlanSection(constraints, horizontalPadding, titleFontSize),
-                SizedBox(height: verticalSpacing * 1.5),
-              ],
               
               Text("Today's Tasks",
                   style: TextStyle(
@@ -524,46 +340,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     itemBuilder: (_, i) => EventCard(
                                         event: list[i],
                                         onAction: (a) => _handleAction(list[i], a),
-                                        onOpenChat: () async {
-                                          if (mounted) {
-                                            // 🎯 實驗數據收集：記錄聊天按鈕點擊
-                                            final uid = context.read<AuthService>().currentUser?.uid;
-                                            if (uid != null) {
-                                              final chatId = ExperimentEventHelper.generateChatId(list[i].id, DateTime.now());
-                                              
-                                              await ExperimentEventHelper.recordChatTrigger(
-                                                uid: uid,
-                                                eventId: list[i].id,
-                                                chatId: chatId,
-                                              );
-                                              
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) => ChangeNotifierProvider(
-                                                    create: (_) => ChatProvider(
-                                                      taskTitle: list[i].title,
-                                                      taskDescription: list[i].description, // 新增描述參數
-                                                      startTime: list[i].scheduledStartTime,
-                                                      uid: uid,
-                                                      eventId: list[i].id,
-                                                      chatId: chatId,
-                                                      entryMethod: ChatEntryMethod.eventCard, // 🎯 新增：事件卡片進入
-                                                    ),
-                                                    child: ChatScreen(
-                                                      taskTitle: list[i].title,
-                                                      taskDescription: list[i].description, // 新增描述參數
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          }
-                                        }),
+                                        // 对照组移除 onOpenChat 参数，不显示聊天按钮
+                                        onOpenChat: null),
                                   ),
                                   // 同步loading overlay
                                   if (isSyncing)
                                     Container(
-                                      color: Colors.white, // Changed from black.withOpacity(0.3)
+                                      color: Colors.white, // 不透明的白色背景
                                       child: const Center(
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
@@ -636,86 +419,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
-  /// 构建Commit Plan任务section
-  Widget _buildCommitPlanSection(BoxConstraints constraints, double horizontalPadding, double titleFontSize) {
-    final responsiveText = MediaQuery.textScalerOf(context).scale(1.0);
-    
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF4E6),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.app_registration,
-                color: Colors.orange[700],
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'App修正',
-                style: TextStyle(
-                  fontSize: (14 * responsiveText).clamp(12.0, 16.0),
-                  fontWeight: FontWeight.w500,
-                  color: Colors.orange[800],
-                ),
-              ),
-            ],
-          ),
-          
-          // Commit Plans List
-          ..._commitPlanData.map((data) {
-            final commitPlan = data['commitPlan'] as String;
-            final event = data['event'] as EventModel;
-            
-            if (commitPlan.isEmpty) return const SizedBox.shrink();
-            
-            return GestureDetector(
-              onTap: () => _handleAction(event, TaskAction.start),
-              child: Container(
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200, width: 1),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 任务名称
-                    Text(
-                      event.title,
-                      style: TextStyle(
-                        fontSize: (16 * responsiveText).clamp(14.0, 18.0),
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange[800],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // Commit Plan内容
-                    Text(
-                      commitPlan,
-                      style: TextStyle(
-                        fontSize: (14 * responsiveText).clamp(12.0, 16.0),
-                        color: const Color(0xFF2D3748),
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ],
-      ),
-    );
-  }
-}
+} 

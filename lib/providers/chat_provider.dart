@@ -1,47 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_message.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
 import '../services/proact_coach_service.dart';
+import '../services/data_path_service.dart';
 
 class ChatProvider extends ChangeNotifier {
   final _coach = ProactCoachService();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
   final String taskTitle;
-  final String? taskDescription; // 新增任務描述
+  final String? taskDescription;
   final DateTime startTime;
   int _currentTurn = 0;
-  bool _hasStarted = false; // 標記是否已經開始對話
+  bool _hasStarted = false;
   
-  // 實驗數據收集相關
   final String uid;
   final String eventId;
   final String chatId;
-  final ChatEntryMethod entryMethod; // 🎯 新增：聊天進入方式
-  final List<int> _latencies = []; // 記錄每次API調用的延遲
-  bool _hasRecordedChatStart = false; // 避免重複記錄聊天開始
-  int _totalTokens = 0; // 累積的token使用量
+  final ChatEntryMethod entryMethod;
+  final List<int> _latencies = [];
+  bool _hasRecordedChatStart = false;
+  int _totalTokens = 0;
 
   ChatProvider({
     required this.taskTitle, 
-    this.taskDescription, // 新增可選參數
+    this.taskDescription,
     required this.startTime,
     required this.uid,
     required this.eventId,
     required this.chatId,
-    required this.entryMethod, // 🎯 新增：必須參數
-  });
+    required this.entryMethod,
+  }) {
+    _loadChatHistory(); // 加载历史聊天记录
+  }
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get isLoading => _isLoading;
   int get currentTurn => _currentTurn;
   
-  /// 檢查對話是否已結束
   bool get isDialogueEnded {
     if (_messages.isEmpty) return false;
-    // 檢查最後一條助手消息是否標記了對話結束
     final lastAssistantMessage = _messages.lastWhere(
       (msg) => msg.role == ChatRole.assistant,
       orElse: () => ChatMessage(role: ChatRole.assistant, content: ''),
@@ -49,10 +50,8 @@ class ChatProvider extends ChangeNotifier {
     return lastAssistantMessage.endOfDialogue;
   }
 
-  /// 🎯 新增：獲取AI建議的行動
   String? get suggestedAction {
     if (_messages.isEmpty) return null;
-    // 檢查最後一條助手消息的建議行動
     final lastAssistantMessage = _messages.lastWhere(
       (msg) => msg.role == ChatRole.assistant,
       orElse: () => ChatMessage(role: ChatRole.assistant, content: ''),
@@ -60,13 +59,79 @@ class ChatProvider extends ChangeNotifier {
     return lastAssistantMessage.extra?['suggested_action'];
   }
 
-  /// 使用者送出文字
+  /// 加载历史聊天记录
+  Future<void> _loadChatHistory() async {
+    try {
+      final chatsCollection = await DataPathService.instance
+          .getUserEventChatsCollection(uid, eventId);
+      
+      final snapshot = await chatsCollection
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('timestamp')
+          .get();
+
+      _messages.clear();
+      _messages.addAll(snapshot.docs.map((doc) {
+        final data = doc.data();
+        return ChatMessage(
+          id: doc.id,
+          role: ChatRole.values.firstWhere(
+            (r) => r.toString() == data['role'],
+            orElse: () => ChatRole.user,
+          ),
+          content: data['content'],
+          endOfDialogue: data['endOfDialogue'] ?? false,
+          extra: data['extra'] as Map<String, dynamic>?,
+        );
+      }));
+
+      _currentTurn = _messages.length ~/ 2; // 每轮对话包含用户和助手各一条消息
+      notifyListeners();
+    } catch (e) {
+      debugPrint('加载聊天历史失败: $e');
+    }
+  }
+
+  /// 保存聊天消息到Firestore
+  Future<void> _saveChatMessage(ChatMessage message) async {
+    try {
+      final chatsCollection = await DataPathService.instance
+          .getUserEventChatsCollection(uid, eventId);
+      
+      await chatsCollection
+          .doc(chatId)
+          .collection('messages')
+          .doc(message.id)
+          .set({
+        'role': message.role.toString(),
+        'content': message.content,
+        'timestamp': FieldValue.serverTimestamp(),
+        'endOfDialogue': message.endOfDialogue,
+        if (message.extra != null) 'extra': message.extra,
+      });
+    } catch (e) {
+      debugPrint('保存聊天消息失败: $e');
+    }
+  }
+
   Future<void> sendUserMessage(String text) async {
-    if (text.trim().isEmpty || isDialogueEnded) return; // 對話結束時不允許發送消息
-    _messages.add(ChatMessage(
-        id: const Uuid().v4(), role: ChatRole.user, content: text.trim()));
-    _currentTurn++; // 增加turn計數
+    if (text.trim().isEmpty || isDialogueEnded) return;
+    
+    final userMessage = ChatMessage(
+      id: const Uuid().v4(),
+      role: ChatRole.user,
+      content: text.trim(),
+    );
+    
+    _messages.add(userMessage);
+    _currentTurn++;
     notifyListeners();
+    
+    // 保存用户消息
+    await _saveChatMessage(userMessage);
+    
+    // 获取助手回复
     await _fetchAssistantReply();
   }
 
@@ -74,28 +139,37 @@ class ChatProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // 記錄API調用開始時間
     final startTime = DateTime.now();
 
     try {
-      final result = await _coach.getCompletion(_messages, taskTitle, this.startTime, _currentTurn, taskDescription: taskDescription);
+      final result = await _coach.getCompletion(
+        _messages,
+        taskTitle,
+        this.startTime,
+        _currentTurn,
+        taskDescription: taskDescription,
+      );
+      
       _messages.add(result.message);
       
+      // 保存助手消息
+      await _saveChatMessage(result.message);
       
-      // 記錄API調用延遲
       final endTime = DateTime.now();
       final latencyMs = endTime.difference(startTime).inMilliseconds;
       _latencies.add(latencyMs);
-      
-      // 累積token使用量
       _totalTokens += result.totalTokens;
       
-      // 🎯 調試：輸出token統計信息
-      debugPrint('本輪token: ${result.totalTokens}, 累積token: $_totalTokens');
+      debugPrint('本轮token: ${result.totalTokens}, 累积token: $_totalTokens');
     } catch (e) {
-      debugPrint('_fetchAssistantReply錯誤: $e');
-      _messages
-          .add(ChatMessage(role: ChatRole.assistant, content: '⚠️ 發生錯誤，請稍後再試'));
+      debugPrint('_fetchAssistantReply错误: $e');
+      final errorMessage = ChatMessage(
+        id: const Uuid().v4(),
+        role: ChatRole.assistant,
+        content: '⚠️ 发生错误，请稍后再试',
+      );
+      _messages.add(errorMessage);
+      await _saveChatMessage(errorMessage);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -151,8 +225,7 @@ class ChatProvider extends ChangeNotifier {
         eventId: eventId,
         chatId: chatId,
         result: result.value,
-        commitPlan: commitPlan,
-        commitPlanText: commitPlanText, // 传递commit plan文本
+        commitPlan: commitPlanText ?? '',
       );
       
       // 更新統計數據

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'enums.dart';
+import '../services/data_path_service.dart';
 
 class EventModel {
   final String id;
@@ -20,6 +21,7 @@ class EventModel {
   final int? expectedDurationMin;      // 期望持續時間（分鐘）
   final int? actualDurationMin;        // 實際持續時間（分鐘）
   final int? pauseCount;               // 暫停次數
+  final DateTime? pauseAt;             // 🎯 新增：暫停時間
   
   // === 互動 ===
   final StartTrigger? startTrigger;     // enum:int 0-tap_notif 1-tap_card 2-chat 3-auto
@@ -72,6 +74,7 @@ class EventModel {
     this.expectedDurationMin,
     this.actualDurationMin,
     this.pauseCount,
+    this.pauseAt,
       }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -105,6 +108,7 @@ class EventModel {
         expectedDurationMin: d['expectedDurationMin'],
         actualDurationMin: d['actualDurationMin'],
         pauseCount: d['pauseCount'],
+        pauseAt: (d['pauseAt'] as Timestamp?)?.toDate(),
       );
   }
 
@@ -135,6 +139,7 @@ class EventModel {
               if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
         if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
         if (pauseCount != null) 'pauseCount': pauseCount,
+        if (pauseAt != null) 'pauseAt': Timestamp.fromDate(pauseAt!),
       };
   }
 
@@ -248,6 +253,16 @@ class EventModel {
 class ExperimentEventHelper {
   static final _firestore = FirebaseFirestore.instance;
 
+  /// 获取用户事件文档引用（使用正确的数据路径）
+  static Future<DocumentReference> _getEventRef(String uid, String eventId) async {
+    return await DataPathService.instance.getUserEventDoc(uid, eventId);
+  }
+
+  /// 获取用户事件聊天文档引用（使用正确的数据路径）
+  static Future<DocumentReference> _getChatRef(String uid, String eventId, String chatId) async {
+    return await DataPathService.instance.getUserEventChatDoc(uid, eventId, chatId);
+  }
+
   /// 記錄事件開始（用於實驗數據收集）
   static Future<void> recordEventStart({
     required String uid,
@@ -256,17 +271,13 @@ class ExperimentEventHelper {
     String? chatId,
   }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     // 獲取事件的預定開始時間來計算延遲
     final snap = await ref.get();
     if (!snap.exists) return;
 
-    final data = snap.data()!;
+    final data = snap.data()! as Map<String, dynamic>;
     final scheduledStartTime = (data['scheduledStartTime'] as Timestamp).toDate();
     final latencySec = now.difference(scheduledStartTime).inSeconds;
 
@@ -274,10 +285,13 @@ class ExperimentEventHelper {
     final existingStartTrigger = data['startTrigger'];
     final finalStartTrigger = existingStartTrigger ?? startTrigger.value;
 
+    // 檢查是否已經有 actualStartTime，如果有則保留原有的
+    final existingActualStartTime = data['actualStartTime'];
+    
     await ref.set({
-      'actualStartTime': Timestamp.fromDate(now),
+      if (existingActualStartTime == null) 'actualStartTime': Timestamp.fromDate(now),
       'startTrigger': finalStartTrigger,
-      'startToOpenLatency': latencySec,
+      if (existingActualStartTime == null) 'startToOpenLatency': latencySec,
       'status': TaskStatus.inProgress.value,
       'updatedAt': Timestamp.fromDate(now),
       'isDone': false,
@@ -292,11 +306,7 @@ class ExperimentEventHelper {
     String? chatId,
   }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     // 獲取事件數據以計算實際持續時間和期望持續時間
     final snap = await ref.get();
@@ -304,7 +314,7 @@ class ExperimentEventHelper {
     int? expectedDurationMin;
     
     if (snap.exists) {
-      final data = snap.data()!;
+      final data = snap.data()! as Map<String, dynamic>;
       final actualStartTime = (data['actualStartTime'] as Timestamp?)?.toDate();
       final scheduledStartTime = (data['scheduledStartTime'] as Timestamp?)?.toDate();
       final scheduledEndTime = (data['scheduledEndTime'] as Timestamp?)?.toDate();
@@ -338,11 +348,7 @@ class ExperimentEventHelper {
     required String uid,
     required String eventId,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     await ref.set({
       'startTrigger': StartTrigger.tapNotification.value,
@@ -356,11 +362,7 @@ class ExperimentEventHelper {
     required String eventId,
     required String chatId,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     await ref.set({
       'chatId': chatId,
@@ -374,11 +376,7 @@ class ExperimentEventHelper {
     required String eventId,
     required String chatId,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     await ref.set({
       'chatId': chatId,
@@ -392,11 +390,7 @@ class ExperimentEventHelper {
     required String eventId,
     required TaskStatus status,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     await ref.set({
       'status': status.value,
@@ -419,17 +413,13 @@ class ExperimentEventHelper {
     required String uid,
     required String eventId,
     required String notifId,
-    DateTime? scheduledTime, // 新增：通知排程時間
+    DateTime? scheduledTime,
   }) async {
     try {
       final now = DateTime.now();
-      final ref = _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('events')
-          .doc(eventId)
-          .collection('notifications')
-          .doc(notifId);
+      
+      // 使用 DataPathService 获取正确的通知文档路径
+      final ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
 
       await ref.set({
         'delivered_time': Timestamp.fromDate(now),
@@ -458,19 +448,15 @@ class ExperimentEventHelper {
     required String notifId,
   }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('notifications')
-        .doc(notifId);
+    
+    // 使用 DataPathService 获取正确的通知文档路径
+    final ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
 
     try {
       // 獲取已存在的數據來計算延遲
       final snap = await ref.get();
       if (snap.exists) {
-        final data = snap.data()!;
+        final data = snap.data() as Map<String, dynamic>;
         final deliveredTime = (data['delivered_time'] as Timestamp?)?.toDate();
         final notifToClickSec = deliveredTime != null 
             ? now.difference(deliveredTime).inSeconds 
@@ -509,13 +495,8 @@ class ExperimentEventHelper {
     required NotificationResult result,
     int? snoozeMinutes,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('notifications')
-        .doc(notifId);
+    // 使用 DataPathService 获取正确的通知文档路径
+    final ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
 
     try {
       final updateData = <String, dynamic>{
@@ -558,13 +539,7 @@ class ExperimentEventHelper {
     required ChatEntryMethod entryMethod, // 🎯 新增：聊天進入方式
 }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('chats')
-        .doc(chatId);
+    final ref = await _getChatRef(uid, eventId, chatId);
 
     // 🎯 調試：輸出即將創建的聊天會話數據
     debugPrint('recordChatStart - uid: $uid, eventId: $eventId, chatId: $chatId');
@@ -576,7 +551,7 @@ class ExperimentEventHelper {
         'entry_method': entryMethod.value, // 🎯 新增：記錄進入方式
         'end_time': null,
         'result': null,
-        'commit_plan': false,
+        'commit_plan': null,
         'total_turns': 0,
         'total_tokens': 0,
         'avg_latency_ms': 0,
@@ -596,17 +571,10 @@ class ExperimentEventHelper {
     required String eventId,
     required String chatId,
     required int result, // 0-start, 1-snooze, 2-leave
-    required bool commitPlan,
-    String? commitPlanText, // 新增：commit plan文本
+    required String commitPlan,
   }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('chats')
-        .doc(chatId);
+    final ref = await _getChatRef(uid, eventId, chatId);
 
     // 🎯 調試：輸出即將更新的聊天結束數據
     debugPrint('recordChatEnd - uid: $uid, eventId: $eventId, chatId: $chatId');
@@ -618,7 +586,6 @@ class ExperimentEventHelper {
         'end_time': Timestamp.fromDate(now),
         'result': result,
         'commit_plan': commitPlan,
-        if (commitPlanText != null) 'commit_plan_text': commitPlanText, // 儲存commit plan文字
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       
@@ -638,13 +605,7 @@ class ExperimentEventHelper {
     required int totalTokens,
     required int avgLatencyMs,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('chats')
-        .doc(chatId);
+    final ref = await _getChatRef(uid, eventId, chatId);
 
     // 🎯 調試：輸出即將更新的數據
     debugPrint('updateChatStats - uid: $uid, eventId: $eventId, chatId: $chatId');
@@ -673,13 +634,7 @@ class ExperimentEventHelper {
     required String chatId,
     required int latencyMs,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('chats')
-        .doc(chatId);
+    final ref = await _getChatRef(uid, eventId, chatId);
 
     // 使用 arrayUnion 累積延遲數據，稍後用於計算平均值
     await ref.update({
@@ -696,13 +651,7 @@ class ExperimentEventHelper {
     required List<String> snoozeReasons,
     required List<String> coachMethods,
   }) async {
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId)
-        .collection('chats')
-        .doc(chatId);
+    final ref = await _getChatRef(uid, eventId, chatId);
 
     // 🎯 除錯：輸出即將儲存的總結資料
     debugPrint('saveChatSummary - uid: $uid, eventId: $eventId, chatId: $chatId');
@@ -734,11 +683,7 @@ class ExperimentEventHelper {
     String? reason,
   }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     await ref.set({
       'lifecycleStatus': lifecycleStatus.value,
@@ -756,11 +701,7 @@ class ExperimentEventHelper {
     required String eventId,
   }) async {
     final now = DateTime.now();
-    final ref = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events')
-        .doc(eventId);
+    final ref = await _getEventRef(uid, eventId);
 
     await ref.set({
       'lifecycleStatus': EventLifecycleStatus.active.value,
@@ -780,12 +721,8 @@ class ExperimentEventHelper {
     var currentEventId = eventId;
 
     while (currentEventId.isNotEmpty) {
-      final doc = await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('events')
-          .doc(currentEventId)
-          .get();
+      final ref = await _getEventRef(uid, currentEventId);
+      final doc = await ref.get();
 
       if (!doc.exists) break;
 
@@ -810,10 +747,8 @@ class ExperimentEventHelper {
     DateTime? endDate,
     int limit = 50,
   }) async {
-    Query<Map<String, dynamic>> query = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events');
+    final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+    Query<Map<String, dynamic>> query = eventsCollection as Query<Map<String, dynamic>>;
 
     // 先查询特定状态，避免复合索引问题
     if (status != null) {
@@ -867,10 +802,8 @@ class ExperimentEventHelper {
       EventLifecycleStatus.moved: 0,
     };
 
-    Query<Map<String, dynamic>> query = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('events');
+    final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+    Query<Map<String, dynamic>> query = eventsCollection as Query<Map<String, dynamic>>;
 
     if (startDate != null && endDate != null) {
       query = query

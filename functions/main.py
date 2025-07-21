@@ -192,11 +192,20 @@ def daily_metrics_aggregation(event: scheduler_fn.ScheduledEvent) -> None:
                 print(f"🔄 處理用戶: {uid}")
                 metrics = calculate_daily_metrics(uid=uid, target_date=yesterday, db=db)
                 
-                # 儲存到 daily_metrics
-                metrics_ref = db.collection('users').document(uid).collection('daily_metrics').document(date_str)
-                metrics_ref.set(metrics)
-                
-                print(f"✅ 用戶 {uid} 的 {date_str} 日報數據已生成")
+                # 儲存到 daily_metrics（使用新的數據結構）
+                try:
+                    # 獲取用戶分組
+                    group_path = get_user_group_path(uid, db)
+                    # 保存到新的數據結構位置
+                    metrics_ref = db.collection('users').document(uid).collection(group_path).document('data').collection('daily_metrics').document(date_str)
+                    metrics_ref.set(metrics)
+                    print(f"✅ 用戶 {uid} ({group_path}組) 的 {date_str} 日報數據已生成")
+                except Exception as save_error:
+                    print(f"新結構保存失敗，嘗試舊結構: {save_error}")
+                    # 如果新結構失敗，回退到舊結構
+                    metrics_ref = db.collection('users').document(uid).collection('daily_metrics').document(date_str)
+                    metrics_ref.set(metrics)
+                    print(f"✅ 用戶 {uid} 的 {date_str} 日報數據已生成（舊結構）")
                 processed_count += 1
                 
             except Exception as user_error:
@@ -334,12 +343,22 @@ def manual_daily_metrics(req: https_fn.CallableRequest) -> any:
             # 處理單個用戶
             db = get_firestore_client()
             metrics = calculate_daily_metrics(uid=target_uid, target_date=target_date, db=db)
-            metrics_ref = db.collection('users').document(target_uid).collection('daily_metrics').document(date_str)
-            metrics_ref.set(metrics)
+            
+            # 使用新的數據結構保存
+            try:
+                group_path = get_user_group_path(target_uid, db)
+                metrics_ref = db.collection('users').document(target_uid).collection(group_path).document('data').collection('daily_metrics').document(date_str)
+                metrics_ref.set(metrics)
+                message = f'用戶 {target_uid} ({group_path}組) 的 {date_str} 數據已生成'
+            except Exception as save_error:
+                print(f"新結構保存失敗，嘗試舊結構: {save_error}")
+                metrics_ref = db.collection('users').document(target_uid).collection('daily_metrics').document(date_str)
+                metrics_ref.set(metrics)
+                message = f'用戶 {target_uid} 的 {date_str} 數據已生成（舊結構）'
             
             return {
                 'success': True,
-                'message': f'用戶 {target_uid} 的 {date_str} 數據已生成',
+                'message': message,
                 'metrics': metrics
             }
         else:
@@ -357,12 +376,22 @@ def manual_daily_metrics(req: https_fn.CallableRequest) -> any:
                 uid = user_doc.id
                 try:
                     metrics = calculate_daily_metrics(uid=uid, target_date=target_date, db=db)
-                    metrics_ref = db.collection('users').document(uid).collection('daily_metrics').document(date_str)
-                    metrics_ref.set(metrics)
+                    
+                    # 使用新的數據結構保存
+                    try:
+                        group_path = get_user_group_path(uid, db)
+                        metrics_ref = db.collection('users').document(uid).collection(group_path).document('data').collection('daily_metrics').document(date_str)
+                        metrics_ref.set(metrics)
+                        status_msg = f'success ({group_path}組)'
+                    except Exception as save_error:
+                        print(f"用戶 {uid} 新結構保存失敗，嘗試舊結構: {save_error}")
+                        metrics_ref = db.collection('users').document(uid).collection('daily_metrics').document(date_str)
+                        metrics_ref.set(metrics)
+                        status_msg = 'success (舊結構)'
                     
                     results.append({
                         'uid': uid,
-                        'status': 'success',
+                        'status': status_msg,
                         'metrics': metrics
                     })
                     
@@ -386,9 +415,25 @@ def manual_daily_metrics(req: https_fn.CallableRequest) -> any:
         }
 
 
+def get_user_group_path(uid: str, db) -> str:
+    """
+    獲取用戶的分組路徑（control 或 experiment）
+    """
+    try:
+        user_doc = db.collection('users').document(uid).get()
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            app_config = user_data.get('app_config', 1)  # 默認為實驗組
+            return 'control' if app_config == 0 else 'experiment'
+        else:
+            return 'experiment'  # 默認為實驗組
+    except Exception as e:
+        print(f"獲取用戶分組失敗: {e}")
+        return 'experiment'  # 出錯時默認為實驗組
+
 def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
     """
-    計算指定用戶在指定日期的所有指標
+    計算指定用戶在指定日期的所有指標（支持分組數據結構）
     """
     # 設定時間範圍（台灣時區的一整天）
     taiwan_tz = pytz.timezone('Asia/Taipei')
@@ -399,10 +444,23 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
     start_utc = start_of_day.astimezone(pytz.UTC)
     end_utc = end_of_day.astimezone(pytz.UTC)
     
-    # === Event相關指標 ===
-    events_ref = db.collection('users').document(uid).collection('events')
-    events_query = events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
-    events = list(events_query.stream())
+    # 獲取用戶分組路徑
+    group_path = get_user_group_path(uid, db)
+    print(f"用戶 {uid} 分組: {group_path}")
+    
+    # === Event相關指標（使用新的數據結構） ===
+    try:
+        # 優先嘗試新的數據結構
+        events_ref = db.collection('users').document(uid).collection(group_path).document('data').collection('events')
+        events_query = events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
+        events = list(events_query.stream())
+        print(f"從新結構獲取到 {len(events)} 個事件")
+    except Exception as e:
+        print(f"新結構查詢失敗，嘗試舊結構: {e}")
+        # 如果新結構失敗，回退到舊結構
+        events_ref = db.collection('users').document(uid).collection('events')
+        events_query = events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
+        events = list(events_query.stream())
     
     event_total_count = len(events)
     event_complete_count = 0
@@ -454,11 +512,20 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
             else:
                 notif_dismiss_count += 1
     
-    # === 應用使用相關指標 ===
-    app_sessions_ref = db.collection('users').document(uid).collection('app_sessions')
+    # === 應用使用相關指標（使用新的數據結構） ===
     date_string = target_date.strftime('%Y%m%d')
-    sessions_query = app_sessions_ref.where('date', '==', date_string)
-    sessions = list(sessions_query.stream())
+    try:
+        # 優先嘗試新的數據結構
+        app_sessions_ref = db.collection('users').document(uid).collection(group_path).document('data').collection('app_sessions')
+        sessions_query = app_sessions_ref.where('date', '==', date_string)
+        sessions = list(sessions_query.stream())
+        print(f"從新結構獲取到 {len(sessions)} 個會話")
+    except Exception as e:
+        print(f"新結構會話查詢失敗，嘗試舊結構: {e}")
+        # 如果新結構失敗，回退到舊結構
+        app_sessions_ref = db.collection('users').document(uid).collection('app_sessions')
+        sessions_query = app_sessions_ref.where('date', '==', date_string)
+        sessions = list(sessions_query.stream())
     
     app_open_count = len(sessions)
     app_open_by_notif_count = 0
@@ -530,3 +597,85 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
         'created_at': datetime.now(taiwan_tz),
         'timezone': 'Asia/Taipei'
     }
+
+
+@https_fn.on_call()
+def get_experiment_stats(req: https_fn.CallableRequest) -> any:
+    """
+    獲取實驗配置統計信息（用於監控實驗進展）
+    """
+    try:
+        db = get_firestore_client()
+        
+        # 獲取所有用戶
+        users_ref = db.collection('users')
+        users_docs = users_ref.get()
+        users = list(users_docs)
+        
+        total_users = len(users)
+        control_count = 0
+        experiment_count = 0
+        no_config_count = 0
+        
+        group_details = {
+            'control': [],
+            'experiment': [],
+            'no_config': []
+        }
+        
+        for user_doc in users:
+            uid = user_doc.id
+            user_data = user_doc.to_dict()
+            
+            if 'app_config' in user_data:
+                app_config = user_data.get('app_config')
+                if app_config == 0:
+                    control_count += 1
+                    group_details['control'].append({
+                        'uid': uid,
+                        'assigned_at': user_data.get('experiment_assigned_at'),
+                        'migrated': user_data.get('migrated_from_existing', False)
+                    })
+                else:
+                    experiment_count += 1
+                    group_details['experiment'].append({
+                        'uid': uid,
+                        'assigned_at': user_data.get('experiment_assigned_at'),
+                        'migrated': user_data.get('migrated_from_existing', False)
+                    })
+            else:
+                no_config_count += 1
+                group_details['no_config'].append({
+                    'uid': uid,
+                    'created_at': user_data.get('createdAt')
+                })
+        
+        # 計算比例
+        control_ratio = control_count / total_users if total_users > 0 else 0
+        experiment_ratio = experiment_count / total_users if total_users > 0 else 0
+        
+        stats = {
+            'total_users': total_users,
+            'control_count': control_count,
+            'experiment_count': experiment_count,
+            'no_config_count': no_config_count,
+            'control_ratio': round(control_ratio, 3),
+            'experiment_ratio': round(experiment_ratio, 3),
+            'group_details': group_details,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        # 保存統計信息到Firestore（供後續分析）
+        stats_ref = db.collection('experiment_stats').document('latest')
+        stats_ref.set(stats)
+        
+        return {
+            'success': True,
+            'stats': stats
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }

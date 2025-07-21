@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
 import 'dart:async';
@@ -10,11 +11,11 @@ class EventCard extends StatefulWidget {
       {super.key,
       required this.event,
       required this.onAction,
-      required this.onOpenChat});
+      this.onOpenChat});
 
   final EventModel event;
   final void Function(TaskAction a) onAction;
-  final void Function() onOpenChat;
+  final void Function()? onOpenChat;
 
   @override
   State<EventCard> createState() => _EventCardState();
@@ -180,7 +181,7 @@ class _EventCardState extends State<EventCard> {
                 onStop: () => widget.onAction(TaskAction.stop),
                 onComplete: () => widget.onAction(TaskAction.complete), // 新增完成功能
                 onContinue: () => widget.onAction(TaskAction.continue_), // 新增繼續功能
-                onChat: () => widget.onOpenChat(),
+                onChat: widget.onOpenChat != null ? () => widget.onOpenChat!() : null,
                 // Pass in responsive size parameters
                 buttonHeight: size.height * 0.045,
                 buttonWidth: size.width * 0.2,
@@ -220,11 +221,24 @@ class _EventCardState extends State<EventCard> {
       targetEndTime = event.scheduledEndTime;
     }
     
-    final difference = targetEndTime.difference(now);
+    // 🎯 新增：如果任务有暂停时间，使用暂停时间计算剩余时间
+    DateTime referenceTime;
+    if (event.pauseAt != null) {
+      // 使用暂停时间作为参考时间
+      referenceTime = event.pauseAt!;
+      if (kDebugMode) {
+        print('_getCountdownText: 使用暂停时间计算: ${event.title}, pauseAt: $referenceTime');
+      }
+    } else {
+      // 使用当前时间
+      referenceTime = now;
+    }
+    
+    final difference = targetEndTime.difference(referenceTime);
     
     if (difference.isNegative) {
       // 如果已经超过结束时间，显示超时
-      final overdue = now.difference(targetEndTime);
+      final overdue = referenceTime.difference(targetEndTime);
       final hours = overdue.inHours;
       final minutes = overdue.inMinutes.remainder(60);
       final seconds = overdue.inSeconds.remainder(60);
@@ -240,22 +254,27 @@ class _EventCardState extends State<EventCard> {
 
   /// 获取暂停状态的时间文本
   static String _getPausedTimeText(EventModel event) {
-    final now = DateTime.now();
+    // 🎯 使用专门的pauseAt字段作为暂停时间
+    final pauseTime = event.pauseAt ?? DateTime.now();
+    
+    if (kDebugMode) {
+      print('_getPausedTimeText: ${event.title}, pauseAt: $pauseTime');
+    }
     
     // 计算动态结束时间（基于实际开始时间）
     if (event.actualStartTime != null) {
       final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
       final targetEndTime = event.actualStartTime!.add(taskDuration);
-      final difference = targetEndTime.difference(now);
+      final difference = targetEndTime.difference(pauseTime);
       
       if (difference.isNegative) {
-        // 如果已经超过结束时间
-        final overdue = now.difference(targetEndTime);
+        // 如果暂停时已经超过结束时间
+        final overdue = pauseTime.difference(targetEndTime);
         final hours = overdue.inHours;
         final minutes = overdue.inMinutes.remainder(60);
         return '已超時 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
       } else {
-        // 显示剩余时间
+        // 显示暂停时的剩余时间
         final hours = difference.inHours;
         final minutes = difference.inMinutes.remainder(60);
         return '剩餘 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
@@ -317,7 +336,7 @@ class _ActionButton extends StatelessWidget {
     required this.onStop,
     required this.onComplete,
     required this.onContinue,
-    required this.onChat,
+    this.onChat,
     required this.buttonHeight,
     required this.buttonWidth,
     required this.borderRadius,
@@ -329,7 +348,7 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onStop;
   final VoidCallback onComplete;
   final VoidCallback onContinue;
-  final VoidCallback onChat;
+  final VoidCallback? onChat;
   final double buttonHeight;
   final double buttonWidth;
   final double borderRadius;
@@ -374,19 +393,22 @@ class _ActionButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min, // 不撐滿父層
         crossAxisAlignment: CrossAxisAlignment.end, // 右對齊，跟原本一致
         children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: buttonWidth,
-              maxWidth: buttonWidth * 1.5,
-              minHeight: buttonHeight,
+          // 只有當onChat不為null時才顯示聊天按鈕
+          if (onChat != null) ...[
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: buttonWidth,
+                maxWidth: buttonWidth * 1.5,
+                minHeight: buttonHeight,
+              ),
+              child: ElevatedButton(
+                onPressed: onChat,
+                style: buttonStyle,
+                child: const Text('Chat'),
+              ),
             ),
-            child: ElevatedButton(
-              onPressed: onChat, // ← 新 callback
-              style: buttonStyle,
-              child: const Text('Chat'),
-            ),
-          ),
-          const SizedBox(height: 6), // 垂直間距
+            const SizedBox(height: 6), // 垂直間距
+          ],
           ConstrainedBox(
             constraints: BoxConstraints(
               minWidth: buttonWidth,
@@ -409,19 +431,22 @@ class _ActionButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: buttonWidth,
-              maxWidth: buttonWidth * 1.5,
-              minHeight: buttonHeight,
+          // 只有當onChat不為null時才顯示聊天按鈕
+          if (onChat != null) ...[
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: buttonWidth,
+                maxWidth: buttonWidth * 1.5,
+                minHeight: buttonHeight,
+              ),
+              child: ElevatedButton(
+                onPressed: onChat,
+                style: buttonStyle,
+                child: const Text('Chat'),
+              ),
             ),
-            child: ElevatedButton(
-              onPressed: onChat,
-              style: buttonStyle,
-              child: const Text('Chat'),
-            ),
-          ),
-          const SizedBox(height: 6),
+            const SizedBox(height: 6),
+          ],
           ConstrainedBox(
             constraints: BoxConstraints(
               minWidth: buttonWidth,

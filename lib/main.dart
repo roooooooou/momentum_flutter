@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,17 +7,38 @@ import 'theme.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'providers/events_provider.dart';
-import 'screens/home_screen.dart';
+import 'screens/exp_home_screen.dart';
+import 'screens/control_home_screen.dart';
 import 'screens/sign_in_screen.dart';
+import 'services/data_path_service.dart';
 import 'services/notification_service.dart';
 import 'services/app_usage_service.dart';
+import 'services/remote_config_service.dart';
+import 'services/experiment_config_service.dart';
 import 'navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // 初始化实验相关服务
+  await RemoteConfigService.instance.initialize();
+  
   await NotificationService.instance.initialize();
   await AuthService.instance.signInSilently();
+
+  // 检查用户组别变化并取消通知（如果用户已登录）
+  final currentUser = AuthService.instance.currentUser;
+  if (currentUser != null) {
+    try {
+      // 获取用户组别（这会触发组别检查和可能的通知取消）
+      await ExperimentConfigService.instance.getUserGroup(currentUser.uid);
+    } catch (e) {
+      if (kDebugMode) {
+        print('检查用户组别变化时出错: $e');
+      }
+    }
+  }
 
   runApp(const ProcrastinationControlApp());
 }
@@ -149,9 +171,25 @@ class _AuthGateState extends State<AuthGate> {
           );
         }
 
-        // (b) 已經登入 → 進 Home
+        // (b) 已經登入 → 根据用户分组进入对应页面
         if (snap.hasData) {
-          return const HomeScreen();
+          return FutureBuilder<bool>(
+            future: DataPathService.instance.isControlGroup(snap.data!.uid),
+            builder: (context, groupSnap) {
+              if (groupSnap.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              
+              // 根据分组显示对应的主页
+              if (groupSnap.data == true) {
+                return const ControlHomeScreen(); // 对照组
+              } else {
+                return const ExpHomeScreen(); // 实验组（默认）
+              }
+            },
+          );
         }
 
         // (c) 還沒登入，而且還沒補過 silent → 下一個 frame 補一次

@@ -9,6 +9,8 @@ import '../services/auth_service.dart';
 import '../services/app_usage_service.dart';
 import '../screens/daily_report_screen.dart';
 import '../screens/chat_screen.dart'; // Added import for ChatScreen
+import 'package:momentum/services/data_path_service.dart';
+import 'package:momentum/services/experiment_config_service.dart';
 
 class NotificationHandler {
   NotificationHandler._();
@@ -129,9 +131,24 @@ class NotificationHandler {
             notifId: notifId,
           );
         }
+
+        // 🎯 检查用户组：对照组不显示任务开始对话框
+        final isControlGroup = await ExperimentConfigService.instance.isControlGroup(currentUser.uid);
+        if (isControlGroup) {
+          // 对照组用户：记录通知结果为已查看，但不显示对话框
+          for (final notifId in event.notifIds) {
+            await ExperimentEventHelper.recordNotificationResult(
+              uid: currentUser.uid,
+              eventId: event.id,
+              notifId: notifId,
+              result: NotificationResult.dismiss, // 标记为已查看但未采取行动
+            );
+          }
+          return;
+        }
       }
 
-      // 顯示任務開始彈窗
+      // 顯示任務開始彈窗（仅限实验组）
       await _showTaskStartDialog(event);
 
     } catch (e) {
@@ -152,12 +169,7 @@ class NotificationHandler {
         return null;
       }
 
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('events')
-          .doc(eventId)
-          .get();
+      final doc = await DataPathService.instance.getUserEventDoc(currentUser.uid, eventId).then((ref) => ref.get());
 
       if (!doc.exists) {
         if (kDebugMode) {
@@ -407,12 +419,8 @@ class NotificationHandler {
       if (currentUser == null) return;
 
       // 更新事件為已完成
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('events')
-          .doc(event.id)
-          .update({
+      final ref = await DataPathService.instance.getUserEventDoc(currentUser.uid, event.id);
+      await ref.update({
         'isDone': true,
         'completedTime': Timestamp.fromDate(DateTime.now()),
         'status': TaskStatus.completed.value,

@@ -73,7 +73,8 @@ enum NotificationResult {
 enum ChatResult {
   start(0),    // 開始任務
   snooze(1),   // 延後
-  leave(2);    // 直接離開
+  giveUp(2),
+  leave(3);    // 直接離開
 
   const ChatResult(this.value);
   final int value;
