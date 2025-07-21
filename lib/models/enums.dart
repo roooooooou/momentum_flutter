@@ -18,7 +18,8 @@ enum TaskStatus {
   notStarted(0),   // 未開始
   inProgress(1),   // 進行中
   completed(2),    // 已完成
-  overdue(3);      // 逾期
+  overdue(3),      // 逾期（未開始但過了開始時間）
+  overtime(4);     // 超時（已開始但超過預計結束時間）
 
   const TaskStatus(this.value);
   final int value;
@@ -28,7 +29,32 @@ enum TaskStatus {
   }
 }
 
-/// 通知結果
+/// 事件生命周期状态
+enum EventLifecycleStatus {
+  active(0),      // 活跃（正常存在于Google Calendar中）
+  deleted(1),     // 已从Google Calendar中删除
+  moved(2);       // 在同一日历内移动（时间改变）
+
+  const EventLifecycleStatus(this.value);
+  final int value;
+
+  static EventLifecycleStatus fromValue(int value) {
+    return EventLifecycleStatus.values.firstWhere((e) => e.value == value);
+  }
+
+  String get displayName {
+    switch (this) {
+      case EventLifecycleStatus.active:
+        return '活躍';
+      case EventLifecycleStatus.deleted:
+        return '已刪除';
+      case EventLifecycleStatus.moved:
+        return '已移動';
+    }
+  }
+}
+
+/// 通知结果
 enum NotificationResult {
   dismiss(0),   // 忽略/關閉
   snooze(1),    // 延後

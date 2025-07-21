@@ -104,7 +104,25 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 只顯示關閉按鈕
+            // 开始任务按钮
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _startTaskAndClose(chat),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('開始任務'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB8E6B8), // 绿色
+                  foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8), // 按钮间距
+            // 关闭按钮
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -170,6 +188,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // 根據AI建議映射到對應的ChatResult
     switch (suggestedAction) {
       case 'start_now':
+        // 不再自动开始任务，只记录聊天结束
         result = ChatResult.start;
         break;
       case 'snooze':
@@ -193,82 +212,12 @@ class _ChatScreenState extends State<ChatScreen> {
         commitPlan: result == ChatResult.start, // 選擇開始任務表示有commitment
       );
       
-      // 如果AI建議開始任務，實際啟動任務
-      if (result == ChatResult.start) {
-        await _startTask(chat);
-        
-        // 記錄分析事件
-        await AnalyticsService().logTaskStarted('chat');
-
-        // 顯示成功訊息
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('任務「${chat.taskTitle}」已開始！'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      // 顯示錯誤訊息
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('操作失敗：$e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-  
-  /// 處理用戶明確的行動選擇（保留原有方法以備其他地方使用）
-  void _handleActionChoice(ChatResult result, ChatProvider chat) async {
-    _hasExplicitAction = true;
-    
-    try {
-      // 🎯 實驗數據收集：記錄聊天結束
-      await chat.endChatSession(
-        result,
-        commitPlan: result == ChatResult.start, // 選擇開始任務表示有commitment
-      );
+      // 移除自动开始任务的逻辑，让用户手动选择
+      // 即使AI建议开始任务，也不自动启动，由用户点击"开始任务"按钮来决定
       
-      // 如果用戶選擇開始任務，實際啟動任務
-      if (result == ChatResult.start) {
-        await _startTask(chat);
-        
-        // 記錄分析事件
-        await AnalyticsService().logTaskStarted('chat');
-
-        // 顯示成功訊息
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('任務「${chat.taskTitle}」已開始！'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      }
+      print('Chat session ended with result: ${result.name}');
     } catch (e) {
-      // 顯示錯誤訊息
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('操作失敗：$e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-    
-    if (mounted) {
-      Navigator.of(context).pop();
+      print('Error ending chat session: $e');
     }
   }
   
@@ -300,5 +249,40 @@ class _ChatScreenState extends State<ChatScreen> {
     await CalendarService.instance.startEvent(uid, event);
     
     print('Task started successfully: ${event.title}');
+  }
+
+  /// 開始任務並關閉聊天
+  void _startTaskAndClose(ChatProvider chat) async {
+    final result = ChatResult.start;
+    _hasExplicitAction = true;
+
+    try {
+      await chat.endChatSession(
+        result,
+        commitPlan: true,
+      );
+
+      await _startTask(chat);
+      await AnalyticsService().logTaskStarted('chat');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('任務「${chat.taskTitle}」已開始！'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        // 确保返回到主页面，而不仅仅是返回上一页
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      print('Error starting task and closing chat: $e');
+      if (mounted) {
+        // 即使出错也返回主页面
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    }
   }
 }

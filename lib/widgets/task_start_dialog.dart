@@ -36,9 +36,9 @@ class TaskStartDialog extends StatelessWidget {
             Column(
               children: [
                 Text(
-                  '"${event.title}"',
+                  '準備好開始"${event.title}"了嗎？',
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
@@ -46,9 +46,9 @@ class TaskStartDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '準備好了嗎？',
+                  '需不需要跟我聊聊，讓我陪你一起開始這個任務呢？',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.w500,
                     color: Colors.black87,
                   ),
@@ -138,7 +138,7 @@ class TaskStartDialog extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      '我需要幫助',
+                      '不太想開始',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,

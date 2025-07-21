@@ -18,25 +18,6 @@ def get_firestore_client():
     """延遲初始化Firestore客户端，避免部署超時"""
     return firestore.client()
 
-# 🧪 测试定时器函数（每分钟执行一次）
-@scheduler_fn.on_schedule(schedule="* 1 * * *", timezone="Asia/Taipei")  # 每5分钟执行一次
-def test_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
-    try:
-        taiwan_tz = pytz.timezone('Asia/Taipei')
-        now = datetime.now(taiwan_tz)
-                
-        # 可选：写入Firestore记录执行历史
-        db = get_firestore_client()
-        test_ref = db.collection('test_scheduler').document()
-        test_ref.set({
-            'executed_at': now,
-            'message': '定时器测试执行成功',
-            'timezone': 'Asia/Taipei'
-        })
-        
-    except Exception as e:
-        print(f"❌ 测试定时器执行失败: {e}")
-
 @https_fn.on_call(secrets=["OPENAI_APIKEY"])
 def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
     client = OpenAI(api_key=os.environ.get("OPENAI_APIKEY"))
@@ -130,6 +111,7 @@ def summarize_chat(req: https_fn.CallableRequest) -> any:
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
+            temperature=0.9,
             messages=[
                 {"role": "system", "content": prompt}
             ],

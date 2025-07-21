@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
+import 'dart:async';
 
 enum TaskAction { start, stop, complete }
 
-class EventCard extends StatelessWidget {
+class EventCard extends StatefulWidget {
   const EventCard(
       {super.key,
       required this.event,
@@ -14,6 +15,50 @@ class EventCard extends StatelessWidget {
   final EventModel event;
   final void Function(TaskAction a) onAction;
   final void Function() onOpenChat;
+
+  @override
+  State<EventCard> createState() => _EventCardState();
+}
+
+class _EventCardState extends State<EventCard> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    // 只有当任务进行中或超时时才启动计时器
+    if (widget.event.computedStatus == TaskStatus.inProgress || 
+        widget.event.computedStatus == TaskStatus.overtime) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() {
+            // 强制重建widget以更新时间显示
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(EventCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 如果任务状态改变，重新处理计时器
+    if (oldWidget.event.computedStatus != widget.event.computedStatus) {
+      _timer?.cancel();
+      _startTimer();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +79,7 @@ class EventCard extends StatelessWidget {
     late final Color statusColor;
     late final Color circleColor;
 
-    switch (event.status) {
+    switch (widget.event.status) {
       case TaskStatus.inProgress:
         bg = const Color(0xFFEFEBE2); // Light grey-green
         statusColor = const Color(0xFF8D9B97); // Grey-green for in-progress
@@ -44,6 +89,11 @@ class EventCard extends StatelessWidget {
         bg = const Color(0xFFF2E9E0); // Light pinkish
         statusColor = const Color(0xFFE5A79D); // Salmon color for overdue
         circleColor = const Color(0xFFC7917C); // Light grey for overdue
+        break;
+      case TaskStatus.overtime:
+        bg = const Color(0xFFF5E6E6); // Light red-ish
+        statusColor = const Color(0xFFD4756B); // Red-ish color for overtime
+        circleColor = const Color(0xFFB85450); // Darker red for overtime
         break;
       case TaskStatus.completed:
         bg = const Color(0xFFCBD0C9); // Desaturated blue-grey
@@ -62,7 +112,7 @@ class EventCard extends StatelessWidget {
       final horizontalSpacing = constraints.maxWidth * 0.03;
 
       return Opacity(
-        opacity: event.status == TaskStatus.completed ? 0.85 : 1,
+        opacity: widget.event.status == TaskStatus.completed ? 0.85 : 1,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: cardHPadding,
@@ -90,7 +140,7 @@ class EventCard extends StatelessWidget {
           child: Row(
             children: [
               _StatusIcon(
-                status: event.computedStatus,
+                status: widget.event.computedStatus,
                 color: circleColor,
                 size: iconSize,
                 // 移除完成功能
@@ -101,7 +151,7 @@ class EventCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      event.title,
+                      widget.event.title,
                       style: TextStyle(
                         fontSize: titleFontSize,
                         fontWeight: FontWeight.w500,
@@ -110,7 +160,7 @@ class EventCard extends StatelessWidget {
                     ),
                     SizedBox(height: size.height * 0.005),
                     Text(
-                      _subtitleText(event),
+                      _subtitleText(widget.event),
                       style: TextStyle(
                         fontSize: subtitleFontSize,
                         color: statusColor, // Grey for other text
@@ -120,11 +170,11 @@ class EventCard extends StatelessWidget {
                 ),
               ),
               _ActionButton(
-                status: event.computedStatus,
-                onStart: () => onAction(TaskAction.start),
-                onStop: () => onAction(TaskAction.stop),
-                onComplete: () => onAction(TaskAction.complete), // 新增完成功能
-                onChat: () => onOpenChat(),
+                status: widget.event.computedStatus,
+                onStart: () => widget.onAction(TaskAction.start),
+                onStop: () => widget.onAction(TaskAction.stop),
+                onComplete: () => widget.onAction(TaskAction.complete), // 新增完成功能
+                onChat: () => widget.onOpenChat(),
                 // Pass in responsive size parameters
                 buttonHeight: size.height * 0.045,
                 buttonWidth: size.width * 0.2,
@@ -140,11 +190,45 @@ class EventCard extends StatelessWidget {
 
   static String _subtitleText(EventModel e) {
     return switch (e.computedStatus) {
-      TaskStatus.inProgress => 'In Progress',
+      TaskStatus.inProgress => _getCountdownText(e),
+      TaskStatus.overtime => _getCountdownText(e), // 超時也顯示倒數時間（會顯示超時多久）
       TaskStatus.overdue => 'Overdue',
       TaskStatus.notStarted => e.timeRange,
       TaskStatus.completed => 'Complete',
     };
+  }
+
+  /// 计算并返回倒数时间文本
+  static String _getCountdownText(EventModel event) {
+    final now = DateTime.now();
+    
+    // 计算动态结束时间
+    DateTime targetEndTime;
+    if (event.actualStartTime != null) {
+      // 如果有实际开始时间，使用实际开始时间 + 任务时长
+      final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
+      targetEndTime = event.actualStartTime!.add(taskDuration);
+    } else {
+      // 如果没有实际开始时间，使用原定结束时间
+      targetEndTime = event.scheduledEndTime;
+    }
+    
+    final difference = targetEndTime.difference(now);
+    
+    if (difference.isNegative) {
+      // 如果已经超过结束时间，显示超时
+      final overdue = now.difference(targetEndTime);
+      final hours = overdue.inHours;
+      final minutes = overdue.inMinutes.remainder(60);
+      final seconds = overdue.inSeconds.remainder(60);
+      return '超時 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    
+    // 显示剩余时间
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes.remainder(60);
+    final seconds = difference.inSeconds.remainder(60);
+    return '剩餘 ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 }
 
@@ -172,9 +256,15 @@ class _StatusIcon extends StatelessWidget {
       );
     }
 
-    final icon = status == TaskStatus.inProgress
-        ? Icons.radio_button_checked_outlined
-        : Icons.radio_button_unchecked;
+    // 根據狀態選擇圖標
+    IconData icon;
+    if (status == TaskStatus.inProgress) {
+      icon = Icons.radio_button_checked_outlined;
+    } else if (status == TaskStatus.overtime) {
+      icon = Icons.access_time_filled; // 超時使用時鐘圖標
+    } else {
+      icon = Icons.radio_button_unchecked;
+    }
 
     return Icon(icon, size: size, color: color);
   }
@@ -215,7 +305,7 @@ class _ActionButton extends StatelessWidget {
     Color textColor = Colors.black87;
 
     // 根據任務狀態決定按鈕顏色
-    if (status == TaskStatus.inProgress || status == TaskStatus.notStarted) {
+    if (status == TaskStatus.inProgress || status == TaskStatus.overtime || status == TaskStatus.notStarted) {
       // Stop 按鈕使用較淺的綠色
       buttonColor = const Color(0xFFCED2C9);
     } else {
@@ -274,8 +364,8 @@ class _ActionButton extends StatelessWidget {
       );
     }
 
-    // Stop and Complete buttons (In Progress)
-    if (status == TaskStatus.inProgress) {
+    // Stop and Complete buttons (In Progress and Overtime)
+    if (status == TaskStatus.inProgress || status == TaskStatus.overtime) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,

@@ -220,6 +220,8 @@ class NotificationService {
     required int offsetMinutes,
     String? payload,
     bool isSecondNotification = false,
+    String? customTitle, // 新增：自定义标题
+    String? customBody,  // 新增：自定义内容
   }) async {
     try {
       if (!_initialized) {
@@ -264,7 +266,11 @@ class NotificationService {
       String notificationTitle;
       String notificationBody;
       
-      if (isSecondNotification) {
+      if (customTitle != null && customBody != null) {
+        // 使用自定义标题和内容（用于任务完成提醒）
+        notificationTitle = customTitle;
+        notificationBody = customBody;
+      } else if (isSecondNotification) {
         notificationTitle = '現在開始剛剛好';
         notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！需要跟我聊聊嗎？';
       } else {
@@ -285,8 +291,8 @@ class NotificationService {
         payload: payload, // 使用事件ID作為 payload
       );
 
-      // 🎯 實驗數據收集：記錄通知發送成功
-      if (payload != null) {
+      // 🎯 實驗數據收集：記錄通知發送成功（只针对普通事件通知，不包括自定义通知）
+      if (payload != null && customTitle == null) {
         final currentUser = AuthService.instance.currentUser;
         if (currentUser != null) {
           final notifId = isSecondNotification ? '$payload-2nd' : '$payload-1st';
@@ -301,7 +307,7 @@ class NotificationService {
       }
 
       if (kDebugMode) {
-        print('事件通知已排程: ID=$notificationId, 標題=$title, 觸發時間=$triggerTime, 類型=${isSecondNotification ? "第二個" : "第一個"}');
+        print('事件通知已排程: ID=$notificationId, 標題=$title, 觸發時間=$triggerTime, 類型=${customTitle != null ? "自定義" : (isSecondNotification ? "第二個" : "第一個")}');
       }
       
       return true;

@@ -7,9 +7,12 @@ import '../providers/events_provider.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
 import '../widgets/event_card.dart';
+import '../widgets/task_start_dialog.dart';
 import '../screens/chat_screen.dart';
 import '../screens/daily_report_screen.dart';
 import '../services/notification_service.dart';
+import '../services/notification_handler.dart';
+import '../services/app_usage_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../services/analytics_service.dart';
@@ -24,6 +27,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<EventModel> _cached = const [];
   bool _isInitialSync = true;
+  final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
 
   @override
   void initState() {
@@ -94,6 +98,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         
         // 額外的通知排程檢查（處理用戶手動修改 Google Calendar 的情況）
         _checkNotificationSchedule(uid);
+        
+        // 檢查是否有任務需要顯示開始對話框
+        // 如果app是由通知打開的，跳過此檢查以避免重複顯示對話框
+        if (!AppUsageService.instance.openedByNotification) {
+          _checkPendingTaskStart(uid);
+        } else {
+          if (kDebugMode) {
+            print('App由通知打開，跳過pending task start檢查');
+          }
+        }
+        
+        // 重置通知打开标志，确保下次resume时正常检查
+        AppUsageService.instance.resetNotificationFlag();
       }
     }
   }
@@ -133,6 +150,122 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (kDebugMode) {
         print('App Resume 通知檢查失敗: $e');
+      }
+    }
+  }
+
+  /// 檢查是否有任務需要顯示開始對話框（App Resume 時調用）
+  Future<void> _checkPendingTaskStart(String uid) async {
+    try {
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(const Duration(days: 1));
+      
+      final col = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('events');
+      
+      final snap = await col
+          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
+          .orderBy('scheduledStartTime')
+          .get();
+      
+      final events = snap.docs.map(EventModel.fromDoc).toList();
+      
+      // 找到應該開始但還沒開始的任務
+      final pendingEvents = events.where((event) {
+        // 任務還沒完成
+        if (event.isDone) return false;
+        
+        // 任務還沒實際開始
+        if (event.actualStartTime != null) return false;
+        
+        // 已經顯示過對話框的任務不再顯示
+        if (_shownDialogTaskIds.contains(event.id)) return false;
+        
+        // 已經顯示過完成提醒對話框的任務不再顯示開始對話框
+        if (NotificationHandler.instance.shownCompletionDialogTaskIds.contains(event.id)) return false;
+        
+        // 只在任務開始時間前後10分鐘內顯示對話框
+        final bufferTime = const Duration(minutes: 20);
+        final earliestShowTime = event.scheduledStartTime.subtract(bufferTime); // 開始前20分鐘
+        final latestShowTime = event.scheduledStartTime.add(bufferTime);       // 開始後20分鐘
+        
+        // 當前時間必須在時間窗口內
+        final inTimeWindow = now.isAfter(event.scheduledStartTime) && now.isBefore(latestShowTime);
+
+        
+        return inTimeWindow;
+      }).toList();
+      
+      if (pendingEvents.isNotEmpty) {
+        // 检查是否已有TaskStartDialog在显示
+        if (NotificationHandler.instance.isTaskStartDialogShowing) {
+          if (kDebugMode) {
+            print('已有TaskStartDialog在顯示，跳過pending task檢查');
+          }
+          return;
+        }
+        
+        // 检查是否在聊天页面
+        if (context.findAncestorWidgetOfExactType<ChatScreen>() != null) {
+          if (kDebugMode) {
+            print('當前在聊天頁面，不顯示pending task的TaskStartDialog');
+          }
+          return;
+        }
+        
+        // 選擇最早應該開始的任務
+        pendingEvents.sort((a, b) => a.scheduledStartTime.compareTo(b.scheduledStartTime));
+        final mostUrgentTask = pendingEvents.first;
+        
+        // 記錄已顯示過對話框
+        _shownDialogTaskIds.add(mostUrgentTask.id);
+        
+        // 設置對話框顯示狀態
+        NotificationHandler.instance.setTaskStartDialogShowing(true);
+        
+        if (mounted) {
+          // 顯示任務開始對話框
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => TaskStartDialog(event: mostUrgentTask),
+          ).then((_) {
+            // 對話框關閉時重置狀態
+            NotificationHandler.instance.setTaskStartDialogShowing(false);
+          });
+          
+          if (kDebugMode) {
+            print('顯示任務開始對話框: ${mostUrgentTask.title}');
+          }
+        } else {
+          // 如果context不可用，重置狀態
+          NotificationHandler.instance.setTaskStartDialogShowing(false);
+        }
+      }
+      
+      // 清理已完成或已開始的任務ID（避免集合無限增長）
+      if (events.isNotEmpty) {
+        _shownDialogTaskIds.removeWhere((taskId) {
+          try {
+            final event = events.firstWhere((e) => e.id == taskId);
+            return event.isDone || event.actualStartTime != null;
+          } catch (e) {
+            // 如果找不到事件，從集合中移除該ID
+            return true;
+          }
+        });
+        
+        // 同时清理NotificationHandler中的记录
+        final eventIds = events.map((e) => e.id).toList();
+        NotificationHandler.instance.cleanupCompletionDialogTaskIds(eventIds);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('檢查待開始任務失敗: $e');
       }
     }
   }

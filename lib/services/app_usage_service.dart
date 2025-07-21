@@ -11,6 +11,17 @@ class AppUsageService {
   DateTime? _sessionStartTime;
   bool _openedByNotification = false;
   String? _currentSessionId; // 🎯 新增：记录当前会话ID
+  
+  /// 获取当前会话是否由通知打开
+  bool get openedByNotification => _openedByNotification;
+  
+  /// 重置通知打开状态（在检查过pending task后调用）
+  void resetNotificationFlag() {
+    _openedByNotification = false;
+    if (kDebugMode) {
+      print('AppUsageService: 重置通知打开标志');
+    }
+  }
 
   /// 记录应用打开（在app启动时调用）
   Future<void> recordAppOpen({bool fromNotification = false}) async {

@@ -26,6 +26,13 @@ class EventModel {
   final int? startToOpenLatency;        // (actual - scheduled)/1000；預寫好省 ETL
   final bool isDone;
 
+  // === 事件生命周期 ===
+  final EventLifecycleStatus lifecycleStatus;  // 事件生命周期状态
+  final DateTime? archivedAt;                    // 归档时间（被删除/移动的时间）
+  final String? previousEventId;                 // 原事件ID（用于移动后ID相同的情况）
+  final DateTime? movedFromStartTime;            // 移动前的开始时间
+  final DateTime? movedFromEndTime;              // 移动前的结束时间
+
   // === meta ===
   final DateTime? createdAt;            // serverTimestamp
   final DateTime? updatedAt;            // serverTimestamp
@@ -47,6 +54,11 @@ class EventModel {
     List<String>? notifIds,
     this.status,
     this.startToOpenLatency,
+    this.lifecycleStatus = EventLifecycleStatus.active,
+    this.archivedAt,
+    this.previousEventId,
+    this.movedFromStartTime,
+    this.movedFromEndTime,
     this.createdAt,
     this.updatedAt,
     this.googleEventId,
@@ -70,6 +82,13 @@ class EventModel {
       notifIds: d['notifIds'] != null ? List<String>.from(d['notifIds']) : [],
       status: d['status'] != null ? TaskStatus.fromValue(d['status']) : null,
       startToOpenLatency: d['startToOpenLatency'],
+      lifecycleStatus: d['lifecycleStatus'] != null 
+          ? EventLifecycleStatus.fromValue(d['lifecycleStatus']) 
+          : EventLifecycleStatus.active,
+      archivedAt: (d['archivedAt'] as Timestamp?)?.toDate(),
+      previousEventId: d['previousEventId'],
+      movedFromStartTime: (d['movedFromStartTime'] as Timestamp?)?.toDate(),
+      movedFromEndTime: (d['movedFromEndTime'] as Timestamp?)?.toDate(),
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
       googleEventId: d['googleEventId'],
@@ -92,6 +111,11 @@ class EventModel {
       'notifIds': notifIds,
       if (status != null) 'status': status!.value,
       if (startToOpenLatency != null) 'startToOpenLatency': startToOpenLatency,
+      'lifecycleStatus': lifecycleStatus.value,
+      if (archivedAt != null) 'archivedAt': Timestamp.fromDate(archivedAt!),
+      if (previousEventId != null) 'previousEventId': previousEventId,
+      if (movedFromStartTime != null) 'movedFromStartTime': Timestamp.fromDate(movedFromStartTime!),
+      if (movedFromEndTime != null) 'movedFromEndTime': Timestamp.fromDate(movedFromEndTime!),
       if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
       if (googleEventId != null) 'googleEventId': googleEventId,
@@ -105,14 +129,44 @@ class EventModel {
     return '${f.format(scheduledStartTime.toLocal())} - ${f.format(scheduledEndTime.toLocal())}';
   }
 
+  /// 是否为活跃事件（未被删除或移动）
+  bool get isActive {
+    return lifecycleStatus == EventLifecycleStatus.active;
+  }
+
+  /// 是否为已归档事件（被删除或移动）
+  bool get isArchived {
+    return lifecycleStatus != EventLifecycleStatus.active;
+  }
+
   TaskStatus get computedStatus {
     // 如果有明確設定status，使用設定的值
     if (status != null) return status!;
     
-    // 否則根據舊邏輯計算
+    // 否則根據邏輯計算
     if (isDone) return TaskStatus.completed;
-    if (actualStartTime != null) return TaskStatus.inProgress;
-    if (DateTime.now().isAfter(scheduledStartTime)) return TaskStatus.overdue;
+    
+    final now = DateTime.now();
+    
+    // 如果任務已開始
+    if (actualStartTime != null) {
+      // 計算動態結束時間（實際開始時間 + 任務時長）
+      final taskDuration = scheduledEndTime.difference(scheduledStartTime);
+      final dynamicEndTime = actualStartTime!.add(taskDuration);
+      
+      // 如果超過動態結束時間，返回超時狀態
+      if (now.isAfter(dynamicEndTime)) {
+        return TaskStatus.overtime;
+      }
+      
+      // 否則返回進行中
+      return TaskStatus.inProgress;
+    }
+    
+    // 任務未開始，檢查是否逾期
+    if (now.isAfter(scheduledStartTime)) return TaskStatus.overdue;
+    
+    // 未開始且未逾期
     return TaskStatus.notStarted;
   }
 
@@ -130,6 +184,11 @@ class EventModel {
     List<String>? notifIds,
     TaskStatus? status,
     int? startToOpenLatency,
+    EventLifecycleStatus? lifecycleStatus,
+    DateTime? archivedAt,
+    String? previousEventId,
+    DateTime? movedFromStartTime,
+    DateTime? movedFromEndTime,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? googleEventId,
@@ -150,6 +209,11 @@ class EventModel {
       notifIds: notifIds ?? this.notifIds,
       status: status ?? this.status,
       startToOpenLatency: startToOpenLatency ?? this.startToOpenLatency,
+      lifecycleStatus: lifecycleStatus ?? this.lifecycleStatus,
+      archivedAt: archivedAt ?? this.archivedAt,
+      previousEventId: previousEventId ?? this.previousEventId,
+      movedFromStartTime: movedFromStartTime ?? this.movedFromStartTime,
+      movedFromEndTime: movedFromEndTime ?? this.movedFromEndTime,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       googleEventId: googleEventId ?? this.googleEventId,
@@ -610,6 +674,174 @@ class ExperimentEventHelper {
       debugPrint('saveChatSummary - 保存失败: $e');
       rethrow;
     }
+  }
+
+  /// 手动归档事件（管理员功能）
+  static Future<void> archiveEvent({
+    required String uid,
+    required String eventId,
+    required EventLifecycleStatus lifecycleStatus,
+    String? reason,
+  }) async {
+    final now = DateTime.now();
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId);
+
+    await ref.set({
+      'lifecycleStatus': lifecycleStatus.value,
+      'archivedAt': Timestamp.fromDate(now),
+      'updatedAt': Timestamp.fromDate(now),
+      if (reason != null) 'archiveReason': reason,
+    }, SetOptions(merge: true));
+
+    debugPrint('archiveEvent - 事件已归档: eventId=$eventId, status=${lifecycleStatus.displayName}');
+  }
+
+  /// 恢复已归档的事件
+  static Future<void> restoreEvent({
+    required String uid,
+    required String eventId,
+  }) async {
+    final now = DateTime.now();
+    final ref = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .doc(eventId);
+
+    await ref.set({
+      'lifecycleStatus': EventLifecycleStatus.active.value,
+      'archivedAt': null,
+      'updatedAt': Timestamp.fromDate(now),
+    }, SetOptions(merge: true));
+
+    debugPrint('restoreEvent - 事件已恢复: eventId=$eventId');
+  }
+
+  /// 获取事件的生命周期历史（如果有关联的前一个事件）
+  static Future<List<EventModel>> getEventHistory({
+    required String uid,
+    required String eventId,
+  }) async {
+    final history = <EventModel>[];
+    var currentEventId = eventId;
+
+    while (currentEventId.isNotEmpty) {
+      final doc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('events')
+          .doc(currentEventId)
+          .get();
+
+      if (!doc.exists) break;
+
+      final event = EventModel.fromDoc(doc);
+      history.add(event);
+
+      // 查找下一个关联的事件
+      final previousEventId = event.previousEventId;
+      if (previousEventId == null) break;
+
+      currentEventId = previousEventId;
+    }
+
+    return history.reversed.toList(); // 按时间顺序返回
+  }
+
+  /// 查询已归档的事件
+  static Future<List<EventModel>> getArchivedEvents({
+    required String uid,
+    EventLifecycleStatus? status,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 50,
+  }) async {
+    Query<Map<String, dynamic>> query = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events');
+
+    // 先查询特定状态，避免复合索引问题
+    if (status != null) {
+      query = query.where('lifecycleStatus', isEqualTo: status.value);
+    }
+
+    // 如果有时间范围，添加时间过滤
+    if (startDate != null) {
+      query = query.where('archivedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+    }
+
+    if (endDate != null) {
+      query = query.where('archivedAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+    }
+
+    final snapshot = await query
+        .limit(limit * 2) // 多获取一些数据以防过滤后不够
+        .get();
+
+    // 在内存中过滤出归档事件
+    final archivedEvents = snapshot.docs
+        .map(EventModel.fromDoc)
+        .where((event) => event.isArchived)
+        .where((event) {
+          // 如果没有指定状态，只要是归档状态就行
+          if (status == null) return true;
+          return event.lifecycleStatus == status;
+        })
+        .toList();
+
+    // 按归档时间排序并限制数量
+    archivedEvents.sort((a, b) {
+      if (a.archivedAt == null && b.archivedAt == null) return 0;
+      if (a.archivedAt == null) return 1;
+      if (b.archivedAt == null) return -1;
+      return b.archivedAt!.compareTo(a.archivedAt!);
+    });
+
+    return archivedEvents.take(limit).toList();
+  }
+
+  /// 统计事件生命周期状态
+  static Future<Map<EventLifecycleStatus, int>> getLifecycleStats({
+    required String uid,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final stats = <EventLifecycleStatus, int>{
+      EventLifecycleStatus.active: 0,
+      EventLifecycleStatus.deleted: 0,
+      EventLifecycleStatus.moved: 0,
+    };
+
+    Query<Map<String, dynamic>> query = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events');
+
+    if (startDate != null && endDate != null) {
+      query = query
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+    }
+
+    final snapshot = await query.get();
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final statusValue = data['lifecycleStatus'] as int?;
+      // 现在默认为active，兼容旧数据中可能为null的情况
+      final status = statusValue != null 
+          ? EventLifecycleStatus.fromValue(statusValue)
+          : EventLifecycleStatus.active;
+      
+      stats[status] = (stats[status] ?? 0) + 1;
+    }
+
+    return stats;
   }
 }
 
