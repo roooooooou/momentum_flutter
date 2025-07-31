@@ -74,8 +74,6 @@ class _ChatScreenState extends State<ChatScreen> {
         final context = NavigationService.context;
         if (context != null) {
           try {
-            HomeScreen.forceRefreshCommitPlans(context, _currentUid!);
-            ExpHomeScreen.forceRefreshCommitPlans(context, _currentUid!);
             print('ChatScreen dispose: Triggered delayed commit plan refresh');
           } catch (e) {
             print('ChatScreen dispose: Failed to trigger delayed refresh: $e');
@@ -284,14 +282,7 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // 移除自动开始任务的逻辑，让用户手动选择
       // 即使AI建议开始任务，也不自动启动，由用户点击"开始任务"按钮来决定
-      
-      // 刷新主页面的commit plan显示
-      if (result == ChatResult.start && mounted) {
-        final uid = context.read<AuthService>().currentUser?.uid;
-        if (uid != null) {
-          await HomeScreen.refreshCommitPlans(context, uid);
-        }
-      }
+    
       
       print('Chat session ended with result: ${result.name}');
     } catch (e) {
@@ -382,34 +373,6 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // 记录分析数据
       await AnalyticsService().logTaskStarted('chat');
-
-      // 延迟一下再刷新commit plan，确保主页面已经完全加载
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // 刷新主页面的commit plan显示
-      if (uid != null) {
-        // 使用全局的NavigationService来获取当前context
-        final context = NavigationService.context;
-        if (context != null) {
-          // 尝试强制刷新HomeScreen的commit plans
-          try {
-            await HomeScreen.forceRefreshCommitPlans(context, uid);
-            print('Successfully force refreshed HomeScreen commit plans');
-          } catch (e) {
-            print('Failed to force refresh HomeScreen commit plans: $e');
-          }
-          
-          // 尝试强制刷新ExpHomeScreen的commit plans
-          try {
-            await ExpHomeScreen.forceRefreshCommitPlans(context, uid);
-            print('Successfully force refreshed ExpHomeScreen commit plans');
-          } catch (e) {
-            print('Failed to force refresh ExpHomeScreen commit plans: $e');
-          }
-        } else {
-          print('NavigationService.context is null, cannot refresh commit plans');
-        }
-      }
 
       print('Task started successfully: ${chat.taskTitle}');
     } catch (e) {
