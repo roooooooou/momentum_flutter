@@ -35,6 +35,7 @@ class CalendarService extends ChangeNotifier {
   // Getters for UI state
   bool get isSyncing => _isSyncing;
   DateTime? get lastSyncAt => _lastSyncAt;
+  bool get isInitialized => _api != null;
   
   void _setSyncingState(bool syncing) {
     if (_isSyncing != syncing) {
@@ -49,6 +50,24 @@ class CalendarService extends ChangeNotifier {
   /// 重置同步狀態（用於調試）
   void resetSyncState() {
     _setSyncingState(false);
+  }
+
+  /// 获取日历列表
+  Future<cal.CalendarList> getCalendarList() async {
+    await _ensureReady();
+    return await _api!.calendarList.list();
+  }
+
+  /// 获取事件列表
+  Future<cal.Events> getEvents(String calendarId, {required DateTime start, required DateTime end}) async {
+    await _ensureReady();
+    return await _api!.events.list(
+      calendarId,
+      timeMin: start,
+      timeMax: end,
+      singleEvents: true,
+      orderBy: 'startTime',
+    );
   }
 
   /// Must be called **after** Google Sign-in succeeds.
@@ -279,40 +298,13 @@ class CalendarService extends ChangeNotifier {
 
       // 确保数据结构存在
       try {
-        final groupName = await DataPathService.instance.getUserGroupName(uid);
-        final dataDoc = FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection(groupName)
-            .doc('data');
-        
-        // 检查并创建必要的文档结构
-        final docSnapshot = await dataDoc.get();
-        if (!docSnapshot.exists) {
-          await dataDoc.set({
-            'created_at': FieldValue.serverTimestamp(),
-          });
-          
-          // 创建必要的子集合文档
-          final batch = FirebaseFirestore.instance.batch();
-          batch.set(dataDoc.collection('events').doc('_config'), {
-            'created_at': FieldValue.serverTimestamp(),
-          });
-          batch.set(dataDoc.collection('daily_metrics').doc('_config'), {
-            'created_at': FieldValue.serverTimestamp(),
-          });
-          batch.set(dataDoc.collection('app_sessions').doc('_config'), {
-            'created_at': FieldValue.serverTimestamp(),
-          });
-          await batch.commit();
-          
-          if (kDebugMode) {
-            print('syncToday: 创建了必要的数据结构');
-          }
+        // 使用新的數據結構，不需要創建額外的配置文檔
+        if (kDebugMode) {
+          print('syncToday: 使用新的數據結構');
         }
       } catch (e) {
         if (kDebugMode) {
-          print('syncToday: 检查/创建数据结构时出错: $e');
+          print('syncToday: 檢查數據結構時出錯: $e');
         }
       }
 
@@ -437,6 +429,7 @@ class CalendarService extends ChangeNotifier {
             if (apiEvent.description != null) 'description': apiEvent.description,
             'scheduledStartTime': Timestamp.fromDate(s.toUtc()),
             'scheduledEndTime': Timestamp.fromDate(t.toUtc()),
+            'date': Timestamp.fromDate(s.toLocal()), // 添加日期字段
             'googleEventId': apiEvent.id,
             'googleCalendarId': targetCalendarId,
             'lifecycleStatus': EventLifecycleStatus.active.value,
@@ -564,6 +557,7 @@ class CalendarService extends ChangeNotifier {
       if (apiEvent.description != null) 'description': apiEvent.description,
       'scheduledStartTime': Timestamp.fromDate(apiEvent.start!.dateTime!.toUtc()),
       'scheduledEndTime': Timestamp.fromDate(apiEvent.end!.dateTime!.toUtc()),
+      'date': Timestamp.fromDate(apiEvent.start!.dateTime!.toLocal()), // 添加日期字段
       'googleEventId': apiEvent.id,
       'googleCalendarId': targetCalendarId,
       'lifecycleStatus': EventLifecycleStatus.active.value,
@@ -665,7 +659,8 @@ class CalendarService extends ChangeNotifier {
       );
       
       // 需要額外清空 completedTime
-      final doc = await DataPathService.instance.getUserEventDoc(uid, event.id);
+      final now = DateTime.now();
+      final doc = await DataPathService.instance.getDateEventDoc(uid, event.id, now);
 
       await doc.set({
         'isDone': false,
@@ -777,8 +772,8 @@ class CalendarService extends ChangeNotifier {
 
   Future<void> stopEvent(String uid, EventModel e) async {
     // 🎯 設置為暫停狀態（保留開始時間）並增加暫停次數
-    final ref = await DataPathService.instance.getUserEventDoc(uid, e.id);
     final now = DateTime.now();
+    final ref = await DataPathService.instance.getDateEventDoc(uid, e.id, now);
 
     // 获取当前暫停次數並增加1
     final snap = await ref.get();
@@ -802,7 +797,7 @@ class CalendarService extends ChangeNotifier {
   Future<void> continueEvent(String uid, EventModel e) async {
     // 🎯 恢復任務：從暫停狀態恢復到進行中或超時狀態
     final now = DateTime.now();
-    final ref = await DataPathService.instance.getUserEventDoc(uid, e.id);
+    final ref = await DataPathService.instance.getDateEventDoc(uid, e.id, now);
 
     // 🎯 修复：正确处理暂停后继续的状态判断
     TaskStatus newStatus;
@@ -863,8 +858,8 @@ class CalendarService extends ChangeNotifier {
   /// 更新事件狀態（用於同步時檢查overdue/notStarted狀態）
   Future<void> _updateEventStatuses(String uid, List<EventModel> events, DateTime now) async {
     try {
-      // 使用 DataPathService 获取正确的 events 集合
-      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+      // 使用 DataPathService 获取当前日期的 events 集合
+      final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
       final batch = FirebaseFirestore.instance.batch();
       bool hasBatchUpdates = false;
 

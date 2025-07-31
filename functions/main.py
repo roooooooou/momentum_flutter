@@ -203,18 +203,12 @@ def daily_metrics_aggregation(event: scheduler_fn.ScheduledEvent) -> None:
                 
                 # 儲存到 daily_metrics（使用新的數據結構）
                 try:
-                    # 獲取用戶分組
-                    group_path = get_user_group_path(uid, db)
-                    # 保存到新的數據結構位置
-                    metrics_ref = db.collection('users').document(uid).collection(group_path).document('data').collection('daily_metrics').document(date_str)
-                    metrics_ref.set(metrics)
-                    print(f"✅ 用戶 {uid} ({group_path}組) 的 {date_str} 日報數據已生成")
-                except Exception as save_error:
-                    print(f"新結構保存失敗，嘗試舊結構: {save_error}")
-                    # 如果新結構失敗，回退到舊結構
+                    # 新結構：直接存到 users/{uid}/daily_metrics/{date}
                     metrics_ref = db.collection('users').document(uid).collection('daily_metrics').document(date_str)
                     metrics_ref.set(metrics)
-                    print(f"✅ 用戶 {uid} 的 {date_str} 日報數據已生成（舊結構）")
+                    print(f"✅ 用戶 {uid} 的 {date_str} 日報數據已生成（新結構）")
+                except Exception as save_error:
+                    print(f"新結構保存失敗: {save_error}")
                 processed_count += 1
                 
             except Exception as user_error:
@@ -459,10 +453,21 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
     
     # === Event相關指標（使用新的數據結構） ===
     try:
-        # 優先嘗試新的數據結構
-        events_ref = db.collection('users').document(uid).collection(group_path).document('data').collection('events')
-        events_query = events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
-        events = list(events_query.stream())
+        # 查詢 experiment_events
+        experiment_events_ref = db.collection('users').document(uid).collection('experiment_events')
+        control_events_ref = db.collection('users').document(uid).collection('control_events')
+        # 查詢時間範圍
+        events = []
+        try:
+            exp_query = experiment_events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
+            events += list(exp_query.stream())
+        except Exception as e:
+            print(f"查詢 experiment_events 失敗: {e}")
+        try:
+            ctrl_query = control_events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
+            events += list(ctrl_query.stream())
+        except Exception as e:
+            print(f"查詢 control_events 失敗: {e}")
         print(f"從新結構獲取到 {len(events)} 個事件")
     except Exception as e:
         print(f"新結構查詢失敗，嘗試舊結構: {e}")

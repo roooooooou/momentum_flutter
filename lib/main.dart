@@ -7,10 +7,8 @@ import 'theme.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'providers/events_provider.dart';
-import 'screens/exp_home_screen.dart';
-import 'screens/control_home_screen.dart';
+import 'screens/home_screen.dart';
 import 'screens/sign_in_screen.dart';
-import 'services/data_path_service.dart';
 import 'services/notification_service.dart';
 import 'services/app_usage_service.dart';
 import 'services/remote_config_service.dart';
@@ -171,25 +169,9 @@ class _AuthGateState extends State<AuthGate> {
           );
         }
 
-        // (b) 已經登入 → 根据用户分组进入对应页面
+        // (b) 已經登入 → 统一使用HomeScreen
         if (snap.hasData) {
-          return FutureBuilder<bool>(
-            future: DataPathService.instance.isControlGroup(snap.data!.uid),
-            builder: (context, groupSnap) {
-              if (groupSnap.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              
-              // 根据分组显示对应的主页
-              if (groupSnap.data == true) {
-                return const ControlHomeScreen(); // 对照组
-              } else {
-                return const ExpHomeScreen(); // 实验组（默认）
-              }
-            },
-          );
+          return const HomeScreen();
         }
 
         // (c) 還沒登入，而且還沒補過 silent → 下一個 frame 補一次

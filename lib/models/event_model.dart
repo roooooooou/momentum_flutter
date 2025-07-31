@@ -48,12 +48,16 @@ class EventModel {
   // === 原有字段 ===
   final DateTime? notifScheduledAt;
 
+  // === 新增字段 ===
+  final DateTime date;                  // 事件日期（用於按日期分組）
+
   EventModel({
     required this.id,
     required this.title,
     required this.scheduledStartTime,
     required this.scheduledEndTime,
     required this.isDone,
+    required this.date,                 // 新增必需字段
     this.description,
     this.actualStartTime,
     this.completedTime,
@@ -85,9 +89,10 @@ class EventModel {
       id: doc.id,
       title: d['title'],
       description: d['description'],
-      scheduledEndTime: (d['scheduledEndTime'] as Timestamp).toDate(),
+      scheduledEndTime: (d['scheduledEndTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isDone: d['isDone'] ?? false,
-      scheduledStartTime: (d['scheduledStartTime'] as Timestamp).toDate(),
+      scheduledStartTime: (d['scheduledStartTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      date: (d['date'] as Timestamp?)?.toDate() ?? (d['scheduledStartTime'] as Timestamp?)?.toDate() ?? DateTime.now(), // 新增字段，如果沒有則使用 scheduledStartTime 或當前時間
       actualStartTime: (d['actualStartTime'] as Timestamp?)?.toDate(),
       completedTime: (d['completedTime'] as Timestamp?)?.toDate(),
       startTrigger: d['startTrigger'] != null ? StartTrigger.fromValue(d['startTrigger']) : null,
@@ -122,6 +127,7 @@ class EventModel {
       'isDone': isDone,
       'scheduledStartTime': Timestamp.fromDate(scheduledStartTime),
       'scheduledEndTime': Timestamp.fromDate(scheduledEndTime),
+      'date': Timestamp.fromDate(date), // 新增字段
       if (actualStartTime != null) 'actualStartTime': Timestamp.fromDate(actualStartTime!),
       if (completedTime != null) 'completedTime': Timestamp.fromDate(completedTime!),
       if (startTrigger != null) 'startTrigger': startTrigger!.value,
@@ -227,6 +233,7 @@ class EventModel {
     DateTime? scheduledEndTime,
     DateTime? actualStartTime,
     DateTime? completedTime,
+    DateTime? date,
     StartTrigger? startTrigger,
     String? chatId,
     List<String>? notifIds,
@@ -257,6 +264,7 @@ class EventModel {
       scheduledEndTime: scheduledEndTime ?? this.scheduledEndTime,
       actualStartTime: actualStartTime ?? this.actualStartTime,
       completedTime: completedTime ?? this.completedTime,
+      date: date ?? this.date,
       startTrigger: startTrigger ?? this.startTrigger,
       chatId: chatId ?? this.chatId,
       notifIds: notifIds ?? this.notifIds,
@@ -286,14 +294,21 @@ class EventModel {
 class ExperimentEventHelper {
   static final _firestore = FirebaseFirestore.instance;
 
-  /// 获取用户事件文档引用（使用正确的数据路径）
+  /// 获取用户事件文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getEventRef(String uid, String eventId) async {
-    return await DataPathService.instance.getUserEventDoc(uid, eventId);
+    final now = DateTime.now();
+    final group = await DataPathService.instance.getDateGroupName(uid, now);
+    final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
+    return eventsCollection.doc(eventId);
   }
 
-  /// 获取用户事件聊天文档引用（使用正确的数据路径）
+  /// 获取用户事件聊天文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getChatRef(String uid, String eventId, String chatId) async {
-    return await DataPathService.instance.getUserEventChatDoc(uid, eventId, chatId);
+    final now = DateTime.now();
+    final group = await DataPathService.instance.getDateGroupName(uid, now);
+    final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
+    final eventDoc = eventsCollection.doc(eventId);
+    return eventDoc.collection('chats').doc(chatId);
   }
 
   /// 記錄事件開始（用於實驗數據收集）
@@ -328,6 +343,7 @@ class ExperimentEventHelper {
       'status': TaskStatus.inProgress.value,
       'updatedAt': Timestamp.fromDate(now),
       'isDone': false,
+      'date': Timestamp.fromDate(now), // 添加日期字段
       if (chatId != null) 'chatId': chatId,
     }, SetOptions(merge: true));
   }
@@ -368,6 +384,7 @@ class ExperimentEventHelper {
       'completedTime': Timestamp.fromDate(now),
       'status': TaskStatus.completed.value,
       'updatedAt': Timestamp.fromDate(now),
+      'date': Timestamp.fromDate(now), // 添加日期字段
       if (chatId != null) 'chatId': chatId,
       if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
       if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
@@ -386,6 +403,7 @@ class ExperimentEventHelper {
     await ref.set({
       'startTrigger': StartTrigger.tapNotification.value,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'date': Timestamp.fromDate(DateTime.now()), // 添加日期字段
     }, SetOptions(merge: true));
   }
 
@@ -400,6 +418,7 @@ class ExperimentEventHelper {
     await ref.set({
       'chatId': chatId,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'date': Timestamp.fromDate(DateTime.now()), // 添加日期字段
     }, SetOptions(merge: true));
   }
 
@@ -414,6 +433,7 @@ class ExperimentEventHelper {
     await ref.set({
       'chatId': chatId,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'date': Timestamp.fromDate(DateTime.now()), // 添加日期字段
     }, SetOptions(merge: true));
   }
 
@@ -428,6 +448,7 @@ class ExperimentEventHelper {
     await ref.set({
       'status': status.value,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'date': Timestamp.fromDate(DateTime.now()), // 添加日期字段
     }, SetOptions(merge: true));
   }
 
@@ -722,6 +743,7 @@ class ExperimentEventHelper {
       'lifecycleStatus': lifecycleStatus.value,
       'archivedAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
+      'date': Timestamp.fromDate(now), // 添加日期字段
       if (reason != null) 'archiveReason': reason,
     }, SetOptions(merge: true));
 
@@ -740,6 +762,7 @@ class ExperimentEventHelper {
       'lifecycleStatus': EventLifecycleStatus.active.value,
       'archivedAt': null,
       'updatedAt': Timestamp.fromDate(now),
+      'date': Timestamp.fromDate(now), // 添加日期字段
     }, SetOptions(merge: true));
 
     debugPrint('restoreEvent - 事件已恢复: eventId=$eventId');
@@ -780,47 +803,54 @@ class ExperimentEventHelper {
     DateTime? endDate,
     int limit = 50,
   }) async {
-    final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
-    Query<Map<String, dynamic>> query = eventsCollection as Query<Map<String, dynamic>>;
+    // 获取所有事件集合（实验组和对照组）
+    final allCollections = await DataPathService.instance.getAllEventsCollections(uid);
+    final allEvents = <EventModel>[];
 
-    // 先查询特定状态，避免复合索引问题
-    if (status != null) {
-      query = query.where('lifecycleStatus', isEqualTo: status.value);
+    for (final collection in allCollections) {
+      Query<Map<String, dynamic>> query = collection as Query<Map<String, dynamic>>;
+
+      // 先查询特定状态，避免复合索引问题
+      if (status != null) {
+        query = query.where('lifecycleStatus', isEqualTo: status.value);
+      }
+
+      // 如果有时间范围，添加时间过滤
+      if (startDate != null) {
+        query = query.where('archivedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      }
+
+      if (endDate != null) {
+        query = query.where('archivedAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+      }
+
+      final snapshot = await query
+          .limit(limit * 2) // 多获取一些数据以防过滤后不够
+          .get();
+
+      // 在内存中过滤出归档事件
+      final archivedEvents = snapshot.docs
+          .map(EventModel.fromDoc)
+          .where((event) => event.isArchived)
+          .where((event) {
+            // 如果没有指定状态，只要是归档状态就行
+            if (status == null) return true;
+            return event.lifecycleStatus == status;
+          })
+          .toList();
+
+      allEvents.addAll(archivedEvents);
     }
-
-    // 如果有时间范围，添加时间过滤
-    if (startDate != null) {
-      query = query.where('archivedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-    }
-
-    if (endDate != null) {
-      query = query.where('archivedAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-    }
-
-    final snapshot = await query
-        .limit(limit * 2) // 多获取一些数据以防过滤后不够
-        .get();
-
-    // 在内存中过滤出归档事件
-    final archivedEvents = snapshot.docs
-        .map(EventModel.fromDoc)
-        .where((event) => event.isArchived)
-        .where((event) {
-          // 如果没有指定状态，只要是归档状态就行
-          if (status == null) return true;
-          return event.lifecycleStatus == status;
-        })
-        .toList();
 
     // 按归档时间排序并限制数量
-    archivedEvents.sort((a, b) {
+    allEvents.sort((a, b) {
       if (a.archivedAt == null && b.archivedAt == null) return 0;
       if (a.archivedAt == null) return 1;
       if (b.archivedAt == null) return -1;
       return b.archivedAt!.compareTo(a.archivedAt!);
     });
 
-    return archivedEvents.take(limit).toList();
+    return allEvents.take(limit).toList();
   }
 
   /// 统计事件生命周期状态
@@ -835,26 +865,30 @@ class ExperimentEventHelper {
       EventLifecycleStatus.moved: 0,
     };
 
-    final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
-    Query<Map<String, dynamic>> query = eventsCollection as Query<Map<String, dynamic>>;
+    // 获取所有事件集合（实验组和对照组）
+    final allCollections = await DataPathService.instance.getAllEventsCollections(uid);
 
-    if (startDate != null && endDate != null) {
-      query = query
-          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-          .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-    }
+    for (final collection in allCollections) {
+      Query<Map<String, dynamic>> query = collection as Query<Map<String, dynamic>>;
 
-    final snapshot = await query.get();
+      if (startDate != null && endDate != null) {
+        query = query
+            .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+            .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+      }
 
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final statusValue = data['lifecycleStatus'] as int?;
-      // 现在默认为active，兼容旧数据中可能为null的情况
-      final status = statusValue != null 
-          ? EventLifecycleStatus.fromValue(statusValue)
-          : EventLifecycleStatus.active;
-      
-      stats[status] = (stats[status] ?? 0) + 1;
+      final snapshot = await query.get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final statusValue = data['lifecycleStatus'] as int?;
+        // 现在默认为active，兼容旧数据中可能为null的情况
+        final status = statusValue != null 
+            ? EventLifecycleStatus.fromValue(statusValue)
+            : EventLifecycleStatus.active;
+        
+        stats[status] = (stats[status] ?? 0) + 1;
+      }
     }
 
     return stats;

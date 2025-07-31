@@ -3,6 +3,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/calendar_service.dart';
 import '../services/analytics_service.dart';
+import '../services/experiment_config_service.dart';
+import '../services/data_path_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:googleapis/calendar/v3.dart' as cal;
 
 /// Wraps FirebaseAuth + Google Sign‑In with Calendar scope.
 class AuthService {
@@ -123,6 +127,10 @@ class AuthService {
         });
         
         print('🎯 用戶文檔已創建: ${user.uid}');
+        
+        // 新用户：分配日期分组并获取未来15天的任务
+        await _initializeNewUser(user.uid);
+        
       } else {
         // 更新最後登錄時間
         await userRef.update({
@@ -130,10 +138,193 @@ class AuthService {
         });
         
         print('🎯 用戶文檔已更新: ${user.uid}');
+        
+        // 检查是否需要迁移到日期分组
+        final data = userDoc.data()! as Map<String, dynamic>?;
+        if (data != null && !data.containsKey('date_based_grouping')) {
+          // 老用户：迁移到日期分组
+          await _migrateExistingUser(user.uid);
+        }
       }
     } catch (e) {
       print('🎯 創建/更新用戶文檔失敗: $e');
       // 不拋出錯誤，避免影響登錄流程
+    }
+  }
+
+  /// 初始化新用户：分配日期分组并获取未来15天的任务
+  Future<void> _initializeNewUser(String uid) async {
+    try {
+      if (kDebugMode) {
+        print('🎯 开始初始化新用户: $uid');
+      }
+
+      // 1. 分配日期分组
+      await ExperimentConfigService.instance.getUserGroup(uid);
+      
+      // 2. 获取未来15天的任务并分配到对应组别
+      await _fetchAndDistributeFutureTasks(uid);
+      
+      if (kDebugMode) {
+        print('🎯 新用户初始化完成: $uid');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 新用户初始化失败: $e');
+      }
+    }
+  }
+
+  /// 迁移现有用户到日期分组
+  Future<void> _migrateExistingUser(String uid) async {
+    try {
+      if (kDebugMode) {
+        print('🎯 开始迁移现有用户: $uid');
+      }
+
+      // 分配日期分组
+      await ExperimentConfigService.instance.getUserGroup(uid);
+      
+      if (kDebugMode) {
+        print('🎯 现有用户迁移完成: $uid');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 现有用户迁移失败: $e');
+      }
+    }
+  }
+
+  /// 获取未来15天的任务并分配到对应组别
+  Future<void> _fetchAndDistributeFutureTasks(String uid) async {
+    try {
+      if (kDebugMode) {
+        print('🎯 开始获取未来15天任务: $uid');
+      }
+
+      // 确保Calendar API已初始化
+      if (!CalendarService.instance.isInitialized) {
+        if (kDebugMode) {
+          print('🎯 Calendar API未初始化，跳过任务获取');
+        }
+        return;
+      }
+
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(const Duration(days: 15)); // 未来15天
+
+      if (kDebugMode) {
+        print('🎯 查询时间范围: $start 到 $end');
+      }
+
+      // 查找名为 "experiment" 的日历
+      String targetCalendarId = 'primary'; // 默认使用主日历
+      
+      try {
+        final calendarList = await CalendarService.instance.getCalendarList();
+        for (final calendar in calendarList.items ?? <cal.CalendarListEntry>[]) {
+          if (calendar.summary?.toLowerCase() == 'experiment' || 
+              calendar.summary?.toLowerCase() == 'experiments') {
+            targetCalendarId = calendar.id!;
+            if (kDebugMode) {
+              print('🎯 找到 experiment 日历，ID: $targetCalendarId');
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('🎯 获取日历列表失败: $e，使用主日历');
+        }
+      }
+
+      // 获取Google Calendar事件
+      final apiEvents = await CalendarService.instance.getEvents(
+        targetCalendarId,
+        start: start,
+        end: end,
+      );
+
+      if (kDebugMode) {
+        print('🎯 从日历获取到 ${apiEvents!.items?.length ?? 0} 个事件');
+      }
+
+      // 按日期分组事件（使用台湾时区）
+      final eventsByDate = <String, List<cal.Event>>{};
+      
+      for (final event in apiEvents!.items ?? <cal.Event>[]) {
+        if (event.id != null && event.start?.dateTime != null && event.end?.dateTime != null) {
+          // 转换为台湾时区
+          final eventDate = event.start!.dateTime!.toLocal();
+          final dateKey = '${eventDate.year}-${eventDate.month.toString().padLeft(2, '0')}-${eventDate.day.toString().padLeft(2, '0')}';
+          
+          eventsByDate.putIfAbsent(dateKey, () => []).add(event);
+        }
+      }
+
+      // 为每个日期的事件分配到对应组别
+      final batch = FirebaseFirestore.instance.batch();
+      int totalEvents = 0;
+
+      for (final entry in eventsByDate.entries) {
+        final dateKey = entry.key;
+        final events = entry.value;
+        
+        // 解析日期（使用台湾时区）
+        final dateParts = dateKey.split('-');
+        final date = DateTime(int.parse(dateParts[0]), int.parse(dateParts[1]), int.parse(dateParts[2]));
+        
+        // 获取该日期的组别
+        final groupName = await ExperimentConfigService.instance.getDateGroup(uid, date);
+        
+        if (kDebugMode) {
+          print('🎯 日期 $dateKey 分配到组别: $groupName');
+        }
+
+        // 获取该组别的事件集合
+        final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+
+        // 添加事件到对应组别
+        for (final event in events) {
+          final eventDate = event.start!.dateTime!.toLocal();
+          final eventData = {
+            'title': event.summary ?? 'Untitled',
+            'description': event.description ?? '',
+            'googleEventId': event.id,
+            'googleCalendarId': targetCalendarId,
+            'scheduledStartTime': Timestamp.fromDate(event.start!.dateTime!),
+            'scheduledEndTime': Timestamp.fromDate(event.end!.dateTime!),
+            'date': Timestamp.fromDate(eventDate), // 添加日期字段
+            'isActive': true,
+            'isDone': false,
+            'lifecycleStatus': 1, // active status
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+
+          final eventDoc = eventsCollection.doc(event.id);
+          batch.set(eventDoc, eventData);
+          totalEvents++;
+        }
+      }
+
+      // 提交所有更改
+      if (totalEvents > 0) {
+        await batch.commit();
+        if (kDebugMode) {
+          print('🎯 成功分配 $totalEvents 个事件到对应组别');
+        }
+      } else {
+        if (kDebugMode) {
+          print('🎯 没有找到需要分配的事件');
+        }
+      }
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 获取和分配未来任务失败: $e');
+      }
     }
   }
 }

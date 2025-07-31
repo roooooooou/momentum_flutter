@@ -8,51 +8,96 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // === 新的分組數據結構支持 ===
+    // === 新的數據結構支持 ===
     
-    // 對照組數據訪問規則
-    match /users/{userId}/control/{path=**} {
+    // 實驗組事件數據
+    match /users/{userId}/experiment_events/{eventId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // 事件通知數據
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 事件聊天數據
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        
+        // 聊天消息數據
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+    }
+    
+    // 對照組事件數據
+    match /users/{userId}/control_events/{eventId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // 事件通知數據
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 事件聊天數據
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        
+        // 聊天消息數據
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+    }
+    
+    // 會話數據
+    match /users/{userId}/sessions/{sessionId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // 實驗組數據訪問規則  
-    match /users/{userId}/experiment/{path=**} {
+    // 每日指標數據
+    match /users/{userId}/daily_metrics/{dateId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // 每日報告數據
+      match /daily_report/{reportId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // === 兼容舊數據結構（逐步遷移期間） ===
     
+    // 舊的實驗組數據結構
+    match /users/{userId}/experiment/{path=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 舊的對照組數據結構
+    match /users/{userId}/control/{path=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 舊的事件數據結構
     match /users/{userId}/events/{eventId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
       
       match /notifications/{notificationId} {
-        allow read, write: if request.auth != null
-                           && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       
       match /chats/{chatId} {
-        allow read, write: if request.auth != null
-                           && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
     
     // 舊的應用使用會話數據
     match /users/{userId}/app_sessions/{sessionId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
-    }
-    
-    // 舊的每日數據聚合結果
-    match /users/{userId}/daily_metrics/{dateId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
     // 舊的每日報告數據
     match /users/{userId}/daily_reports/{reportId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
     // === 系統管理相關 ===

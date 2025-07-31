@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/data_path_service.dart';
+import '../services/experiment_config_service.dart';
 import '../models/event_model.dart';
 import '../models/daily_report_model.dart';
 import '../models/enums.dart';
@@ -165,10 +166,14 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       
+      // 獲取當前日期的組別
+      final groupName = await ExperimentConfigService.instance.getDateGroup(uid, today);
+      
       final report = DailyReportModel(
         id: const Uuid().v4(),
         uid: uid,
         date: today,
+        group: groupName, // 添加組別字段
         delayedTaskIds: _selectedDelayedTasks.toList(),
         delayReasons: _selectedDelayReasons.toList(),
         delayOtherReason: _delayOtherController.text.trim().isEmpty 

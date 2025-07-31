@@ -3,18 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/chat_bubble.dart';
-import '../widgets/option_button.dart';
 import '../widgets/loading_indicator.dart';
 import '../models/enums.dart';
 import '../models/event_model.dart';
 import '../models/chat_message.dart';
 import '../services/auth_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/calendar_service.dart';
 import '../services/analytics_service.dart';
-import 'home_screen.dart';
-import 'exp_home_screen.dart';
-import 'package:momentum/services/data_path_service.dart';
+import '../services/data_path_service.dart';
 import '../navigation_service.dart';
 
 class ChatScreen extends StatefulWidget {

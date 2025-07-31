@@ -62,8 +62,9 @@ class ChatProvider extends ChangeNotifier {
   /// 加载历史聊天记录
   Future<void> _loadChatHistory() async {
     try {
+      final now = DateTime.now();
       final chatsCollection = await DataPathService.instance
-          .getUserEventChatsCollection(uid, eventId);
+          .getDateEventChatsCollection(uid, eventId, now);
       
       final snapshot = await chatsCollection
           .doc(chatId)
@@ -96,8 +97,9 @@ class ChatProvider extends ChangeNotifier {
   /// 保存聊天消息到Firestore
   Future<void> _saveChatMessage(ChatMessage message) async {
     try {
+      final now = DateTime.now();
       final chatsCollection = await DataPathService.instance
-          .getUserEventChatsCollection(uid, eventId);
+          .getDateEventChatsCollection(uid, eventId, now);
       
       await chatsCollection
           .doc(chatId)

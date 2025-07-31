@@ -14,6 +14,7 @@ import '../services/notification_service.dart';
 import '../services/notification_handler.dart';
 import '../services/app_usage_service.dart';
 import '../services/data_path_service.dart';
+import '../services/experiment_config_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../services/analytics_service.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<EventModel> _cached = const [];
   bool _isInitialSync = true;
   final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
+  bool _isExperimentGroup = false; // 用户是否为实验组
 
   @override
   void initState() {
@@ -41,6 +43,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await AuthService.instance.signOut();
         // AuthGate 會自動顯示 SignInScreen
       } else {
+        // 获取用户当前日期的实验组别
+        final uid = context.read<AuthService>().currentUser!.uid;
+        try {
+          _isExperimentGroup = await ExperimentConfigService.instance.isExperimentGroup(uid);
+          if (mounted) {
+            setState(() {});
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('获取用户当前日期实验组别失败: $e');
+          }
+          // 默认设为实验组
+          _isExperimentGroup = true;
+          if (mounted) {
+            setState(() {});
+          }
+        }
+
         // 初始化通知服務
         try {
           await NotificationService.instance.initialize();
@@ -54,7 +74,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
 
         // 初始同步
-        final uid = context.read<AuthService>().currentUser!.uid;
         try {
           await CalendarService.instance.syncToday(uid);
         } catch (e) {
@@ -86,6 +105,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       final uid = context.read<AuthService>().currentUser?.uid;
       if (uid != null) {
+        // 重新检查当前日期的实验组别（处理跨日情况）
+        _updateExperimentGroup(uid);
+        
         // 強制刷新事件提供者以更新日期範圍（處理跨日情況）
         context.read<EventsProvider>().refreshToday(context.read<AuthService>().currentUser!);
         
@@ -100,18 +122,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 額外的通知排程檢查（處理用戶手動修改 Google Calendar 的情況）
         _checkNotificationSchedule(uid);
         
-        // 檢查是否有任務需要顯示開始對話框
-        // 如果app是由通知打開的，跳過此檢查以避免重複顯示對話框
-        if (!AppUsageService.instance.openedByNotification) {
-          _checkPendingTaskStart(uid);
-        } else {
-          if (kDebugMode) {
-            print('App由通知打開，跳過pending task start檢查');
+        // 只有实验组才检查是否有任務需要顯示開始對話框
+        if (_isExperimentGroup) {
+          // 如果app是由通知打開的，跳過此檢查以避免重複顯示對話框
+          if (!AppUsageService.instance.openedByNotification) {
+            _checkPendingTaskStart(uid);
+          } else {
+            if (kDebugMode) {
+              print('App由通知打開，跳過pending task start檢查');
+            }
           }
         }
         
         // 重置通知打开标志，确保下次resume时正常检查
         AppUsageService.instance.resetNotificationFlag();
+      }
+    }
+  }
+
+  /// 更新当前日期的实验组别
+  Future<void> _updateExperimentGroup(String uid) async {
+    try {
+      final isExperiment = await ExperimentConfigService.instance.isExperimentGroup(uid);
+      if (mounted && _isExperimentGroup != isExperiment) {
+        setState(() {
+          _isExperimentGroup = isExperiment;
+        });
+        if (kDebugMode) {
+          print('实验组别已更新: ${isExperiment ? '实验组' : '对照组'}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('更新实验组别失败: $e');
       }
     }
   }
@@ -128,8 +171,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final start = localToday.toUtc();
       final end = localTomorrow.toUtc();
       
-      // 使用 DataPathService 获取正确的 events 集合
-      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+      // 使用 DataPathService 获取当前日期的 events 集合
+      final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
       
       final snap = await eventsCollection
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
@@ -171,8 +214,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final start = localToday.toUtc();
       final end = localTomorrow.toUtc();
       
-      // 使用 DataPathService 获取正确的 events 集合
-      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+      // 使用 DataPathService 获取当前日期的 events 集合
+      final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
       
       final snap = await eventsCollection
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
@@ -387,7 +430,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     itemBuilder: (_, i) => EventCard(
                                         event: list[i],
                                         onAction: (a) => _handleAction(list[i], a),
-                                        onOpenChat: () async {
+                                        // 根据实验组别决定是否显示聊天按钮
+                                        onOpenChat: _isExperimentGroup ? () async {
                                           if (mounted) {
                                             // 🎯 實驗數據收集：記錄聊天按鈕點擊
                                             final uid = context.read<AuthService>().currentUser?.uid;
@@ -421,7 +465,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                               );
                                             }
                                           }
-                                        }),
+                                        } : null),
                                   ),
                                   // 同步loading overlay
                                   if (isSyncing)

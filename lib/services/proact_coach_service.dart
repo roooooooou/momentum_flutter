@@ -56,7 +56,7 @@ class ProactCoachService {
       // 获取前一天的聊天总结
       String? chatSummary;
       try {
-        final chatsCollection = await DataPathService.instance.getUserEventChatsCollection(uid, eventId);
+        final chatsCollection = await DataPathService.instance.getDateEventChatsCollection(uid, eventId, yesterday);
         final yesterdayChats = await chatsCollection
             .where('summary_created_at', isGreaterThanOrEqualTo: Timestamp.fromDate(yesterday))
             .where('summary_created_at', isLessThan: Timestamp.fromDate(DateTime.now()))

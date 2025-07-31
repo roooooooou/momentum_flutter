@@ -37,8 +37,8 @@ class AppUsageService {
       final sessionId = _generateSessionId();
       _currentSessionId = sessionId; // 🎯 保存会话ID供关闭时使用
       
-      // 使用 DataPathService 获取正确的 app_sessions 文档引用
-      final ref = await DataPathService.instance.getUserAppSessionDoc(currentUser.uid, sessionId);
+      // 使用 DataPathService 获取正确的 sessions 文档引用
+      final ref = await DataPathService.instance.getUserSessionDoc(currentUser.uid, sessionId);
 
       await ref.set({
         'start_time': Timestamp.fromDate(_sessionStartTime!),
@@ -79,8 +79,8 @@ class AppUsageService {
         return;
       }
 
-      // 使用 DataPathService 获取正确的 app_sessions 文档引用
-      final ref = await DataPathService.instance.getUserAppSessionDoc(currentUser.uid, _currentSessionId!);
+      // 使用 DataPathService 获取正确的 sessions 文档引用
+      final ref = await DataPathService.instance.getUserSessionDoc(currentUser.uid, _currentSessionId!);
 
       await ref.update({
         'end_time': Timestamp.fromDate(endTime),

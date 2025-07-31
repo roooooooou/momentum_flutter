@@ -5,6 +5,7 @@ class DailyReportModel {
   final String id;
   final String uid;
   final DateTime date; // 报告日期
+  final String group; // 新增：实验组或对照组
   
   // 1. 今日延遲的任務有哪些？（勾選）
   final List<String> delayedTaskIds; // 被延迟的任务ID列表
@@ -53,6 +54,7 @@ class DailyReportModel {
     required this.id,
     required this.uid,
     required this.date,
+    required this.group, // 新增必需字段
     required this.delayedTaskIds,
     required this.delayReasons,
     this.delayOtherReason,
@@ -79,6 +81,7 @@ class DailyReportModel {
       id: doc.id,
       uid: data['uid'],
       date: (data['date'] as Timestamp).toDate(),
+      group: data['group'] ?? 'control', // 新增字段，默認為control
       delayedTaskIds: List<String>.from(data['delayedTaskIds'] ?? []),
       delayReasons: List<String>.from(data['delayReasons'] ?? []),
       delayOtherReason: data['delayOtherReason'],
@@ -104,6 +107,7 @@ class DailyReportModel {
     return {
       'uid': uid,
       'date': Timestamp.fromDate(date),
+      'group': group, // 新增字段
       'delayedTaskIds': delayedTaskIds,
       'delayReasons': delayReasons,
       if (delayOtherReason != null) 'delayOtherReason': delayOtherReason,
@@ -129,6 +133,7 @@ class DailyReportModel {
     String? id,
     String? uid,
     DateTime? date,
+    String? group,
     List<String>? delayedTaskIds,
     List<String>? delayReasons,
     String? delayOtherReason,
@@ -152,6 +157,7 @@ class DailyReportModel {
       id: id ?? this.id,
       uid: uid ?? this.uid,
       date: date ?? this.date,
+      group: group ?? this.group,
       delayedTaskIds: delayedTaskIds ?? this.delayedTaskIds,
       delayReasons: delayReasons ?? this.delayReasons,
       delayOtherReason: delayOtherReason ?? this.delayOtherReason,

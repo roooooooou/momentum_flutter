@@ -53,8 +53,9 @@ class EventsProvider extends ChangeNotifier {
       _stream = null;
       notifyListeners();
       
-      // 获取用户events集合引用
-      final eventsCollection = await DataPathService.instance.getUserEventsCollection(uid);
+      // 获取当前日期的events集合引用
+      final now = DateTime.now();
+      final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
       
       // 构建查询：只获取活跃事件（未被删除或移动的事件）
       _stream = eventsCollection
@@ -91,8 +92,8 @@ class EventsProvider extends ChangeNotifier {
     final endTs = Timestamp.fromDate(end.toUtc());
 
     try {
-      // 使用 DataPathService 获取正确的路径
-      final eventsCollection = await DataPathService.instance.getUserEventsCollection(user.uid);
+      // 使用 DataPathService 获取当前日期的路径
+      final eventsCollection = await DataPathService.instance.getDateEventsCollection(user.uid, now);
       
       // 使用简单查询，避免复合索引问题
       final query = eventsCollection
