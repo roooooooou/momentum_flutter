@@ -148,6 +148,8 @@ class ChatProvider extends ChangeNotifier {
         this.startTime,
         _currentTurn,
         taskDescription: taskDescription,
+        uid: uid,
+        eventId: eventId,
       );
       
       _messages.add(result.message);

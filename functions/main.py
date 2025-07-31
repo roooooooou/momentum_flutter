@@ -28,8 +28,13 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
         dialogues = req.data["dialogues"]
         start_time = req.data["startTime"]
         current_turn = req.data.get("currentTurn", 0)
+        
+        # 获取前一天的数据
+        yesterday_chat = req.data.get("yesterdayChat", "")
+        yesterday_status = req.data.get("yesterdayStatus", "")
+        daily_summary = req.data.get("dailySummary", "")
 
-        messages = build_prompt(task, dialogues, start_time, current_turn, task_description)
+        messages = build_prompt(task, dialogues, start_time, current_turn, task_description, yesterday_chat, yesterday_status, daily_summary)
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
@@ -54,7 +59,7 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
                                   details=e)
 
 
-def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str = None) -> list[dict]:
+def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str = None, yesterday_chat: str = None, yesterday_status: str = None, daily_summary: str = None) -> list[dict]:
     """
     將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
     """
@@ -63,6 +68,11 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     taiwan_tz = pytz.timezone('Asia/Taipei')
     now_taiwan = datetime.now(taiwan_tz).strftime('%Y-%m-%d %H:%M')
     system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan)
+    
+    # 替换前一天的数据
+    system_content = system_content.replace("{{yesterday_chat}}", yesterday_chat or "無")
+    system_content = system_content.replace("{{yesterday_status}}", yesterday_status or "無")
+    system_content = system_content.replace("{{daily_summary}}", daily_summary or "無")
     
     # 如果有描述，在任務標題後添加描述信息
     if task_description and task_description.strip():
@@ -111,7 +121,6 @@ def summarize_chat(req: https_fn.CallableRequest) -> any:
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
-            temperature=0.9,
             messages=[
                 {"role": "system", "content": prompt}
             ],
