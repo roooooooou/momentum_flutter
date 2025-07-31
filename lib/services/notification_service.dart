@@ -13,7 +13,7 @@ import '../services/experiment_config_service.dart';
 
 // 通知偏移時間常數
 const int firstNotifOffsetMin = -10;  // 第一個通知：開始前10分鐘
-const int secondNotifOffsetMin = 5;   // 第二個通知：開始後5分鐘
+const int secondNotifOffsetMin = 0;   // 第二個通知：開始後5分鐘
 
 // ⬇️ iOS terminated 時的 top-level 函式
 @pragma('vm:entry-point')
@@ -442,17 +442,6 @@ class NotificationService {
         return false;
       }
 
-      // 檢查今日是否有任務安排
-      final hasTasksToday = await _checkIfHasTasksToday();
-      if (!hasTasksToday) {
-        if (kDebugMode) {
-          print('今日沒有任務安排，不需要發送每日報告通知');
-        }
-        // 取消可能已經存在的通知
-        //await cancelDailyReportNotification();
-        return true; // 返回true表示邏輯執行成功（雖然沒有調度通知）
-      }
-
       // 計算今天晚上10點的時間
       final now = DateTime.now();
       var today10PM = DateTime(now.year, now.month, now.day, 22, 0); // 晚上10點
@@ -509,6 +498,61 @@ class NotificationService {
     } catch (e) {
       if (kDebugMode) {
         print('排程每日報告通知時發生錯誤: $e');
+      }
+      return false;
+    }
+  }
+
+  /// 🎯 新增：为指定日期排定daily report通知
+  Future<bool> scheduleDailyReportNotificationForDate(DateTime targetDate, int notificationId) async {
+    try {
+      if (!_initialized) {
+        await initialize();
+      }
+
+      if (!_initialized) {
+        if (kDebugMode) {
+          print('通知服務初始化失敗');
+        }
+        return false;
+      }
+
+      // 计算目标日期的晚上10点
+      final targetTime = DateTime(targetDate.year, targetDate.month, targetDate.day, 22, 0);
+      
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        badgeNumber: 1,
+        categoryIdentifier: 'daily_report_notification',
+        threadIdentifier: 'daily_report_thread',
+        interruptionLevel: InterruptionLevel.active,
+        presentBanner: true,
+        presentList: true,
+      );
+
+      const details = NotificationDetails(
+        iOS: iosDetails,
+      );
+
+      // 转换為時區時間
+      final scheduledDate = tz.TZDateTime.from(targetTime, tz.local);
+      
+      await _plugin.zonedSchedule(
+        notificationId,
+        '📋 今日任務總結',
+        '今天過得如何？來填寫每日報告，記錄今日的任務完成情況吧！',
+        scheduledDate,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'daily_report_${targetDate.year}${targetDate.month.toString().padLeft(2, '0')}${targetDate.day.toString().padLeft(2, '0')}',
+      );
+      
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 排定单日通知失败: $e');
       }
       return false;
     }

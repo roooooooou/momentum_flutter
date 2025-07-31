@@ -8,6 +8,7 @@ import '../models/enums.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data_path_service.dart';
 import '../services/notification_service.dart';
+import 'experiment_config_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -422,14 +423,19 @@ class CalendarService extends ChangeNotifier {
         final existingDoc = existingDocsList.isNotEmpty ? existingDocsList.first : null;
 
         if (existingDoc == null) {
-          // 创建新事件
-          final ref = col.doc(apiEvent.id);
+          // 根据事件日期获取正确的组别和集合
+          final eventDate = s.toLocal();
+          final groupName = await ExperimentConfigService.instance.getDateGroup(uid, eventDate);
+          final correctEventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+          
+          // 创建新事件到正确的组别集合
+          final ref = correctEventsCollection.doc(apiEvent.id);
           final data = <String, dynamic>{
             'title': apiEvent.summary ?? 'No title',
             if (apiEvent.description != null) 'description': apiEvent.description,
             'scheduledStartTime': Timestamp.fromDate(s.toUtc()),
             'scheduledEndTime': Timestamp.fromDate(t.toUtc()),
-            'date': Timestamp.fromDate(s.toLocal()), // 添加日期字段
+            'date': Timestamp.fromDate(eventDate), // 添加日期字段
             'googleEventId': apiEvent.id,
             'googleCalendarId': targetCalendarId,
             'lifecycleStatus': EventLifecycleStatus.active.value,
@@ -442,8 +448,8 @@ class CalendarService extends ChangeNotifier {
           newEventIds.add(apiEvent.id!);
           
           if (kDebugMode) {
-            print('syncToday: 创建新事件: ${apiEvent.summary ?? 'No title'} (ID: ${apiEvent.id})');
-            print('  事件时间: ${s.toLocal()} (本地) / ${s.toUtc()} (UTC)');
+            print('syncToday: 创建新事件: ${apiEvent.summary ?? 'No title'} (ID: ${apiEvent.id}) 到组别: $groupName');
+            print('  事件时间: ${eventDate} (本地) / ${s.toUtc()} (UTC)');
           }
         }
       }
@@ -550,14 +556,19 @@ class CalendarService extends ChangeNotifier {
     // 2) 删除原文档
     batch.delete(localDoc.reference);
     
-    // 3) 重新创建原ID的文档（使用Google Calendar的新数据）- 创建全新的event
-    final originalRef = col.doc(originalEventId);
+    // 3) 根据新的事件日期获取正确的组别和集合
+    final newEventDate = apiEvent.start!.dateTime!.toLocal();
+    final groupName = await ExperimentConfigService.instance.getDateGroup(uid, newEventDate);
+    final correctEventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+    
+    // 重新创建原ID的文档到正确的组别集合
+    final originalRef = correctEventsCollection.doc(originalEventId);
     final newData = <String, dynamic>{
       'title': apiEvent.summary ?? localData['title'],
       if (apiEvent.description != null) 'description': apiEvent.description,
       'scheduledStartTime': Timestamp.fromDate(apiEvent.start!.dateTime!.toUtc()),
       'scheduledEndTime': Timestamp.fromDate(apiEvent.end!.dateTime!.toUtc()),
-      'date': Timestamp.fromDate(apiEvent.start!.dateTime!.toLocal()), // 添加日期字段
+      'date': Timestamp.fromDate(newEventDate), // 添加日期字段
       'googleEventId': apiEvent.id,
       'googleCalendarId': targetCalendarId,
       'lifecycleStatus': EventLifecycleStatus.active.value,

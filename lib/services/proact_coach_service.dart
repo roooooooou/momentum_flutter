@@ -47,55 +47,84 @@ class ProactCoachService {
   final _summarizeFn = FirebaseFunctions.instance
       .httpsCallable('summarize_chat');
 
-  /// 获取前一天的聊天总结和日报数据
+  /// 获取最近一天的聊天总结和日报数据
   Future<YesterdayData> getYesterdayData(String uid, String eventId) async {
     try {
       final yesterday = DateTime.now().subtract(const Duration(days: 1));
-      final yesterdayDate = '${yesterday.year}${yesterday.month.toString().padLeft(2, '0')}${yesterday.day.toString().padLeft(2, '0')}';
       
-      // 获取前一天的聊天总结
+      // 获取最近一天的聊天总结
       String? chatSummary;
+      DateTime? recentChatDate;
       try {
-        final chatsCollection = await DataPathService.instance.getDateEventChatsCollection(uid, eventId, yesterday);
-        final yesterdayChats = await chatsCollection
-            .where('summary_created_at', isGreaterThanOrEqualTo: Timestamp.fromDate(yesterday))
-            .where('summary_created_at', isLessThan: Timestamp.fromDate(DateTime.now()))
-            .orderBy('summary_created_at', descending: true)
-            .get();
+        // 首先尝试获取实验组事件的聊天总结
+        final experimentChatsCollection = await DataPathService.instance.getUserExperimentEventsCollection(uid);
+        final experimentEvents = await experimentChatsCollection.get();
         
-        if (yesterdayChats.docs.isNotEmpty) {
-          // 处理多个聊天会话的情况
-          final summaries = <String>[];
-          for (final doc in yesterdayChats.docs) {
-            final chatData = doc.data();
-            if (chatData != null) {
-              final data = chatData as Map<String, dynamic>;
-              final summary = data['summary'] as String?;
-              if (summary != null && summary.isNotEmpty) {
-                summaries.add(summary);
+        // 然后尝试获取对照组事件的聊天总结
+        final controlChatsCollection = await DataPathService.instance.getUserControlEventsCollection(uid);
+        final controlEvents = await controlChatsCollection.get();
+        
+        // 合并所有事件
+        final allEvents = <DocumentSnapshot>[];
+        allEvents.addAll(experimentEvents.docs);
+        allEvents.addAll(controlEvents.docs);
+        
+        // 查找最近有聊天总结的事件
+        final summaries = <String>[];
+        DateTime? latestSummaryDate;
+        
+        for (final eventDoc in allEvents) {
+          try {
+            final chatsCollection = eventDoc.reference.collection('chats');
+            final chatsWithSummary = await chatsCollection
+                .where('summary_created_at', isGreaterThan: null)
+                .orderBy('summary_created_at', descending: true)
+                .limit(1)
+                .get();
+            
+            if (chatsWithSummary.docs.isNotEmpty) {
+              final chatData = chatsWithSummary.docs.first.data();
+              final summary = chatData['summary'] as String?;
+              final summaryCreatedAt = chatData['summary_created_at'] as Timestamp?;
+              
+              if (summary != null && summary.isNotEmpty && summaryCreatedAt != null) {
+                final summaryDate = summaryCreatedAt.toDate();
+                
+                // 只考虑昨天及之前的总结（不包括今天）
+                if (summaryDate.isBefore(DateTime.now().subtract(const Duration(hours: 1)))) {
+                  if (latestSummaryDate == null || summaryDate.isAfter(latestSummaryDate)) {
+                    latestSummaryDate = summaryDate;
+                    summaries.clear(); // 清除之前的总结，只保留最新的
+                    summaries.add(summary);
+                  }
+                }
               }
             }
-          }
-          
-          // 如果有多个总结，将它们合并
-          if (summaries.isNotEmpty) {
-            if (summaries.length == 1) {
-              chatSummary = summaries.first;
-            } else {
-              // 多个聊天总结，用分隔符合并
-              chatSummary = summaries.join(' | ');
-            }
+          } catch (e) {
+            // 忽略单个事件的错误，继续处理其他事件
+            print('处理事件 ${eventDoc.id} 的聊天总结时出错: $e');
           }
         }
+        
+        // 如果有找到总结，使用最新的
+        if (summaries.isNotEmpty) {
+          chatSummary = summaries.first;
+          recentChatDate = latestSummaryDate;
+          print('找到最近聊天总结，日期: ${recentChatDate?.toLocal()}');
+        }
       } catch (e) {
-        print('获取前一天聊天总结失败: $e');
+        print('获取最近聊天总结失败: $e');
       }
       
-      // 获取前一天的日报
+      // 获取最近一天的日报（基于聊天总结的日期）
       String? dailyReportSummary;
       String? yesterdayStatus;
       try {
-        final dailyReportCollection = await DataPathService.instance.getUserDailyReportCollection(uid, yesterdayDate);
+        // 如果有找到聊天总结，使用对应的日期；否则使用昨天的日期
+        final targetDate = recentChatDate ?? yesterday;
+        final targetDateStr = '${targetDate.year}${targetDate.month.toString().padLeft(2, '0')}${targetDate.day.toString().padLeft(2, '0')}';
+        
+        final dailyReportCollection = await DataPathService.instance.getUserDailyReportCollection(uid, targetDateStr);
         final dailyReports = await dailyReportCollection.get();
         
         if (dailyReports.docs.isNotEmpty) {
@@ -104,7 +133,7 @@ class ProactCoachService {
           // 构建日报摘要
           final summaryParts = <String>[];
           if (report.notes != null && report.notes!.isNotEmpty) {
-            summaryParts.add('昨日心得: ${report.notes}');
+            summaryParts.add('心得: ${report.notes}');
           }
           if (report.aiImprovementSuggestions != null && report.aiImprovementSuggestions!.isNotEmpty) {
             summaryParts.add('Coach改進建議: ${report.aiImprovementSuggestions}');
@@ -121,9 +150,13 @@ class ProactCoachService {
             statusParts.add('延遲原因: ${report.delayReasons.join(', ')}');
           }          
           yesterdayStatus = statusParts.join('; ');
+          
+          print('找到对应日期的日报，日期: ${targetDate.toLocal()}');
+        } else {
+          print('未找到对应日期的日报，日期: ${targetDate.toLocal()}');
         }
       } catch (e) {
-        print('获取前一天日报失败: $e');
+        print('获取最近日报失败: $e');
       }
       
       return YesterdayData(

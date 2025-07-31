@@ -454,8 +454,9 @@ class ExperimentEventHelper {
 
   /// 生成聊天ID（格式：eventId_yyyyMMddTHHmm）
   static String generateChatId(String eventId, DateTime timestamp) {
-    final formattedTime = timestamp
-        .toUtc()
+    // 使用台灣時區格式化時間
+    final taiwanTime = timestamp.toLocal(); // 確保使用本地時區（台灣時區）
+    final formattedTime = taiwanTime
         .toIso8601String()
         .replaceAll(RegExp(r'[:\-.]'), '')
         .substring(0, 13); // yyyyMMddTHHmm

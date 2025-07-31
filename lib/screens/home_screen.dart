@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isInitialSync = true;
   final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
   bool _isExperimentGroup = false; // 用户是否为实验组
+  bool _isOpeningChat = false; // 防止重複點擊聊天按鈕
 
   @override
   void initState() {
@@ -433,36 +434,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         // 根据实验组别决定是否显示聊天按钮
                                         onOpenChat: _isExperimentGroup ? () async {
                                           if (mounted) {
-                                            // 🎯 實驗數據收集：記錄聊天按鈕點擊
-                                            final uid = context.read<AuthService>().currentUser?.uid;
-                                            if (uid != null) {
-                                              final chatId = ExperimentEventHelper.generateChatId(list[i].id, DateTime.now());
-                                              
-                                              await ExperimentEventHelper.recordChatTrigger(
-                                                uid: uid,
-                                                eventId: list[i].id,
-                                                chatId: chatId,
-                                              );
-                                              
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) => ChangeNotifierProvider(
-                                                    create: (_) => ChatProvider(
-                                                      taskTitle: list[i].title,
-                                                      taskDescription: list[i].description, // 新增描述參數
-                                                      startTime: list[i].scheduledStartTime,
-                                                      uid: uid,
-                                                      eventId: list[i].id,
-                                                      chatId: chatId,
-                                                      entryMethod: ChatEntryMethod.eventCard, // 🎯 新增：事件卡片進入
-                                                    ),
-                                                    child: ChatScreen(
-                                                      taskTitle: list[i].title,
-                                                      taskDescription: list[i].description, // 新增描述參數
+                                            // 防止重複點擊
+                                            if (_isOpeningChat) return;
+                                            _isOpeningChat = true;
+                                            
+                                            try {
+                                              // 🎯 實驗數據收集：記錄聊天按鈕點擊
+                                              final uid = context.read<AuthService>().currentUser?.uid;
+                                              if (uid != null) {
+                                                final chatId = ExperimentEventHelper.generateChatId(list[i].id, DateTime.now());
+                                                
+                                                await ExperimentEventHelper.recordChatTrigger(
+                                                  uid: uid,
+                                                  eventId: list[i].id,
+                                                  chatId: chatId,
+                                                );
+                                                
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (_) => ChangeNotifierProvider(
+                                                      create: (_) => ChatProvider(
+                                                        taskTitle: list[i].title,
+                                                        taskDescription: list[i].description, // 新增描述參數
+                                                        startTime: list[i].scheduledStartTime,
+                                                        uid: uid,
+                                                        eventId: list[i].id,
+                                                        chatId: chatId,
+                                                        entryMethod: ChatEntryMethod.eventCard, // 🎯 新增：事件卡片進入
+                                                      ),
+                                                      child: ChatScreen(
+                                                        taskTitle: list[i].title,
+                                                        taskDescription: list[i].description, // 新增描述參數
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              );
+                                                );
+                                              }
+                                            } finally {
+                                              // 確保在導航完成後重置標記
+                                              Future.delayed(const Duration(milliseconds: 500), () {
+                                                if (mounted) {
+                                                  setState(() {
+                                                    _isOpeningChat = false;
+                                                  });
+                                                }
+                                              });
                                             }
                                           }
                                         } : null),

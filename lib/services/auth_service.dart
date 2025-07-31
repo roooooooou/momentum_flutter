@@ -5,6 +5,7 @@ import '../services/calendar_service.dart';
 import '../services/analytics_service.dart';
 import '../services/experiment_config_service.dart';
 import '../services/data_path_service.dart';
+import '../services/notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/calendar/v3.dart' as cal;
 
@@ -321,9 +322,99 @@ class AuthService {
         }
       }
 
+      // 🎯 新增：排定15天的daily report通知
+      await _scheduleDailyReportNotificationsForNext15Days(uid);
+
     } catch (e) {
       if (kDebugMode) {
         print('🎯 获取和分配未来任务失败: $e');
+      }
+    }
+  }
+
+  /// 🎯 新增：为未来15天排定daily report通知
+  Future<void> _scheduleDailyReportNotificationsForNext15Days(String uid) async {
+    try {
+      if (kDebugMode) {
+        print('🎯 开始排定未来15天的daily report通知: $uid');
+      }
+
+      final now = DateTime.now();
+      
+      // 为未来15天的每一天排定通知
+      for (int i = 0; i < 15; i++) {
+        final targetDate = now.add(Duration(days: i));
+        
+        // 检查该日期是否有任务
+        final hasTasks = await _checkIfHasTasksOnDate(uid, targetDate);
+        
+        if (hasTasks) {
+          // 排定该日期的daily report通知（晚上10点）
+          await _scheduleDailyReportNotificationForDate(targetDate, i);
+          
+          if (kDebugMode) {
+            print('🎯 已排定 ${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')} 的daily report通知');
+          }
+        } else {
+          if (kDebugMode) {
+            print('🎯 ${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')} 没有任务，跳过通知排定');
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('🎯 未来15天的daily report通知排定完成');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 排定daily report通知失败: $e');
+      }
+    }
+  }
+
+  /// 🎯 新增：检查指定日期是否有任务
+  Future<bool> _checkIfHasTasksOnDate(String uid, DateTime date) async {
+    try {
+      // 获取该日期的组别
+      final groupName = await ExperimentConfigService.instance.getDateGroup(uid, date);
+      
+      // 获取该组别的事件集合
+      final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+      
+      // 查询该日期的事件
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      
+      final query = eventsCollection
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('date', isLessThan: Timestamp.fromDate(endOfDay));
+      
+      final snapshot = await query.get();
+      
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 检查日期任务失败: $e');
+      }
+      return false;
+    }
+  }
+
+  /// 🎯 新增：为指定日期排定daily report通知
+  Future<void> _scheduleDailyReportNotificationForDate(DateTime targetDate, int dayOffset) async {
+    try {
+      // 使用唯一的通知ID（基于日期偏移）
+      final notificationId = 1000000 + dayOffset; // 使用1000000+偏移量作为唯一ID
+      
+      // 使用 NotificationService 的公共方法
+      final success = await NotificationService.instance.scheduleDailyReportNotificationForDate(targetDate, notificationId);
+      
+      if (success && kDebugMode) {
+        print('🎯 已排定通知ID $notificationId，日期: ${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')} 22:00');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 排定单日通知失败: $e');
       }
     }
   }

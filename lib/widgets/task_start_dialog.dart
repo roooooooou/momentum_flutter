@@ -9,13 +9,20 @@ import '../screens/chat_screen.dart';
 import '../providers/chat_provider.dart';
 import '../services/analytics_service.dart';
 
-class TaskStartDialog extends StatelessWidget {
+class TaskStartDialog extends StatefulWidget {
   final EventModel event;
   
   const TaskStartDialog({
     super.key,
     required this.event,
   });
+
+  @override
+  State<TaskStartDialog> createState() => _TaskStartDialogState();
+}
+
+class _TaskStartDialogState extends State<TaskStartDialog> {
+  bool _isOpeningChat = false; // 防止重複點擊聊天按鈕
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +43,7 @@ class TaskStartDialog extends StatelessWidget {
             Column(
               children: [
                 Text(
-                  '準備好開始"${event.title}"了嗎？',
+                  '準備好開始"${widget.event.title}"了嗎？',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -88,44 +95,52 @@ class TaskStartDialog extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () async {
-                      // 先獲取父級navigator，再關閉對話框
-                      final navigator = Navigator.of(context);
-                      final parentContext = context;
+                    onPressed: _isOpeningChat ? null : () async {
+                      // 防止重複點擊
+                      _isOpeningChat = true;
                       
-                      // 先執行實驗數據收集
-                      await _recordChatStart(parentContext);
-                      
-                      // 記錄通知結果為延後處理
-                      _recordNotificationResult(parentContext, NotificationResult.snooze);
-                      
-                      // 關閉對話框
-                      navigator.pop();
-                      
-                      // 導航到聊天頁面
-                      final uid = parentContext.read<AuthService>().currentUser?.uid;
-                      if (uid != null) {
-                        final chatId = ExperimentEventHelper.generateChatId(event.id, DateTime.now());
+                      try {
+                        // 先獲取父級navigator，再關閉對話框
+                        final navigator = Navigator.of(context);
+                        final parentContext = context;
                         
-                        navigator.push(
-                          MaterialPageRoute(
-                            builder: (_) => ChangeNotifierProvider(
-                              create: (_) => ChatProvider(
-                                taskTitle: event.title, 
-                                taskDescription: event.description, // 新增描述參數
-                                startTime: event.scheduledStartTime,
-                                uid: uid,
-                                eventId: event.id,
-                                chatId: chatId,
-                                entryMethod: ChatEntryMethod.notification, // 🎯 新增：通知進入
-                              ),
-                              child: ChatScreen(
-                                taskTitle: event.title,
-                                taskDescription: event.description, // 新增描述參數
+                        // 先執行實驗數據收集
+                        await _recordChatStart(parentContext);
+                        
+                        // 記錄通知結果為延後處理
+                        _recordNotificationResult(parentContext, NotificationResult.snooze);
+                        
+                        // 關閉對話框
+                        navigator.pop();
+                        
+                        // 導航到聊天頁面
+                        final uid = parentContext.read<AuthService>().currentUser?.uid;
+                        if (uid != null) {
+                          final chatId = ExperimentEventHelper.generateChatId(widget.event.id, DateTime.now());
+                          
+                          navigator.push(
+                            MaterialPageRoute(
+                              builder: (_) => ChangeNotifierProvider(
+                                create: (_) => ChatProvider(
+                                  taskTitle: widget.event.title, 
+                                  taskDescription: widget.event.description, // 新增描述參數
+                                  startTime: widget.event.scheduledStartTime,
+                                  uid: uid,
+                                  eventId: widget.event.id,
+                                  chatId: chatId,
+                                  entryMethod: ChatEntryMethod.notification, // 🎯 新增：通知進入
+                                ),
+                                child: ChatScreen(
+                                  taskTitle: widget.event.title,
+                                  taskDescription: widget.event.description, // 新增描述參數
+                                ),
                               ),
                             ),
-                          ),
-                        );
+                          );
+                        }
+                      } finally {
+                        // 重置標記
+                        _isOpeningChat = false;
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -164,7 +179,7 @@ class TaskStartDialog extends StatelessWidget {
         return;
       }
 
-      await CalendarService.instance.startEvent(uid, event);
+      await CalendarService.instance.startEvent(uid, widget.event);
       
       // 記錄分析事件
       await AnalyticsService().logTaskStarted('dialog');
@@ -173,7 +188,7 @@ class TaskStartDialog extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('任務「${event.title}」已開始'),
+            content: Text('任務「${widget.event.title}」已開始'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -190,11 +205,11 @@ class TaskStartDialog extends StatelessWidget {
       // 🎯 實驗數據收集：生成聊天ID並記錄聊天觸發（不開始任務）
       final currentUser = context.read<AuthService>().currentUser;
       if (currentUser != null) {
-        final chatId = ExperimentEventHelper.generateChatId(event.id, DateTime.now());
+        final chatId = ExperimentEventHelper.generateChatId(widget.event.id, DateTime.now());
         
         await ExperimentEventHelper.recordChatTrigger(
           uid: currentUser.uid,
-          eventId: event.id,
+                      eventId: widget.event.id,
           chatId: chatId,
         );
       }
@@ -210,10 +225,10 @@ class TaskStartDialog extends StatelessWidget {
       final currentUser = context.read<AuthService>().currentUser;
       if (currentUser != null) {
         // 對所有可能的通知ID記錄結果
-        for (final notifId in event.notifIds) {
+        for (final notifId in widget.event.notifIds) {
           ExperimentEventHelper.recordNotificationResult(
             uid: currentUser.uid,
-            eventId: event.id,
+            eventId: widget.event.id,
             notifId: notifId,
             result: result,
           );
