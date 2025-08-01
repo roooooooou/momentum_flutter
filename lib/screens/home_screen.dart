@@ -15,6 +15,7 @@ import '../services/notification_handler.dart';
 import '../services/app_usage_service.dart';
 import '../services/data_path_service.dart';
 import '../services/experiment_config_service.dart';
+import '../services/task_router_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../services/analytics_service.dart';
@@ -329,6 +330,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case TaskAction.start:
         await CalendarService.instance.startEvent(uid, e);
         await AnalyticsService().logTaskStarted('event_card');
+        
+        // 跳转到相应的任务页面
+        if (mounted) {
+          TaskRouterService().navigateToTaskPage(context, e);
+        }
         break;
       case TaskAction.stop:
         await CalendarService.instance.stopEvent(uid, e);
@@ -339,6 +345,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case TaskAction.continue_:
         await CalendarService.instance.continueEvent(uid, e);
         await AnalyticsService().logTaskStarted('event_card_continue');
+        
+        // 跳转到相应的任务页面
+        if (mounted) {
+          TaskRouterService().navigateToTaskPage(context, e);
+        }
         break;
     }
   }

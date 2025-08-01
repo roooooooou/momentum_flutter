@@ -8,6 +8,7 @@ import '../services/calendar_service.dart';
 import '../screens/chat_screen.dart';
 import '../providers/chat_provider.dart';
 import '../services/analytics_service.dart';
+import '../services/task_router_service.dart';
 
 class TaskStartDialog extends StatefulWidget {
   final EventModel event;
@@ -193,6 +194,12 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
             duration: const Duration(seconds: 2),
           ),
         );
+        
+        // 关闭对话框
+        Navigator.of(context).pop();
+        
+        // 跳转到相应的任务页面
+        TaskRouterService().navigateToTaskPage(context, widget.event);
       }
     } catch (e) {
       _showErrorMessage(context, '開始任務失敗: $e');

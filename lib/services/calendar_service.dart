@@ -11,6 +11,7 @@ import '../services/notification_service.dart';
 import 'experiment_config_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'day_number_service.dart';
 
 /// Light wrapper that adds Google OAuth headers to each request.
 class _GoogleAuthClient extends http.BaseClient {
@@ -428,6 +429,9 @@ class CalendarService extends ChangeNotifier {
           final groupName = await ExperimentConfigService.instance.getDateGroup(uid, eventDate);
           final correctEventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
           
+          // 计算dayNumber
+          final dayNumber = await DayNumberService().calculateDayNumber(eventDate);
+          
           // 创建新事件到正确的组别集合
           final ref = correctEventsCollection.doc(apiEvent.id);
           final data = <String, dynamic>{
@@ -436,6 +440,7 @@ class CalendarService extends ChangeNotifier {
             'scheduledStartTime': Timestamp.fromDate(s.toUtc()),
             'scheduledEndTime': Timestamp.fromDate(t.toUtc()),
             'date': Timestamp.fromDate(eventDate), // 添加日期字段
+            'dayNumber': dayNumber, // 添加dayNumber字段
             'googleEventId': apiEvent.id,
             'googleCalendarId': targetCalendarId,
             'lifecycleStatus': EventLifecycleStatus.active.value,

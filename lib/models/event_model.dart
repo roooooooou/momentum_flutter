@@ -50,6 +50,7 @@ class EventModel {
 
   // === 新增字段 ===
   final DateTime date;                  // 事件日期（用於按日期分組）
+  final int? dayNumber;                 // 相对于账号创建日期的天数
 
   EventModel({
     required this.id,
@@ -81,6 +82,7 @@ class EventModel {
     this.pauseCount,
     this.pauseAt,
     this.resumeAt,
+    this.dayNumber,
       }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -93,6 +95,7 @@ class EventModel {
       isDone: d['isDone'] ?? false,
       scheduledStartTime: (d['scheduledStartTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       date: (d['date'] as Timestamp?)?.toDate() ?? (d['scheduledStartTime'] as Timestamp?)?.toDate() ?? DateTime.now(), // 新增字段，如果沒有則使用 scheduledStartTime 或當前時間
+      dayNumber: d['dayNumber'],
       actualStartTime: (d['actualStartTime'] as Timestamp?)?.toDate(),
       completedTime: (d['completedTime'] as Timestamp?)?.toDate(),
       startTrigger: d['startTrigger'] != null ? StartTrigger.fromValue(d['startTrigger']) : null,
@@ -128,6 +131,7 @@ class EventModel {
       'scheduledStartTime': Timestamp.fromDate(scheduledStartTime),
       'scheduledEndTime': Timestamp.fromDate(scheduledEndTime),
       'date': Timestamp.fromDate(date), // 新增字段
+      if (dayNumber != null) 'dayNumber': dayNumber,
       if (actualStartTime != null) 'actualStartTime': Timestamp.fromDate(actualStartTime!),
       if (completedTime != null) 'completedTime': Timestamp.fromDate(completedTime!),
       if (startTrigger != null) 'startTrigger': startTrigger!.value,
@@ -254,6 +258,7 @@ class EventModel {
     int? pauseCount,
     DateTime? pauseAt,
     DateTime? resumeAt,
+    int? dayNumber,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -285,6 +290,7 @@ class EventModel {
       pauseCount: pauseCount ?? this.pauseCount,
       pauseAt: pauseAt ?? this.pauseAt,
       resumeAt: resumeAt ?? this.resumeAt,
+      dayNumber: dayNumber ?? this.dayNumber,
     );
   }
 }

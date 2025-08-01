@@ -31,11 +31,13 @@ class ChatSummaryResult {
 /// 前一天的数据，包含聊天总结和日报
 class YesterdayData {
   final String? chatSummary;
+  final List<String> allChatSummaries; // 新增：最近一天的所有聊天总结
   final String? dailyReportSummary;
   final String? yesterdayStatus;
   
   YesterdayData({
     this.chatSummary,
+    this.allChatSummaries = const [],
     this.dailyReportSummary,
     this.yesterdayStatus,
   });
@@ -52,8 +54,9 @@ class ProactCoachService {
     try {
       final yesterday = DateTime.now().subtract(const Duration(days: 1));
       
-      // 获取最近一天的聊天总结
+      // 获取最近有聊天的日期的聊天总结（包括今天）
       String? chatSummary;
+      List<String> allChatSummaries = [];
       DateTime? recentChatDate;
       try {
         // 首先尝试获取实验组事件的聊天总结
@@ -71,27 +74,32 @@ class ProactCoachService {
         
         // 查找最近有聊天总结的事件
         final summaries = <String>[];
+        final allSummaries = <String>[];
         DateTime? latestSummaryDate;
         
         for (final eventDoc in allEvents) {
           try {
             final chatsCollection = eventDoc.reference.collection('chats');
+            // 获取所有有总结的聊天记录，不限制数量
             final chatsWithSummary = await chatsCollection
                 .where('summary_created_at', isGreaterThan: null)
                 .orderBy('summary_created_at', descending: true)
-                .limit(1)
                 .get();
             
-            if (chatsWithSummary.docs.isNotEmpty) {
-              final chatData = chatsWithSummary.docs.first.data();
+            for (final chatDoc in chatsWithSummary.docs) {
+              final chatData = chatDoc.data();
               final summary = chatData['summary'] as String?;
               final summaryCreatedAt = chatData['summary_created_at'] as Timestamp?;
               
               if (summary != null && summary.isNotEmpty && summaryCreatedAt != null) {
                 final summaryDate = summaryCreatedAt.toDate();
                 
-                // 只考虑昨天及之前的总结（不包括今天）
-                if (summaryDate.isBefore(DateTime.now().subtract(const Duration(hours: 1)))) {
+                // 考虑昨天及之前的总结，以及今天的总结
+                if (summaryDate.isBefore(DateTime.now().add(const Duration(hours: 1)))) {
+                  // 记录所有符合条件的总结
+                  allSummaries.add(summary);
+                  
+                  // 找到最新的总结日期
                   if (latestSummaryDate == null || summaryDate.isAfter(latestSummaryDate)) {
                     latestSummaryDate = summaryDate;
                     summaries.clear(); // 清除之前的总结，只保留最新的
@@ -110,7 +118,42 @@ class ProactCoachService {
         if (summaries.isNotEmpty) {
           chatSummary = summaries.first;
           recentChatDate = latestSummaryDate;
-          print('找到最近聊天总结，日期: ${recentChatDate?.toLocal()}');
+          
+          // 获取最近一天的所有聊天总结
+          if (latestSummaryDate != null) {
+            final targetDate = latestSummaryDate;
+            final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
+            final endOfDay = startOfDay.add(const Duration(days: 1));
+            
+            // 重新遍历所有事件，获取指定日期的所有聊天总结
+            for (final eventDoc in allEvents) {
+              try {
+                final chatsCollection = eventDoc.reference.collection('chats');
+                final chatsInDay = await chatsCollection
+                    .where('summary_created_at', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+                    .where('summary_created_at', isLessThan: Timestamp.fromDate(endOfDay))
+                    .orderBy('summary_created_at', descending: true)
+                    .get();
+                
+                for (final chatDoc in chatsInDay.docs) {
+                  final chatData = chatDoc.data();
+                  final summary = chatData['summary'] as String?;
+                  
+                  if (summary != null && summary.isNotEmpty) {
+                    allChatSummaries.add(summary);
+                  }
+                }
+              } catch (e) {
+                print('获取指定日期的聊天总结时出错: $e');
+              }
+            }
+          }
+          
+          final isToday = recentChatDate?.day == DateTime.now().day && 
+                          recentChatDate?.month == DateTime.now().month && 
+                          recentChatDate?.year == DateTime.now().year;
+          final dateType = isToday == true ? '今天' : '之前';
+          print('找到最近聊天总结，日期: ${recentChatDate?.toLocal()} ($dateType)，当天总结数量: ${allChatSummaries.length}');
         }
       } catch (e) {
         print('获取最近聊天总结失败: $e');
@@ -161,6 +204,7 @@ class ProactCoachService {
       
       return YesterdayData(
         chatSummary: chatSummary,
+        allChatSummaries: allChatSummaries,
         dailyReportSummary: dailyReportSummary,
         yesterdayStatus: yesterdayStatus,
       );
@@ -187,9 +231,26 @@ class ProactCoachService {
     final taiwanTime = startTime.toLocal();
     final formattedStartTime = '${taiwanTime.year}-${taiwanTime.month.toString().padLeft(2, '0')}-${taiwanTime.day.toString().padLeft(2, '0')} ${taiwanTime.hour.toString().padLeft(2, '0')}:${taiwanTime.minute.toString().padLeft(2, '0')}';
     
+    // 合并所有聊天总结
+    String combinedChatSummary = '';
+    if (yesterdayData?.allChatSummaries.isNotEmpty == true) {
+      if (yesterdayData!.allChatSummaries.length == 1) {
+        combinedChatSummary = yesterdayData.allChatSummaries.first;
+      } else {
+        // 如果有多个聊天总结，按时间顺序合并
+        combinedChatSummary = yesterdayData.allChatSummaries.asMap().entries
+            .map((entry) => '聊天${entry.key + 1}: ${entry.value}')
+            .join('\n\n');
+      }
+    } else {
+      // 如果没有获取到所有聊天总结，使用单个总结作为备选
+      combinedChatSummary = yesterdayData?.chatSummary ?? '';
+    }
+    
     print('history dialogues: ${mapped}');
     print('current turn: ${currentTurn}');
     print('yesterday data: ${yesterdayData?.chatSummary}, ${yesterdayData?.dailyReportSummary}');
+    print('all chat summaries count: ${yesterdayData?.allChatSummaries.length ?? 0}');
     
     final res = await _fn.call({
       'taskTitle': taskTitle, 
@@ -197,7 +258,7 @@ class ProactCoachService {
       'dialogues': mapped,
       'startTime': formattedStartTime,
       'currentTurn': currentTurn,
-      'yesterdayChat': yesterdayData?.chatSummary ?? '',
+      'yesterdayChat': combinedChatSummary,
       'yesterdayStatus': yesterdayData?.yesterdayStatus ?? '',
       'dailySummary': yesterdayData?.dailyReportSummary ?? '',
     });

@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import '../models/event_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/calendar/v3.dart' as cal;
+import 'day_number_service.dart';
 
 /// Wraps FirebaseAuth + Google Sign‑In with Calendar scope.
 class AuthService {
@@ -129,6 +130,9 @@ class AuthService {
         });
         
         print('🎯 用戶文檔已創建: ${user.uid}');
+        
+        // 设置账号创建日期
+        await DayNumberService().setAccountCreationDate(DateTime.now());
         
         // 新用户：分配日期分组并获取未来15天的任务
         await _initializeNewUser(user.uid);

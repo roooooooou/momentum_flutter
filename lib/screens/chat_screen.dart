@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/calendar_service.dart';
 import '../services/analytics_service.dart';
 import '../services/data_path_service.dart';
+import '../services/task_router_service.dart';
 import '../navigation_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -371,18 +372,46 @@ class _ChatScreenState extends State<ChatScreen> {
       await AnalyticsService().logTaskStarted('chat');
 
       print('Task started successfully: ${chat.taskTitle}');
+      
+      // 获取事件数据用于页面跳转
+      if (uid != null) {
+        final doc = await DataPathService.instance.getUserEventDoc(uid, chat.eventId).then((ref) => ref.get());
+        if (doc.exists) {
+          final event = EventModel.fromDoc(doc);
+          
+          // 使用NavigationService跳转到相应的任务页面
+          // 延迟一点时间确保主页面已经加载完成
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            final context = NavigationService.context;
+            if (context != null) {
+              try {
+                TaskRouterService().navigateToTaskPage(context, event);
+              } catch (e) {
+                print('Navigation error: $e');
+              }
+            }
+          });
+        }
+      }
     } catch (e) {
       print('Error in background task execution: $e');
       // 错误处理：在主页面显示错误消息
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('開始任務時發生錯誤: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        final context = NavigationService.context;
+        if (context != null) {
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('開始任務時發生錯誤: $e'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          } catch (e) {
+            print('Error showing snackbar: $e');
+          }
+        }
+      });
     }
   }
 }
