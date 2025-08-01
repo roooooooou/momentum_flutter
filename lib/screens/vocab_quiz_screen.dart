@@ -1,36 +1,36 @@
 import 'package:flutter/material.dart';
-import '../models/reading_content_model.dart';
 import '../models/event_model.dart';
-import '../models/enums.dart';
-import '../services/reading_analytics_service.dart';
+import '../models/vocab_content_model.dart';
+
+import '../services/vocab_analytics_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class QuizScreen extends StatefulWidget {
-  final List<ReadingContent> contents;
+class VocabQuizScreen extends StatefulWidget {
+  final List<VocabContent> questions;
   final EventModel event;
   
-  const QuizScreen({
+  const VocabQuizScreen({
     super.key,
-    required this.contents,
+    required this.questions,
     required this.event,
   });
 
   @override
-  State<QuizScreen> createState() => _QuizScreenState();
+  State<VocabQuizScreen> createState() => _VocabQuizScreenState();
 }
 
-class _QuizScreenState extends State<QuizScreen> {
+class _VocabQuizScreenState extends State<VocabQuizScreen> {
   int _currentQuestionIndex = 0;
   String? _selectedAnswer;
   int _correctAnswers = 0;
   bool _showResult = false;
   List<String> _userAnswers = [];
-  final ReadingAnalyticsService _analyticsService = ReadingAnalyticsService();
+  final VocabAnalyticsService _analyticsService = VocabAnalyticsService();
 
   @override
   void initState() {
     super.initState();
-    _userAnswers = List.filled(widget.contents.length, '');
+    _userAnswers = List.filled(widget.questions.length, '');
   }
 
   void _selectAnswer(String answer) {
@@ -43,12 +43,12 @@ class _QuizScreenState extends State<QuizScreen> {
   void _nextQuestion() {
     if (_selectedAnswer != null) {
       // 检查答案是否正确
-      final currentContent = widget.contents[_currentQuestionIndex];
-      if (_selectedAnswer == currentContent.answer) {
+      final currentQuestion = widget.questions[_currentQuestionIndex];
+      if (_selectedAnswer == currentQuestion.answer) {
         _correctAnswers++;
       }
 
-      if (_currentQuestionIndex < widget.contents.length - 1) {
+      if (_currentQuestionIndex < widget.questions.length - 1) {
         setState(() {
           _currentQuestionIndex++;
           _selectedAnswer = _userAnswers[_currentQuestionIndex].isEmpty 
@@ -81,7 +81,7 @@ class _QuizScreenState extends State<QuizScreen> {
       _selectedAnswer = null;
       _correctAnswers = 0;
       _showResult = false;
-      _userAnswers = List.filled(widget.contents.length, '');
+      _userAnswers = List.filled(widget.questions.length, '');
     });
   }
 
@@ -94,7 +94,7 @@ class _QuizScreenState extends State<QuizScreen> {
           uid: user.uid,
           eventId: widget.event.id,
           correctAnswers: _correctAnswers,
-          totalQuestions: widget.contents.length,
+          totalQuestions: widget.questions.length,
         );
         
         // 记录事件完成
@@ -120,13 +120,13 @@ class _QuizScreenState extends State<QuizScreen> {
       return _buildResultScreen();
     }
 
-    final currentContent = widget.contents[_currentQuestionIndex];
-    final progress = (_currentQuestionIndex + 1) / widget.contents.length;
+    final currentQuestion = widget.questions[_currentQuestionIndex];
+    final progress = (_currentQuestionIndex + 1) / widget.questions.length;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('測驗 (${_currentQuestionIndex + 1}/${widget.contents.length})'),
-        backgroundColor: Colors.green,
+        title: Text('單詞測驗 (${_currentQuestionIndex + 1}/${widget.questions.length})'),
+        backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
@@ -136,7 +136,7 @@ class _QuizScreenState extends State<QuizScreen> {
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.grey.shade300,
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
           ),
           
           Expanded(
@@ -145,20 +145,54 @@ class _QuizScreenState extends State<QuizScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 单词
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          '單字：',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          currentQuestion.word,
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
                   // 题目
                   Text(
-                    currentContent.question,
+                    '請選擇正確的定義：',
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       height: 1.4,
                     ),
                   ),
                   
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   
                   // 选项
-                  ...currentContent.options.asMap().entries.map((entry) {
+                  ...currentQuestion.options.asMap().entries.map((entry) {
                     final index = entry.key;
                     final option = entry.value;
                     final optionLetter = String.fromCharCode(97 + index); // a, b, c, d
@@ -173,11 +207,11 @@ class _QuizScreenState extends State<QuizScreen> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: isSelected ? Colors.green : Colors.grey.shade300,
+                              color: isSelected ? Colors.blue : Colors.grey.shade300,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(12),
-                            color: isSelected ? Colors.green.shade50 : Colors.white,
+                            color: isSelected ? Colors.blue.shade50 : Colors.white,
                           ),
                           child: Row(
                             children: [
@@ -186,7 +220,7 @@ class _QuizScreenState extends State<QuizScreen> {
                                 height: 24,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: isSelected ? Colors.green : Colors.grey.shade300,
+                                  color: isSelected ? Colors.blue : Colors.grey.shade300,
                                 ),
                                 child: Center(
                                   child: Text(
@@ -204,7 +238,7 @@ class _QuizScreenState extends State<QuizScreen> {
                                   option,
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: isSelected ? Colors.green.shade800 : Colors.black87,
+                                    color: isSelected ? Colors.blue.shade800 : Colors.black87,
                                     fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
                                   ),
                                 ),
@@ -242,7 +276,7 @@ class _QuizScreenState extends State<QuizScreen> {
                         child: ElevatedButton(
                           onPressed: _selectedAnswer != null ? _nextQuestion : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -250,7 +284,7 @@ class _QuizScreenState extends State<QuizScreen> {
                             ),
                           ),
                           child: Text(
-                            _currentQuestionIndex == widget.contents.length - 1 
+                            _currentQuestionIndex == widget.questions.length - 1 
                                 ? '完成測驗' 
                                 : '下一題',
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -269,14 +303,14 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Widget _buildResultScreen() {
-    final score = (_correctAnswers / widget.contents.length * 100).round();
+    final score = (_correctAnswers / widget.questions.length * 100).round();
     final isExcellent = score >= 80;
     final isGood = score >= 60;
     
     return Scaffold(
       appBar: AppBar(
         title: const Text('測驗結果'),
-        backgroundColor: Colors.green,
+        backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
@@ -289,7 +323,7 @@ class _QuizScreenState extends State<QuizScreen> {
             Icon(
               isExcellent ? Icons.celebration : (isGood ? Icons.thumb_up : Icons.school),
               size: 80,
-              color: isExcellent ? Colors.orange : (isGood ? Colors.green : Colors.blue),
+              color: isExcellent ? Colors.orange : (isGood ? Colors.blue : Colors.purple),
             ),
             
             const SizedBox(height: 24),
@@ -300,7 +334,7 @@ class _QuizScreenState extends State<QuizScreen> {
               style: const TextStyle(
                 fontSize: 48,
                 fontWeight: FontWeight.bold,
-                color: Colors.green,
+                color: Colors.blue,
               ),
             ),
             
@@ -318,7 +352,7 @@ class _QuizScreenState extends State<QuizScreen> {
             const SizedBox(height: 8),
             
             Text(
-              '答對了 $_correctAnswers 題，共 ${widget.contents.length} 題',
+              '答對了 $_correctAnswers 題，共 ${widget.questions.length} 題',
               style: const TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
@@ -326,7 +360,29 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
             
             const SizedBox(height: 48),
-
+            
+            // 按钮
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _restartQuiz,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  '重新測驗',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(

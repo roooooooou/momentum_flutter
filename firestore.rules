@@ -28,6 +28,16 @@ service cloud.firestore {
           allow read, write: if request.auth != null && request.auth.uid == userId;
         }
       }
+      
+      // 閱讀數據
+      match /reading/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙學習數據
+      match /vocab/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // 對照組事件數據
@@ -41,12 +51,22 @@ service cloud.firestore {
       
       // 事件聊天數據
       match /chats/{chatId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth.uid == userId;
         
         // 聊天消息數據
         match /messages/{messageId} {
           allow read, write: if request.auth != null && request.auth.uid == userId;
         }
+      }
+      
+      // 閱讀數據
+      match /reading/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙學習數據
+      match /vocab/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
     
@@ -86,6 +106,16 @@ service cloud.firestore {
       }
       
       match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 閱讀數據
+      match /reading/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙學習數據
+      match /vocab/{document} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }

@@ -1,0 +1,72 @@
+[
+  {
+    "word": "momentum",
+    "definition": "動力，勢頭；物理學中的動量",
+    "example": "The team gained momentum after winning their first game.",
+    "options": ["動力，勢頭", "速度", "力量", "能量"],
+    "answer": "a"
+  },
+  {
+    "word": "resilient",
+    "definition": "有彈性的，適應力強的",
+    "example": "She is remarkably resilient in the face of adversity.",
+    "options": ["有彈性的", "堅強的", "靈活的", "持久的"],
+    "answer": "a"
+  },
+  {
+    "word": "perseverance",
+    "definition": "堅持不懈，毅力",
+    "example": "Success comes through perseverance and hard work.",
+    "options": ["堅持不懈", "耐心", "決心", "勇氣"],
+    "answer": "a"
+  },
+  {
+    "word": "endeavor",
+    "definition": "努力，嘗試，事業",
+    "example": "This is a worthwhile endeavor that will benefit many people.",
+    "options": ["努力", "目標", "計劃", "項目"],
+    "answer": "a"
+  },
+  {
+    "word": "profound",
+    "definition": "深刻的，深遠的，淵博的",
+    "example": "The book had a profound impact on my thinking.",
+    "options": ["深刻的", "重要的", "複雜的", "有趣的"],
+    "answer": "a"
+  },
+  {
+    "word": "authentic",
+    "definition": "真實的，可信的，正宗的",
+    "example": "This restaurant serves authentic Italian cuisine.",
+    "options": ["真實的", "美味的", "傳統的", "新鮮的"],
+    "answer": "a"
+  },
+  {
+    "word": "innovative",
+    "definition": "創新的，革新的",
+    "example": "The company is known for its innovative approach to problem-solving.",
+    "options": ["創新的", "現代的", "先進的", "獨特的"],
+    "answer": "a"
+  },
+  {
+    "word": "collaborate",
+    "definition": "合作，協作",
+    "example": "Scientists from different countries collaborate on this research project.",
+    "options": ["合作", "競爭", "討論", "分享"],
+    "answer": "a"
+  },
+  {
+    "word": "sustainable",
+    "definition": "可持續的，能長期維持的",
+    "example": "We need to find sustainable solutions to environmental problems.",
+    "options": ["可持續的", "環保的", "經濟的", "有效的"],
+    "answer": "a"
+  },
+  {
+    "word": "empower",
+    "definition": "授權，使有能力，增強",
+    "example": "Education empowers people to make better decisions.",
+    "options": ["授權", "教育", "鼓勵", "支持"],
+    "answer": "a"
+  }
+] 

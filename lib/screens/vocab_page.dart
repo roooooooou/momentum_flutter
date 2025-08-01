@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event_model.dart';
+import '../models/vocab_content_model.dart';
+import '../services/vocab_service.dart';
+import '../services/vocab_analytics_service.dart';
+import '../services/calendar_service.dart';
+import '../models/enums.dart';
+import 'vocab_quiz_screen.dart';
 
 class VocabPage extends StatefulWidget {
   final EventModel event;
@@ -13,41 +20,485 @@ class VocabPage extends StatefulWidget {
   State<VocabPage> createState() => _VocabPageState();
 }
 
-class _VocabPageState extends State<VocabPage> {
+class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
+  List<VocabContent> _vocabList = [];
+  bool _isLoading = true;
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  final VocabService _vocabService = VocabService();
+  final VocabAnalyticsService _analyticsService = VocabAnalyticsService();
+  final CalendarService _calendarService = CalendarService.instance;
+  
+  // 数据收集相关
+  Map<int, DateTime> _cardStartTimes = {};
+  String? _currentUserId;
+  bool _isAppActive = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    _loadVocab();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // App进入后台或非活跃状态，停止计时并暂停事件
+      _isAppActive = false;
+      _recordCurrentCardDwellTime();
+      _pauseEvent(); // 暂停事件
+    } else if (state == AppLifecycleState.resumed) {
+      // App恢复活跃状态，重新开始计时
+      _isAppActive = true;
+      _cardStartTimes[_currentPage] = DateTime.now();
+      
+      // 如果事件是暂停状态，继续事件
+      if (widget.event.status == TaskStatus.paused) {
+        _continueEvent();
+      }
+    }
+  }
+
+  void _recordCurrentCardDwellTime() {
+    if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
+      final endTime = DateTime.now();
+      final startTime = _cardStartTimes[_currentPage]!;
+      final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
+      
+      _analyticsService.recordCardDwellTime(
+        uid: _currentUserId!,
+        eventId: widget.event.id,
+        cardIndex: _currentPage,
+        dwellTimeMs: dwellTimeMs,
+      );
+    }
+  }
+
+  Future<void> _pauseEvent() async {
+    if (_currentUserId != null) {
+      try {
+        await _calendarService.stopEvent(_currentUserId!, widget.event);
+        print('事件已暫停: ${widget.event.title}');
+      } catch (e) {
+        print('暫停事件失敗: $e');
+      }
+    }
+  }
+
+  Future<void> _continueEvent() async {
+    if (_currentUserId != null) {
+      try {
+        await _calendarService.continueEvent(_currentUserId!, widget.event);
+        print('事件已繼續: ${widget.event.title}');
+      } catch (e) {
+        print('繼續事件失敗: $e');
+      }
+    }
+  }
+
+  Future<void> _handleBackPress() async {
+    // 记录当前卡片的停留时间
+    _recordCurrentCardDwellTime();
+    
+    // 暂停事件
+    await _pauseEvent();
+    
+    // 显示确认对话框
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('離開學習'),
+          content: const Text('您確定要離開單字學習嗎？學習進度已保存，事件已暫停。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('確定'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+    
+    if (shouldExit && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _loadVocab() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 使用event中的dayNumber加载单词内容
+      final dayNumber = widget.event.dayNumber ?? 0;
+      final vocabList = await _vocabService.loadDailyVocab(dayNumber);
+      setState(() {
+        _vocabList = vocabList;
+        _isLoading = false;
+      });
+      
+      // 开始词汇学习会话数据收集
+      if (_currentUserId != null && vocabList.isNotEmpty) {
+        await _analyticsService.startVocabSession(
+          uid: _currentUserId!,
+          eventId: widget.event.id,
+          vocabList: vocabList,
+        );
+        // 记录第一张卡片的开始时间
+        _cardStartTimes[0] = DateTime.now();
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      // 显示错误提示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('載入單字失敗: $e')),
+        );
+      }
+    }
+  }
+
+  void _startQuiz() async {
+    // 记录最后一张卡片的停留时间
+    if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
+      final endTime = DateTime.now();
+      final startTime = _cardStartTimes[_currentPage]!;
+      final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
+      
+      await _analyticsService.recordCardDwellTime(
+        uid: _currentUserId!,
+        eventId: widget.event.id,
+        cardIndex: _currentPage,
+        dwellTimeMs: dwellTimeMs,
+      );
+    }
+    
+    // 开始测验数据收集
+    if (_currentUserId != null) {
+      await _analyticsService.startQuiz(
+        uid: _currentUserId!,
+        eventId: widget.event.id,
+      );
+    }
+    
+    // 从所有单词中随机选择5个生成测验题目
+    final quizQuestions = _vocabService.generateQuizQuestions(_vocabList);
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => VocabQuizScreen(
+          questions: quizQuestions,
+          event: widget.event,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('词汇学习 - ${widget.event.title}'),
+        title: Text('單字學習 - ${widget.event.title}'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => _handleBackPress(),
+        ),
       ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.book,
-              size: 64,
-              color: Colors.blue,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : _vocabList.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.book_outlined,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 16),
+                                              Text(
+                          '暫無單字內容',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey,
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    // 页面指示器
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          _vocabList.length,
+                          (index) => Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _currentPage == index
+                                  ? Colors.blue
+                                  : Colors.grey.shade300,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // 页面计数器
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${_currentPage + 1} / ${_vocabList.length}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                                                  Text(
+                          '左右滑動切換',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        ],
+                      ),
+                    ),
+                    
+                    // 单词卡片内容
+                    Expanded(
+                      child: PageView.builder(
+                        controller: _pageController,
+                        onPageChanged: (index) {
+                          // 记录前一张卡片的停留时间
+                          if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
+                            final endTime = DateTime.now();
+                            final startTime = _cardStartTimes[_currentPage]!;
+                            final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
+                            
+                            _analyticsService.recordCardDwellTime(
+                              uid: _currentUserId!,
+                              eventId: widget.event.id,
+                              cardIndex: _currentPage,
+                              dwellTimeMs: dwellTimeMs,
+                            );
+                          }
+                          
+                          setState(() {
+                            _currentPage = index;
+                          });
+                          
+                          // 记录新卡片的开始时间
+                          _cardStartTimes[index] = DateTime.now();
+                        },
+                        itemCount: _vocabList.length,
+                        itemBuilder: (context, index) {
+                          final vocab = _vocabList[index];
+                          return _buildVocabCard(vocab, index);
+                        },
+                      ),
+                    ),
+                    
+                    // Start Quiz 按钮
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        onPressed: _vocabList.isNotEmpty ? _startQuiz : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          '開始測驗',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildVocabCard(VocabContent vocab, int index) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Card(
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.blue.shade50,
+                Colors.white,
+                Colors.indigo.shade50,
+              ],
             ),
-            SizedBox(height: 16),
-            Text(
-              '词汇学习页面',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 单词
+                Center(
+                  child: Text(
+                    vocab.word,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // 定义
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '定義：',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        vocab.definition,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.6,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // 例句
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.indigo.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '例句：',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        vocab.example,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.6,
+                          color: Colors.black87,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const Spacer(),
+                
+                // 底部装饰
+                Container(
+                  width: double.infinity,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.blue.shade300,
+                        Colors.indigo.shade300,
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 8),
-            Text(
-              '内容开发中...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
