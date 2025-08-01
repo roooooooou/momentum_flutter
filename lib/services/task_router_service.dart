@@ -35,25 +35,35 @@ class TaskRouterService {
   void navigateToTaskPage(BuildContext context, EventModel event) {
     print('TaskRouterService: Navigating to task page for event: ${event.title}');
     
+    // 检查context是否有效
+    if (!context.mounted) {
+      print('TaskRouterService: Context is not mounted, skipping navigation');
+      return;
+    }
+    
     final taskType = _getTaskType(event.title);
     
-    switch (taskType) {
-      case TaskType.vocab:
-        print('TaskRouterService: Navigating to VocabPage');
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => VocabPage(event: event),
-          ),
-        );
-        break;
-      case TaskType.reading:
-        print('TaskRouterService: Navigating to ReadingPage');
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ReadingPage(event: event),
-          ),
-        );
-        break;
+    try {
+      switch (taskType) {
+        case TaskType.vocab:
+          print('TaskRouterService: Navigating to VocabPage');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => VocabPage(event: event),
+            ),
+          );
+          break;
+        case TaskType.reading:
+          print('TaskRouterService: Navigating to ReadingPage');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ReadingPage(event: event),
+            ),
+          );
+          break;
+      }
+    } catch (e) {
+      print('TaskRouterService: Navigation error: $e');
     }
   }
 }

@@ -359,28 +359,6 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
               ),
             ),
             
-            const SizedBox(height: 48),
-            
-            // 按钮
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _restartQuiz,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  '重新測驗',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-            
             const SizedBox(height: 16),
             
             SizedBox(

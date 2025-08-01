@@ -29,17 +29,25 @@ class ReadingAnalyticsService {
     final sessionId = 'reading_${eventId}_${now.millisecondsSinceEpoch}';
     final ref = await _getReadingDataRef(uid, eventId);
     
+    // 检查是否已有会话数据
+    final existingDoc = await ref.get();
+    Map<String, dynamic> existingData = {};
+    if (existingDoc.exists) {
+      existingData = existingDoc.data() as Map<String, dynamic>;
+    }
+    
     await ref.set({
       'eventId': eventId,
       'sessionId': sessionId,
-      'startTime': Timestamp.fromDate(now),
+      'startTime': existingData['startTime'] ?? Timestamp.fromDate(now),
       'endTime': null,
       'totalCards': contents.length,
-      'cardDwellTimes': Map.fromIterables(
+      'cardDwellTimes': existingData['cardDwellTimes'] ?? Map.fromIterables(
         List.generate(contents.length, (i) => i.toString()),
         List.filled(contents.length, 0), // 初始停留时间为0
       ),
-      'totalReadingTime': 0,
+      'totalReadingTime': existingData['totalReadingTime'] ?? 0,
+      'leaveCount': existingData['leaveCount'] ?? 0, // 离开次数
       'quizTime': 0,
       'quizCorrectAnswers': 0,
       'quizTotalQuestions': contents.length,
@@ -65,7 +73,25 @@ class ReadingAnalyticsService {
         'updatedAt': Timestamp.fromDate(DateTime.now()),
       });
     } catch (e) {
-      print('记录卡片停留时间失败: $e');
+      print('記錄卡片停留時間失敗: $e');
+    }
+  }
+
+  /// 记录离开学习页面
+  Future<void> recordLeaveSession({
+    required String uid,
+    required String eventId,
+  }) async {
+    try {
+      final ref = await _getReadingDataRef(uid, eventId);
+      
+      // 增加离开次数
+      await ref.update({
+        'leaveCount': FieldValue.increment(1),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (e) {
+      print('記錄離開學習頁面失敗: $e');
     }
   }
 

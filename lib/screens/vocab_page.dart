@@ -57,6 +57,15 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
       // App进入后台或非活跃状态，停止计时并暂停事件
       _isAppActive = false;
       _recordCurrentCardDwellTime();
+      
+      // 记录离开学习页面
+      if (_currentUserId != null) {
+        _analyticsService.recordLeaveSession(
+          uid: _currentUserId!,
+          eventId: widget.event.id,
+        );
+      }
+      
       _pauseEvent(); // 暂停事件
     } else if (state == AppLifecycleState.resumed) {
       // App恢复活跃状态，重新开始计时
@@ -108,12 +117,6 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleBackPress() async {
-    // 记录当前卡片的停留时间
-    _recordCurrentCardDwellTime();
-    
-    // 暂停事件
-    await _pauseEvent();
-    
     // 显示确认对话框
     final shouldExit = await showDialog<bool>(
       context: context,
@@ -136,6 +139,20 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
     ) ?? false;
     
     if (shouldExit && mounted) {
+      // 只有在用户确认离开时才记录数据
+      _recordCurrentCardDwellTime();
+      
+      // 记录离开学习页面
+      if (_currentUserId != null) {
+        await _analyticsService.recordLeaveSession(
+          uid: _currentUserId!,
+          eventId: widget.event.id,
+        );
+      }
+      
+      // 暂停事件
+      await _pauseEvent();
+      
       Navigator.of(context).pop();
     }
   }

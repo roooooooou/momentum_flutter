@@ -13,6 +13,8 @@ import '../services/analytics_service.dart';
 import '../services/data_path_service.dart';
 import '../services/task_router_service.dart';
 import '../navigation_service.dart';
+import '../screens/vocab_page.dart';
+import '../screens/reading_page.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.taskTitle, this.taskDescription});
@@ -344,8 +346,21 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    // 获取用户ID，在返回主页面后使用
+    // 获取用户ID和事件数据，在返回主页面后使用
     final uid = context.read<AuthService>().currentUser?.uid;
+    EventModel? eventData;
+
+    // 预先获取事件数据
+    if (uid != null) {
+      try {
+        final doc = await DataPathService.instance.getUserEventDoc(uid, chat.eventId).then((ref) => ref.get());
+        if (doc.exists) {
+          eventData = EventModel.fromDoc(doc);
+        }
+      } catch (e) {
+        print('Error fetching event data: $e');
+      }
+    }
 
     // 立即返回主页面，不等待任何异步操作
     if (mounted) {
@@ -353,11 +368,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     // 在后台执行所有异步操作，不阻塞UI
-    _executeBackgroundTasks(chat, result, uid);
+    _executeBackgroundTasks(chat, result, uid, eventData);
   }
 
   /// 在后台执行任务启动相关的异步操作
-  Future<void> _executeBackgroundTasks(ChatProvider chat, ChatResult result, String? uid) async {
+  Future<void> _executeBackgroundTasks(ChatProvider chat, ChatResult result, String? uid, EventModel? eventData) async {
     try {
       // 记录聊天结束
       await chat.endChatSession(
@@ -373,45 +388,62 @@ class _ChatScreenState extends State<ChatScreen> {
 
       print('Task started successfully: ${chat.taskTitle}');
       
-      // 获取事件数据用于页面跳转
-      if (uid != null) {
-        final doc = await DataPathService.instance.getUserEventDoc(uid, chat.eventId).then((ref) => ref.get());
-        if (doc.exists) {
-          final event = EventModel.fromDoc(doc);
-          
-          // 使用NavigationService跳转到相应的任务页面
-          // 延迟一点时间确保主页面已经加载完成
-          Future.delayed(const Duration(milliseconds: 1000), () {
-            final context = NavigationService.context;
-            if (context != null) {
-              try {
-                TaskRouterService().navigateToTaskPage(context, event);
-              } catch (e) {
-                print('Navigation error: $e');
-              }
-            }
-          });
-        }
+      // 使用预先获取的事件数据进行页面跳转
+      if (eventData != null) {
+        // 延迟一点时间确保主页面已经加载完成
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          _safeNavigateToTaskPage(eventData);
+        });
       }
     } catch (e) {
       print('Error in background task execution: $e');
       // 错误处理：在主页面显示错误消息
       Future.delayed(const Duration(milliseconds: 1000), () {
-        final context = NavigationService.context;
-        if (context != null) {
-          try {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('開始任務時發生錯誤: $e'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          } catch (e) {
-            print('Error showing snackbar: $e');
-          }
-        }
+        _showErrorSnackBar('開始任務時發生錯誤: $e');
       });
     }
+  }
+
+  /// 安全地跳转到任务页面
+  void _safeNavigateToTaskPage(EventModel event) {
+    final taskType = _getTaskType(event.title);
+    Widget targetPage;
+    
+    switch (taskType) {
+      case TaskType.vocab:
+        targetPage = VocabPage(event: event);
+        break;
+      case TaskType.reading:
+        targetPage = ReadingPage(event: event);
+        break;
+    }
+    
+    final success = NavigationService.safeNavigateTo(targetPage);
+    if (!success) {
+      print('Failed to navigate to task page: ${event.title}');
+    }
+  }
+
+  /// 安全地显示错误消息
+  void _showErrorSnackBar(String message) {
+    final success = NavigationService.safeShowSnackBar(message);
+    if (!success) {
+      print('Failed to show error snackbar: $message');
+    }
+  }
+
+  /// 获取任务类型（复制自TaskRouterService）
+  TaskType _getTaskType(String taskTitle) {
+    final title = taskTitle.toLowerCase();
+    
+    if (title.contains('vocab')) {
+      return TaskType.vocab;
+    }
+    
+    if (title.contains('reading')) {
+      return TaskType.reading;
+    }
+    
+    return TaskType.reading;
   }
 }
