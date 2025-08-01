@@ -463,23 +463,29 @@ class ExperimentEventHelper {
     return '${eventId}_$formattedTime';
   }
 
-  /// 記錄通知發送成功（實驗數據收集）
-  static Future<void> recordNotificationDelivered({
+  /// 記錄通知排程（實驗數據收集）
+  static Future<void> recordNotificationScheduled({
     required String uid,
     required String eventId,
     required String notifId,
     DateTime? scheduledTime,
+    DateTime? eventDate, // 🎯 新增：事件发生的日期
   }) async {
     try {
-      final now = DateTime.now();
-      
-      // 使用 DataPathService 获取正确的通知文档路径
-      final ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+      // 🎯 修复：根据事件发生的日期获取正确的通知文档路径
+      DocumentReference ref;
+      if (eventDate != null) {
+        ref = await DataPathService.instance.getDateEventNotificationDoc(uid, eventId, notifId, eventDate);
+        debugPrint('🎯 使用事件日期获取通知文档路径: eventDate=$eventDate');
+      } else {
+        ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+        debugPrint('🎯 使用当前日期获取通知文档路径');
+      }
 
       await ref.set({
-        'delivered_time': Timestamp.fromDate(now),
+        'delivered_time': null, // 通知还未发送
         'opened_time': null,
-        'notification_scheduled_time': scheduledTime != null ? Timestamp.fromDate(scheduledTime) : null, // 新增字段
+        'notification_scheduled_time': scheduledTime != null ? Timestamp.fromDate(scheduledTime) : null,
         'result': NotificationResult.dismiss.value,
         'snooze_minutes': null,
         'latency_sec': null,
@@ -488,7 +494,40 @@ class ExperimentEventHelper {
       });
       
       // 🎯 調試：確認記錄成功
-      debugPrint('通知發送記錄創建成功: notifId=$notifId, scheduledTime=$scheduledTime');
+      debugPrint('通知排程記錄創建成功: notifId=$notifId, scheduledTime=$scheduledTime, eventDate=$eventDate');
+    } catch (e) {
+      // 🎯 調試：輸出錯誤信息
+      debugPrint('記錄通知排程失敗: notifId=$notifId, error=$e');
+      rethrow;
+    }
+  }
+
+  /// 記錄通知發送成功（實驗數據收集）
+  static Future<void> recordNotificationDelivered({
+    required String uid,
+    required String eventId,
+    required String notifId,
+    DateTime? eventDate, // 🎯 新增：事件发生的日期
+  }) async {
+    try {
+      final now = DateTime.now();
+      
+      // 🎯 修复：根据事件发生的日期获取正确的通知文档路径
+      DocumentReference ref;
+      if (eventDate != null) {
+        ref = await DataPathService.instance.getDateEventNotificationDoc(uid, eventId, notifId, eventDate);
+        debugPrint('🎯 使用事件日期获取通知文档路径: eventDate=$eventDate');
+      } else {
+        ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+        debugPrint('🎯 使用当前日期获取通知文档路径');
+      }
+
+      await ref.update({
+        'delivered_time': Timestamp.fromDate(now),
+      });
+      
+      // 🎯 調試：確認記錄成功
+      debugPrint('通知發送記錄更新成功: notifId=$notifId, deliveredTime=$now, eventDate=$eventDate');
     } catch (e) {
       // 🎯 調試：輸出錯誤信息
       debugPrint('記錄通知發送失敗: notifId=$notifId, error=$e');
@@ -501,11 +540,17 @@ class ExperimentEventHelper {
     required String uid,
     required String eventId,
     required String notifId,
+    DateTime? eventDate, // 🎯 新增：事件发生的日期
   }) async {
     final now = DateTime.now();
     
-    // 使用 DataPathService 获取正确的通知文档路径
-    final ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+    // 🎯 修复：根据事件发生的日期获取正确的通知文档路径
+    DocumentReference ref;
+    if (eventDate != null) {
+      ref = await DataPathService.instance.getDateEventNotificationDoc(uid, eventId, notifId, eventDate);
+    } else {
+      ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+    }
 
     try {
       // 獲取已存在的數據來計算延遲
@@ -549,9 +594,15 @@ class ExperimentEventHelper {
     required String notifId,
     required NotificationResult result,
     int? snoozeMinutes,
+    DateTime? eventDate, // 🎯 新增：事件发生的日期
   }) async {
-    // 使用 DataPathService 获取正确的通知文档路径
-    final ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+    // 🎯 修复：根据事件发生的日期获取正确的通知文档路径
+    DocumentReference ref;
+    if (eventDate != null) {
+      ref = await DataPathService.instance.getDateEventNotificationDoc(uid, eventId, notifId, eventDate);
+    } else {
+      ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
+    }
 
     try {
       final updateData = <String, dynamic>{

@@ -31,6 +31,18 @@ void _handleTap(String? payload) {
   NotificationHandler.instance.handleNotificationTap(payload);
 }
 
+// ⬇️ 通知發送處理函式
+void _handleNotificationDelivered(NotificationResponse notification) {
+  if (kDebugMode) {
+    print('通知已發送: ${notification.payload}');
+  }
+  
+  // 記錄通知發送時間
+  if (notification.payload != null) {
+    NotificationService.instance.recordNotificationDelivered(notification.payload!);
+  }
+}
+
 class NotificationService {
   NotificationService._();
   static final instance = NotificationService._();
@@ -333,13 +345,20 @@ class NotificationService {
         notificationTitle = customTitle;
         notificationBody = customBody;
       } else {
-        // 检查用户分组以确定通知内容
+        // 🎯 修复：根据事件发生的日期检查用户分组以确定通知内容
         final currentUser = AuthService.instance.currentUser;
         bool isControlGroup = false;
         
         if (currentUser != null) {
           try {
-            isControlGroup = await ExperimentConfigService.instance.isControlGroup(currentUser.uid);
+            // 使用事件发生的日期来确定组别，而不是当前日期
+            final eventDate = eventStartTime.toLocal();
+            final groupName = await ExperimentConfigService.instance.getDateGroup(currentUser.uid, eventDate);
+            isControlGroup = groupName == 'control';
+            
+            if (kDebugMode) {
+              print('🎯 事件日期 ${eventDate.toString().substring(0, 10)} 的组别: $groupName');
+            }
           } catch (e) {
             if (kDebugMode) {
               print('检查用户分组失败，使用默认实验组通知: $e');
@@ -404,12 +423,15 @@ class NotificationService {
           // 其他自定义通知不记录
           
           if (notifId != null && eventId != null) {
-            final scheduleTime = DateTime.now(); // 記錄排程時間
-            await ExperimentEventHelper.recordNotificationDelivered(
+            final eventDate = eventStartTime.toLocal(); // 🎯 获取事件发生的日期
+            
+            // 🎯 修复：记录通知排程信息，但不记录delivered_time
+            await ExperimentEventHelper.recordNotificationScheduled(
               uid: currentUser.uid,
               eventId: eventId,
               notifId: notifId,
-              scheduledTime: scheduleTime, // 傳遞排程時間
+              scheduledTime: triggerTime, // 傳遞實際排程時間（通知應該觸發的時間）
+              eventDate: eventDate, // 🎯 傳遞事件发生的日期
             );
           }
         }
@@ -583,7 +605,14 @@ class NotificationService {
         print('檢查任務範圍: ${startOfDay.toUtc()} 到 ${endOfDay.toUtc()}');
       }
 
-      final eventsCol = await DataPathService.instance.getUserEventsCollection(uid);
+      // 🎯 修复：根据指定日期获取正确的组别和事件集合
+      final groupName = await ExperimentConfigService.instance.getDateGroup(uid, date);
+      final eventsCol = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+      
+      if (kDebugMode) {
+        print('🎯 检查日期 ${date.toString().substring(0, 10)} 的组别: $groupName');
+      }
+
       final snapshot = await eventsCol
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay.toUtc()))
           .where('scheduledStartTime', isLessThan: Timestamp.fromDate(endOfDay.toUtc()))
@@ -593,38 +622,27 @@ class NotificationService {
         print('找到 ${snapshot.docs.length} 个事件');
       }
 
-      // 檢查是否有活躍事件
-      bool hasActiveTasks = false;
-      int activeCount = 0;
-      int inactiveCount = 0;
+      // 檢查是否有事件
+      bool hasTasks = false;
+      int taskCount = 0;
 
       for (final doc in snapshot.docs) {
         final eventData = doc.data() as Map<String, dynamic>;
-        final lifecycleStatus = eventData['lifecycleStatus'] as int?;
         final title = eventData['title'] as String? ?? 'Unknown';
         
-        // 如果沒有lifecycleStatus字段（舊數據）或者是active狀態，都算作有任務
-        final isActive = lifecycleStatus == null || lifecycleStatus == 0; // 0 = EventLifecycleStatus.active.value
-        
-        if (isActive) {
-          activeCount++;
-          hasActiveTasks = true;
-          if (kDebugMode) {
-            print('✅ 活跃事件: $title (lifecycleStatus: $lifecycleStatus)');
-          }
-        } else {
-          inactiveCount++;
-          if (kDebugMode) {
-            print('❌ 非活跃事件: $title (lifecycleStatus: $lifecycleStatus)');
-          }
+        // 简化逻辑：只要找到事件就算有任务
+        taskCount++;
+        hasTasks = true;
+        if (kDebugMode) {
+          print('✅ 找到事件: $title');
         }
       }
 
       if (kDebugMode) {
-        print('檢查日期 ${date.toString().substring(0, 10)} 是否有任務: $hasActiveTasks (活跃: $activeCount, 非活跃: $inactiveCount)');
+        print('檢查日期 ${date.toString().substring(0, 10)} 是否有任務: $hasTasks (事件数量: $taskCount)');
       }
 
-      return hasActiveTasks;
+      return hasTasks;
     } catch (e) {
       if (kDebugMode) {
         print('檢查任務時發生錯誤: $e');
@@ -655,6 +673,49 @@ class NotificationService {
       final hasTasksToday = await _checkIfHasTasksToday();
       print('今日是否有任务: $hasTasksToday');
       print('=== 测试完成 ===');
+    }
+  }
+
+  /// 記錄通知發送時間
+  Future<void> recordNotificationDelivered(String payload) async {
+    try {
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser == null) return;
+
+      String? notifId;
+      String? eventId;
+      
+      if (payload.startsWith('task_completion_')) {
+        // 完成提醒通知
+        eventId = payload.replaceFirst('task_completion_', '');
+        notifId = '$eventId-complete';
+      } else {
+        // 普通事件通知（开始前通知）
+        eventId = payload;
+        notifId = payload; // 使用payload作为notifId
+      }
+      
+      if (notifId != null && eventId != null) {
+        // 获取事件信息来确定事件发生的日期
+        final eventDoc = await DataPathService.instance.getUserEventDoc(currentUser.uid, eventId);
+        final eventSnap = await eventDoc.get();
+        
+        if (eventSnap.exists) {
+          final eventData = eventSnap.data() as Map<String, dynamic>;
+          final eventDate = (eventData['date'] as Timestamp?)?.toDate();
+          
+          await ExperimentEventHelper.recordNotificationDelivered(
+            uid: currentUser.uid,
+            eventId: eventId,
+            notifId: notifId,
+            eventDate: eventDate,
+          );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('記錄通知發送時間失敗: $e');
+      }
     }
   }
 }
@@ -713,7 +774,7 @@ class NotificationScheduler {
       // 取消現有的所有通知
       await _cancelEventNotifications(event.id, event.notifIds);
       // 清空通知資訊
-      await _updateEventNotificationInfo(event.id, []);
+      await _updateEventNotificationInfo(event.id, [], event.date);
       if (kDebugMode) {
         print('取消已開始/已完成事件的所有通知: ${event.title}');
       }
@@ -757,7 +818,7 @@ class NotificationScheduler {
       
       if (notifIds.isNotEmpty) {
         // 更新事件的通知資訊
-        await _updateEventNotificationInfo(event.id, notifIds);
+        await _updateEventNotificationInfo(event.id, notifIds, event.date);
         if (kDebugMode) {
           print('新增事件雙重通知排程: ${event.title}, notifIds: $notifIds');
         }
@@ -806,7 +867,7 @@ class NotificationScheduler {
       }
       
       if (notifIds.isNotEmpty) {
-        await _updateEventNotificationInfo(event.id, notifIds);
+        await _updateEventNotificationInfo(event.id, notifIds, event.date);
         if (kDebugMode) {
           print('重新排程已修改事件的雙重通知: ${event.title}, notifIds: $notifIds');
         }
@@ -848,6 +909,7 @@ class NotificationScheduler {
   Future<void> _updateEventNotificationInfo(
     String eventId, 
     List<String> notifIds,
+    DateTime? eventDate, // 🎯 新增：事件发生的日期
   ) async {
     try {
       // 從 AuthService 獲取當前用戶 ID
@@ -861,8 +923,13 @@ class NotificationScheduler {
       
       final uid = currentUser.uid;
       
-      // 使用 DataPathService 获取正确的事件文档引用
-      final doc = await DataPathService.instance.getUserEventDoc(uid, eventId);
+      // 🎯 修复：根据事件发生的日期获取正确的事件文档引用
+      DocumentReference doc;
+      if (eventDate != null) {
+        doc = await DataPathService.instance.getDateEventDoc(uid, eventId, eventDate);
+      } else {
+        doc = await DataPathService.instance.getUserEventDoc(uid, eventId);
+      }
 
       final updateData = <String, dynamic>{
         'notifIds': notifIds,
@@ -872,7 +939,7 @@ class NotificationScheduler {
       await doc.update(updateData);
       
       if (kDebugMode) {
-        print('更新事件通知資訊: eventId=$eventId, notifIds=$notifIds');
+        print('更新事件通知資訊: eventId=$eventId, notifIds=$notifIds, eventDate=$eventDate');
       }
     } catch (e) {
       if (kDebugMode) {

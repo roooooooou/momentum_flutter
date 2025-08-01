@@ -129,6 +129,7 @@ class NotificationHandler {
             uid: currentUser.uid,
             eventId: event.id,
             notifId: notifId,
+            eventDate: event.date, // 🎯 传递事件发生的日期
           );
         }
 
@@ -142,6 +143,7 @@ class NotificationHandler {
               eventId: event.id,
               notifId: notifId,
               result: NotificationResult.dismiss, // 标记为已查看但未采取行动
+              eventDate: event.date, // 🎯 传递事件发生的日期
             );
           }
           return;

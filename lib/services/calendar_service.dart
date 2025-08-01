@@ -198,13 +198,13 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// 強制完整同步未來一週事件（手動觸發）
-  /// 注意：同步一週事件但UI只顯示當天
+  /// 強制完整同步當天事件（手動觸發）
+  /// 注意：同步當天事件但UI只顯示當天
   Future<void> forceSyncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步
     
     if (kDebugMode) {
-      print('手動觸發完整同步（未來一週事件）');
+      print('手動觸發完整同步（當天事件）');
     }
     
     try {
@@ -216,15 +216,15 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// App Resume 同步（同步未來一週事件）
-  /// 注意：同步一週事件但UI只顯示當天
+  /// App Resume 同步（同步當天事件）
+  /// 注意：同步當天事件但UI只顯示當天
   Future<void> resumeSync(String uid) async {
     if (kDebugMode) {
-      print('App Resume: 開始同步（未來一週事件）');
+      print('App Resume: 開始同步（當天事件）');
     }
     
     try {
-      // 直接使用 syncToday，現在同步未來一週事件
+      // 直接使用 syncToday，現在同步當天事件
       await syncToday(uid);
     } catch (e) {
       // 確保在錯誤時也重置同步狀態
@@ -236,12 +236,12 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// Syncs next week's events from *primary* calendar into Firestore `/events`.
+  /// Syncs today's events from *primary* calendar into Firestore `/events`.
   Future<void> syncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步
     
     if (kDebugMode) {
-      print('syncToday: 開始同步未來一週事件，UID: $uid');
+      print('syncToday: 開始同步當天事件，UID: $uid');
     }
     
     _setSyncingState(true);
@@ -249,10 +249,10 @@ class CalendarService extends ChangeNotifier {
       await _ensureReady();
       final now = DateTime.now();
       final start = DateTime(now.year, now.month, now.day).toUtc();
-      final end = start.add(const Duration(days: 7)); // 改為7天
+      final end = start.add(const Duration(days: 1)); // 只處理當天
 
       if (kDebugMode) {
-        print('syncToday: 查詢 Google Calendar 事件，時間範圍: $start 到 $end（未來7天）');
+        print('syncToday: 查詢 Google Calendar 事件，時間範圍: $start 到 $end（當天）');
       }
 
       // 查找名為 "experiment" 的日历
@@ -479,17 +479,11 @@ class CalendarService extends ChangeNotifier {
       if (activeEvents.isNotEmpty) {
         await _updateEventStatuses(uid, activeEvents, now);
         if (kDebugMode) {
-          print('syncToday: 更新了 ${activeEvents.length} 个活跃事件的状态（未来7天）');
+          print('syncToday: 更新了 ${activeEvents.length} 个活跃事件的状态（当天）');
         }
       }
 
-      // 7) 同步通知排程
-      if (activeEvents.isNotEmpty) {
-        await NotificationScheduler().sync(activeEvents);
-        if (kDebugMode) {
-          print('syncToday: 同步了 ${activeEvents.length} 个活跃事件的通知排程（未来7天）');
-        }
-      }
+      // 7) 通知排程已在用户初始化时完成，此处不再重复排定
       
       // 更新并储存lastSyncAt
       await _saveLastSyncAt(now);
@@ -531,11 +525,7 @@ class CalendarService extends ChangeNotifier {
     final originalEnd = (localData['scheduledEndTime'] as Timestamp).toDate();
     final originalEventId = localDoc.id;
     
-    // 取消原事件的通知
-    final notifIds = (localData['notifIds'] as List<dynamic>?)?.cast<String>() ?? [];
-    if (notifIds.isNotEmpty) {
-      await NotificationScheduler().cancelEventNotification(originalEventId, notifIds);
-    }
+    // 通知管理已在用户初始化时完成，此处不再处理
     
     // 生成移动记录的事件ID（原ID + _moved + 时间戳）
     final movedEventId = '${originalEventId}_moved_${now.millisecondsSinceEpoch}';
@@ -627,11 +617,7 @@ class CalendarService extends ChangeNotifier {
   ) async {
     final localData = localDoc.data() as Map<String, dynamic>;
     
-    // 取消事件的通知
-    final notifIds = (localData['notifIds'] as List<dynamic>?)?.cast<String>() ?? [];
-    if (notifIds.isNotEmpty) {
-      await NotificationScheduler().cancelEventNotification(localDoc.id, notifIds);
-    }
+    // 通知管理已在用户初始化时完成，此处不再处理
     
     // 标记为归档
     batch.update(localDoc.reference, {

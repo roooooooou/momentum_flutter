@@ -184,7 +184,13 @@ class ExperimentConfigService {
       // 使用台湾时区生成日期键
       final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       
-      return dateGroupings[dateKey] ?? 'experiment'; // 默认实验组
+      final group = dateGroupings[dateKey] ?? 'experiment'; // 默认实验组
+      
+      if (kDebugMode) {
+        print('🎯 ExperimentConfigService.getDateGroup: uid=$uid, date=$dateKey, group=$group');
+      }
+      
+      return group;
       
     } catch (e) {
       if (kDebugMode) {

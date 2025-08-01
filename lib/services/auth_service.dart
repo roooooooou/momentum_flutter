@@ -6,6 +6,7 @@ import '../services/analytics_service.dart';
 import '../services/experiment_config_service.dart';
 import '../services/data_path_service.dart';
 import '../services/notification_service.dart';
+import '../models/event_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/calendar/v3.dart' as cal;
 
@@ -324,6 +325,9 @@ class AuthService {
 
       // 🎯 新增：排定15天的daily report通知
       await _scheduleDailyReportNotificationsForNext15Days(uid);
+      
+      // 🎯 新增：排定15天的事件通知
+      await _scheduleEventNotificationsForNext15Days(uid);
 
     } catch (e) {
       if (kDebugMode) {
@@ -415,6 +419,63 @@ class AuthService {
     } catch (e) {
       if (kDebugMode) {
         print('🎯 排定单日通知失败: $e');
+      }
+    }
+  }
+
+  /// 🎯 新增：为未来15天排定事件通知
+  Future<void> _scheduleEventNotificationsForNext15Days(String uid) async {
+    try {
+      if (kDebugMode) {
+        print('🎯 开始排定未来15天的事件通知: $uid');
+      }
+
+      final now = DateTime.now();
+      
+      // 为未来15天的每一天获取事件并排定通知
+      for (int i = 0; i < 15; i++) {
+        final targetDate = now.add(Duration(days: i));
+        
+        // 获取该日期的组别
+        final groupName = await ExperimentConfigService.instance.getDateGroup(uid, targetDate);
+        final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+        
+        // 查询该日期的事件
+        final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
+        final endOfDay = startOfDay.add(const Duration(days: 1));
+        
+        final query = eventsCollection
+            .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('date', isLessThan: Timestamp.fromDate(endOfDay));
+        
+        final snapshot = await query.get();
+        
+        if (snapshot.docs.isNotEmpty) {
+          // 将文档转换为EventModel
+          final events = snapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return EventModel.fromDoc(doc);
+          }).toList();
+          
+          // 使用NotificationScheduler排定通知
+          await NotificationScheduler().sync(events);
+          
+          if (kDebugMode) {
+            print('🎯 已为 ${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')} 排定 ${events.length} 个事件的通知');
+          }
+        } else {
+          if (kDebugMode) {
+            print('🎯 ${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')} 没有活跃事件，跳过通知排定');
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('🎯 未来15天的事件通知排定完成');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 排定事件通知失败: $e');
       }
     }
   }
