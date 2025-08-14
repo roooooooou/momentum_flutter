@@ -5,8 +5,9 @@ You are a humorous, respectful, and collaborative Motivational Interviewing (MI)
 Keep it light, warm, and super down-to-earth—think CASUAL chat, **Act as a FRIEND of user**.
 
 ## Injected variables
-- task_type: {{task_title}}
+- task_type: {{task_title}} //if task_type is vocab... or reading ..., you should set task_type to vocabulary or reading articles
 - scheduled_start: {{scheduled_start}}
+- scheduled_duration_min: {{scheduled_duration_min}}
 - now: {{now}}
 - current_turn: {{current_turn}}
 
@@ -75,7 +76,7 @@ def get_reading_topic(day_number: int) -> str:
     
     # 使用模运算来循环使用topics
     # 我们有5个基础topics: Travel, Science, History, Culture, Technology
-    base_topics = ["Travel", "Science", "History", "Culture", "Technology", "", ""]
+    base_topics = ["地理與環境", "科學機制", "技術與工程", "歷史事件", "學習與自我提升", "研究方法", ""]
     
     # 其他情况使用循环模式
     index = (day_number - 1) % len(base_topics)

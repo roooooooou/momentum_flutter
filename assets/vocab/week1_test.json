@@ -1,0 +1,496 @@
+{
+  "meta": {
+    "week": 1,
+    "items": 30,
+    "sampling_buckets": {
+      "D1": 9,
+      "D2": 7,
+      "D3": 7,
+      "D4": 7
+    },
+    "selection_seed": 20250814,
+    "sentence_policy": "paraphrased_or_new"
+  },
+  "items": [
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "discomfit",
+        "extirpate",
+        "excoriate",
+        "prevaricate"
+      ],
+      "answer_index": 3,
+      "answer_word": "prevaricate",
+      "part_of_speech": "verb",
+      "en_definition": "to speak or act in an evasive way",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 1
+    },
+    {
+      "sentence": "Only a handful of specialists grasped the paper's _____ logic by the final slide.",
+      "options": [
+        "peripatetic",
+        "polemical",
+        "apocryphal",
+        "abstruse"
+      ],
+      "answer_index": 3,
+      "answer_word": "abstruse",
+      "part_of_speech": "adj",
+      "en_definition": "difficult to understand; obscure",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 2
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "phlegmatic",
+        "jejune",
+        "abstruse",
+        "obsequious"
+      ],
+      "answer_index": 0,
+      "answer_word": "phlegmatic",
+      "part_of_speech": "adj",
+      "en_definition": "calm, unemotional, and hard to rouse",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 3
+    },
+    {
+      "sentence": "The deadline felt _____; no petition could push it back any further.",
+      "options": [
+        "sagacious",
+        "lachrymose",
+        "anodyne",
+        "recalcitrant"
+      ],
+      "answer_index": 3,
+      "answer_word": "recalcitrant",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly uncooperative",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 4
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "pugnacious",
+        "ebullient",
+        "desultory",
+        "redolent"
+      ],
+      "answer_index": 1,
+      "answer_word": "ebullient",
+      "part_of_speech": "adj",
+      "en_definition": "cheerful and full of energy",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 5
+    },
+    {
+      "sentence": "He is an _____ night‑reader who never goes to bed before two.",
+      "options": [
+        "peripatetic",
+        "abstruse",
+        "lugubrious",
+        "ribald"
+      ],
+      "answer_index": 0,
+      "answer_word": "peripatetic",
+      "part_of_speech": "adj",
+      "en_definition": "traveling from place to place",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 6
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "pique",
+        "enjoin",
+        "cosset",
+        "enervate"
+      ],
+      "answer_index": 1,
+      "answer_word": "enjoin",
+      "part_of_speech": "verb",
+      "en_definition": "to direct or prohibit by authoritative order",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 7
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "obdurate",
+        "pellucid",
+        "apocryphal",
+        "contumacious"
+      ],
+      "answer_index": 2,
+      "answer_word": "apocryphal",
+      "part_of_speech": "adj",
+      "en_definition": "of doubtful authenticity",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 8
+    },
+    {
+      "sentence": "The issue resurfaced in a context that made it plainly _____.",
+      "options": [
+        "abstruse",
+        "perspicacious",
+        "jejune",
+        "chary"
+      ],
+      "answer_index": 3,
+      "answer_word": "chary",
+      "part_of_speech": "adj",
+      "en_definition": "cautiously or suspiciously reluctant",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 9
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "intransigent",
+        "complaisant",
+        "ersatz",
+        "bilious"
+      ],
+      "answer_index": 2,
+      "answer_word": "ersatz",
+      "part_of_speech": "adj",
+      "en_definition": "artificial and inferior substitute",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 10
+    },
+    {
+      "sentence": "His emails grew _____ as the release date slipped again.",
+      "options": [
+        "abstruse",
+        "quixotic",
+        "garrulous",
+        "sagacious"
+      ],
+      "answer_index": 2,
+      "answer_word": "garrulous",
+      "part_of_speech": "adj",
+      "en_definition": "excessively talkative",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 11
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "pellucid",
+        "jejune",
+        "bilious",
+        "inexorable"
+      ],
+      "answer_index": 2,
+      "answer_word": "bilious",
+      "part_of_speech": "adj",
+      "en_definition": "irritable; nauseated",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 12
+    },
+    {
+      "sentence": "Only a handful of specialists grasped the paper's _____ logic by the final slide.",
+      "options": [
+        "ebullient",
+        "recalcitrant",
+        "prolix",
+        "recondite"
+      ],
+      "answer_index": 3,
+      "answer_word": "recondite",
+      "part_of_speech": "adj",
+      "en_definition": "little known; abstruse",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 13
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "perspicacious",
+        "noisome",
+        "recalcitrant",
+        "churlish"
+      ],
+      "answer_index": 3,
+      "answer_word": "churlish",
+      "part_of_speech": "adj",
+      "en_definition": "rude in a mean-spirited way",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 14
+    },
+    {
+      "sentence": "The film's ending left her unexpectedly _____ on the train ride back.",
+      "options": [
+        "obdurate",
+        "inchoate",
+        "inveterate",
+        "lugubrious"
+      ],
+      "answer_index": 3,
+      "answer_word": "lugubrious",
+      "part_of_speech": "adj",
+      "en_definition": "looking or sounding dismal and gloomy",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 15
+    },
+    {
+      "sentence": "Only a _____ observer noticed the pattern the first time.",
+      "options": [
+        "perspicacious",
+        "profligate",
+        "redolent",
+        "complaisant"
+      ],
+      "answer_index": 0,
+      "answer_word": "perspicacious",
+      "part_of_speech": "adj",
+      "en_definition": "having keen insight and understanding",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 16
+    },
+    {
+      "sentence": "A single _____ donation kept the after‑school program afloat for another year.",
+      "options": [
+        "prolix",
+        "obstreperous",
+        "anodyne",
+        "profligate"
+      ],
+      "answer_index": 3,
+      "answer_word": "profligate",
+      "part_of_speech": "adj",
+      "en_definition": "recklessly extravagant or wasteful",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 17
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "anodyne",
+        "desultory",
+        "ebullient",
+        "complaisant"
+      ],
+      "answer_index": 1,
+      "answer_word": "desultory",
+      "part_of_speech": "adj",
+      "en_definition": "lacking a plan, purpose, or enthusiasm",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 18
+    },
+    {
+      "sentence": "The task force aims to _____ the invasive beetles before spring.",
+      "options": [
+        "dissemble",
+        "discomfit",
+        "prevaricate",
+        "extirpate"
+      ],
+      "answer_index": 3,
+      "answer_word": "extirpate",
+      "part_of_speech": "verb",
+      "en_definition": "to root out and destroy completely",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 19
+    },
+    {
+      "sentence": "Despite mounting evidence, his position remained _____ throughout the hearings.",
+      "options": [
+        "noisome",
+        "inexorable",
+        "prolix",
+        "intransigent"
+      ],
+      "answer_index": 3,
+      "answer_word": "intransigent",
+      "part_of_speech": "adj",
+      "en_definition": "unwilling to change one's views",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 20
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "pugnacious",
+        "ingenuous",
+        "implacable",
+        "recondite"
+      ],
+      "answer_index": 1,
+      "answer_word": "ingenuous",
+      "part_of_speech": "adj",
+      "en_definition": "innocent and unsuspecting",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 21
+    },
+    {
+      "sentence": "Her _____ schedule had her presenting in three cities in one week.",
+      "options": [
+        "contumacious",
+        "phlegmatic",
+        "inveterate",
+        "inexorable"
+      ],
+      "answer_index": 2,
+      "answer_word": "inveterate",
+      "part_of_speech": "adj",
+      "en_definition": "long-established; habitual",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 22
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "phlegmatic",
+        "ebullient",
+        "inchoate",
+        "pugnacious"
+      ],
+      "answer_index": 2,
+      "answer_word": "inchoate",
+      "part_of_speech": "adj",
+      "en_definition": "just begun and not fully formed",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 23
+    },
+    {
+      "sentence": "The film's ending left her unexpectedly _____ on the train ride back.",
+      "options": [
+        "ingenuous",
+        "abstruse",
+        "lachrymose",
+        "munificent"
+      ],
+      "answer_index": 2,
+      "answer_word": "lachrymose",
+      "part_of_speech": "adj",
+      "en_definition": "tearful or given to weeping",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 24
+    },
+    {
+      "sentence": "They treated the matter as _____ and moved on.",
+      "options": [
+        "fatuous",
+        "reticent",
+        "apocryphal",
+        "polemical"
+      ],
+      "answer_index": 0,
+      "answer_word": "fatuous",
+      "part_of_speech": "adj",
+      "en_definition": "silly and pointless",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 25
+    },
+    {
+      "sentence": "The issue resurfaced in a context that made it plainly _____.",
+      "options": [
+        "pellucid",
+        "complaisant",
+        "recondite",
+        "prolix"
+      ],
+      "answer_index": 1,
+      "answer_word": "complaisant",
+      "part_of_speech": "adj",
+      "en_definition": "willing to please; obliging",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 26
+    },
+    {
+      "sentence": "Under scrutiny, the team's position became unmistakably _____.",
+      "options": [
+        "ingenuous",
+        "obdurate",
+        "phlegmatic",
+        "anodyne"
+      ],
+      "answer_index": 3,
+      "answer_word": "anodyne",
+      "part_of_speech": "adj",
+      "en_definition": "unlikely to offend; soothing",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 27
+    },
+    {
+      "sentence": "Residents began to _____ the plan at the town hall, forcing a rewrite.",
+      "options": [
+        "excoriate",
+        "dissemble",
+        "gainsay",
+        "enjoin"
+      ],
+      "answer_index": 2,
+      "answer_word": "gainsay",
+      "part_of_speech": "verb",
+      "en_definition": "to deny or contradict",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 28
+    },
+    {
+      "sentence": "She chose to _____ small talk and left right after the event.",
+      "options": [
+        "eschew",
+        "pique",
+        "hector",
+        "gainsay"
+      ],
+      "answer_index": 0,
+      "answer_word": "eschew",
+      "part_of_speech": "verb",
+      "en_definition": "to deliberately avoid or abstain from",
+      "difficulty_hint": "easy",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 29
+    },
+    {
+      "sentence": "An _____ crowd pushed past the barriers before security arrived.",
+      "options": [
+        "munificent",
+        "inchoate",
+        "prolix",
+        "obstreperous"
+      ],
+      "answer_index": 3,
+      "answer_word": "obstreperous",
+      "part_of_speech": "adj",
+      "en_definition": "noisy and difficult to control",
+      "difficulty_hint": "medium",
+      "sentence_policy": "paraphrased_or_new",
+      "q_number": 30
+    }
+  ]
+}

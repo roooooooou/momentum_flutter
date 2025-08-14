@@ -216,7 +216,7 @@ class ProactCoachService {
   }
 
   Future<ChatCompletionResult> getCompletion(
-      List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn, {String? taskDescription, String? uid, String? eventId, int? dayNumber}) async {
+      List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn, {String? taskDescription, String? uid, String? eventId, int? dayNumber, int? taskDurationMin}) async {
     // 获取前一天的数据
     YesterdayData? yesterdayData;
     if (uid != null && eventId != null) {
@@ -259,6 +259,7 @@ class ProactCoachService {
       'startTime': formattedStartTime,
       'currentTurn': currentTurn,
       'dayNumber': dayNumber, // 新增dayNumber參數
+      'taskDurationMin': taskDurationMin, // 新增任務時長（分鐘）
       'yesterdayChat': combinedChatSummary,
       'yesterdayStatus': yesterdayData?.yesterdayStatus ?? '',
       'dailySummary': yesterdayData?.dailyReportSummary ?? '',

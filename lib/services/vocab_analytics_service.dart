@@ -10,13 +10,48 @@ class VocabAnalyticsService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 获取词汇数据文档引用
+  /// 获取词汇数据文档引用（自動解析事件所在集合）
   Future<DocumentReference> _getVocabDataRef(String uid, String eventId) async {
-    final now = DateTime.now();
-    final group = await DataPathService.instance.getDateGroupName(uid, now);
-    final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
-    return eventsCollection.doc(eventId).collection('vocab').doc('analytics');
+    final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
+    return eventDoc.collection('vocab').doc('analytics');
   }
+
+  /// 取得新的實驗測驗結果文件引用：users/{uid}/experiment_quiz/{quizId}
+  DocumentReference _getExperimentQuizDoc(String uid, String quizId) {
+    return _firestore.collection('users').doc(uid).collection('experiment_quiz').doc(quizId);
+  }
+
+  /// 儲存詞彙測驗結果到 users/{uid}/experiment_quiz/{quizId}
+  Future<void> saveVocabQuizToExperiment({
+    required String uid,
+    required String quizId,
+    required List<Map<String, dynamic>> answers,
+    required int correctAnswers,
+    required int totalQuestions,
+    String? eventId,
+    int? week,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final score = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0;
+      final ref = _getExperimentQuizDoc(uid, quizId);
+      await ref.set({
+        'type': 'vocab',
+        'eventId': eventId,
+        'week': week,
+        'answers': answers,
+        'correctAnswers': correctAnswers,
+        'totalQuestions': totalQuestions,
+        'score': score,
+        'savedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('儲存詞彙測驗到 experiment_quiz 失敗: $e');
+    }
+  }
+
+  // 舊 attempts 版本已移除，不再使用
 
   /// 开始词汇学习会话
   Future<void> startVocabSession({
@@ -47,12 +82,27 @@ class VocabAnalyticsService {
       ),
       'totalLearningTime': existingData['totalLearningTime'] ?? 0,
       'leaveCount': existingData['leaveCount'] ?? 0, // 离开次数
-      'quizTime': 0,
-      'quizCorrectAnswers': 0,
-      'quizTotalQuestions': 5, // 固定5题测验
-      'status': 'learning', // learning, quiz, completed
+      'status': 'learning', // learning, completed（不再記錄 quiz 狀態）
       'updatedAt': Timestamp.fromDate(now),
     }, SetOptions(merge: true));
+  }
+
+  /// 完成詞彙學習會話（不經過測驗記錄）
+  Future<void> completeLearningSession({
+    required String uid,
+    required String eventId,
+  }) async {
+    try {
+      final ref = await _getVocabDataRef(uid, eventId);
+      final now = DateTime.now();
+      await ref.set({
+        'status': 'completed',
+        'endTime': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('完成詞彙學習會話記錄失敗: $e');
+    }
   }
 
   /// 记录卡片停留时间
@@ -94,7 +144,7 @@ class VocabAnalyticsService {
     }
   }
 
-  /// 开始测验
+  /// 開始測驗（已不再使用，保留以避免舊代碼呼叫報錯）
   Future<void> startQuiz({
     required String uid,
     required String eventId,
@@ -104,8 +154,6 @@ class VocabAnalyticsService {
       final now = DateTime.now();
       
       await ref.update({
-        'status': 'quiz',
-        'quizStartTime': Timestamp.fromDate(now),
         'updatedAt': Timestamp.fromDate(now),
       });
     } catch (e) {
@@ -113,7 +161,7 @@ class VocabAnalyticsService {
     }
   }
 
-  /// 完成测验
+  /// 完成測驗（已不再使用，保留以避免舊代碼呼叫報錯）
   Future<void> completeQuiz({
     required String uid,
     required String eventId,
@@ -126,22 +174,12 @@ class VocabAnalyticsService {
       
       // 获取当前数据来计算测验时间
       final doc = await ref.get();
-      int quizTimeMs = 0;
       if (doc.exists) {
-        final data = doc.data()! as Map<String, dynamic>;
-        final quizStartTime = data['quizStartTime'] as Timestamp?;
-        if (quizStartTime != null) {
-          quizTimeMs = now.difference(quizStartTime.toDate()).inMilliseconds;
-        }
+        // no-op: 不再計算 quiz 時間
       }
-      
       await ref.update({
         'status': 'completed',
         'endTime': Timestamp.fromDate(now),
-        'quizTime': quizTimeMs,
-        'quizCorrectAnswers': correctAnswers,
-        'quizTotalQuestions': totalQuestions,
-        'quizScore': totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0,
         'updatedAt': Timestamp.fromDate(now),
       });
     } catch (e) {
@@ -168,7 +206,7 @@ class VocabAnalyticsService {
     }
   }
 
-  /// 获取用户所有词汇学习统计
+  /// 獲取用戶所有詞彙學習統計（已移除 quiz 統計）
   Future<Map<String, dynamic>> getUserVocabStats({
     required String uid,
     DateTime? startDate,
@@ -180,9 +218,9 @@ class VocabAnalyticsService {
       
       int totalSessions = 0;
       int totalLearningTime = 0;
-      int totalQuizTime = 0;
-      int totalCorrectAnswers = 0;
-      int totalQuestions = 0;
+      int totalQuizTime = 0; // 兼容舊回傳鍵，固定為0
+      int totalCorrectAnswers = 0; // 兼容舊回傳鍵，固定為0
+      int totalQuestions = 0; // 兼容舊回傳鍵，固定為0
       Map<String, int> cardDwellTimes = {};
 
       for (final collection in allCollections) {
@@ -210,9 +248,7 @@ class VocabAnalyticsService {
               if (data['status'] == 'completed') {
                 totalSessions++;
                 totalLearningTime += (data['totalLearningTime'] as num?)?.toInt() ?? 0;
-                totalQuizTime += (data['quizTime'] as num?)?.toInt() ?? 0;
-                totalCorrectAnswers += (data['quizCorrectAnswers'] as num?)?.toInt() ?? 0;
-                totalQuestions += (data['quizTotalQuestions'] as num?)?.toInt() ?? 0;
+                // 不再累加 quiz 資訊
 
                 // 累计卡片停留时间
                 final dwellTimes = data['cardDwellTimes'] as Map<String, dynamic>?;
@@ -236,7 +272,7 @@ class VocabAnalyticsService {
         'totalQuizTime': totalQuizTime,
         'totalCorrectAnswers': totalCorrectAnswers,
         'totalQuestions': totalQuestions,
-        'averageScore': totalQuestions > 0 ? (totalCorrectAnswers / totalQuestions * 100).round() : 0,
+        'averageScore': 0,
         'cardDwellTimes': cardDwellTimes,
       };
     } catch (e) {

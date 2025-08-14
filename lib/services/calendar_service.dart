@@ -661,8 +661,7 @@ class CalendarService extends ChangeNotifier {
       );
       
       // 需要額外清空 completedTime
-      final now = DateTime.now();
-      final doc = await DataPathService.instance.getDateEventDoc(uid, event.id, now);
+      final doc = await DataPathService.instance.getEventDocAuto(uid, event.id);
 
       await doc.set({
         'isDone': false,
@@ -774,8 +773,8 @@ class CalendarService extends ChangeNotifier {
 
   Future<void> stopEvent(String uid, EventModel e) async {
     // 🎯 設置為暫停狀態（保留開始時間）並增加暫停次數
+    final ref = await DataPathService.instance.getEventDocAuto(uid, e.id);
     final now = DateTime.now();
-    final ref = await DataPathService.instance.getDateEventDoc(uid, e.id, now);
 
     // 获取当前暫停次數並增加1
     final snap = await ref.get();
@@ -802,8 +801,8 @@ class CalendarService extends ChangeNotifier {
 
   Future<void> continueEvent(String uid, EventModel e) async {
     // 🎯 恢復任務：從暫停狀態恢復到進行中或超時狀態
+    final ref = await DataPathService.instance.getEventDocAuto(uid, e.id);
     final now = DateTime.now();
-    final ref = await DataPathService.instance.getDateEventDoc(uid, e.id, now);
 
     // 🎯 修复：正确处理暂停后继续的状态判断
     TaskStatus newStatus;

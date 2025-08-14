@@ -15,6 +15,12 @@ import '../services/task_router_service.dart';
 import '../navigation_service.dart';
 import '../screens/vocab_page.dart';
 import '../screens/reading_page.dart';
+import '../screens/reading_quiz_screen.dart';
+import '../services/reading_service.dart';
+import '../models/reading_content_model.dart';
+import '../screens/vocab_quiz_screen.dart';
+import '../services/vocab_service.dart';
+import '../models/vocab_content_model.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.taskTitle, this.taskDescription});
@@ -295,7 +301,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     
     // 🎯 從Firestore獲取EventModel實例
-    final doc = await DataPathService.instance.getUserEventDoc(uid, chat.eventId).then((ref) => ref.get());
+    final doc = await DataPathService.instance.getEventDocAuto(uid, chat.eventId).then((ref) => ref.get());
     
     if (!doc.exists) {
       throw Exception('找不到任務事件');
@@ -408,8 +414,14 @@ class _ChatScreenState extends State<ChatScreen> {
       case TaskType.vocab:
         targetPage = VocabPage(event: event);
         break;
+      case TaskType.vocabQuiz:
+        targetPage = _buildQuizRoute(event);
+        break;
       case TaskType.reading:
         targetPage = ReadingPage(event: event);
+        break;
+      case TaskType.readingQuiz:
+        targetPage = _buildReadingQuizRoute(event);
         break;
     }
     
@@ -429,16 +441,53 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// 获取任务类型（复制自TaskRouterService）
   TaskType _getTaskType(String taskTitle) {
-    final title = taskTitle.toLowerCase();
-    
-    if (title.contains('vocab')) {
-      return TaskType.vocab;
+    final title = taskTitle.toLowerCase().trim();
+    if (RegExp(r'^vocab[-_]?w\d+[-_]?test$').hasMatch(title)) {
+      return TaskType.vocabQuiz;
     }
-    
-    if (title.contains('reading')) {
-      return TaskType.reading;
+    if (RegExp(r'^reading[-_]?w\d+[-_]?test$').hasMatch(title)) {
+      return TaskType.readingQuiz;
     }
-    
+    if (title.contains('vocab')) return TaskType.vocab;
+    if (title.contains('reading')) return TaskType.reading;
     return TaskType.reading;
+  }
+
+  Widget _buildReadingQuizRoute(EventModel event) {
+    final service = ReadingService();
+    final wd = service.parseWeekDayFromTitle(event.title) ?? [1, 1];
+    return FutureBuilder(
+      future: service.loadDailyReadingWithQuestions(wd[0], wd[1]),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final items = (snapshot.data ?? []) as List<ReadingContent>;
+        final questions = <ReadingQuestion>[];
+        for (final item in items) {
+          questions.addAll(item.questions);
+        }
+        return ReadingQuizScreen(questions: questions, event: event);
+      },
+    );
+  }
+
+  Widget _buildQuizRoute(EventModel event) {
+    final service = VocabService();
+    final week = service.parseWeekFromTestTitle(event.title) ?? 1;
+    return FutureBuilder(
+      future: service.loadWeeklyTestQuiz(week),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final questions = (snapshot.data ?? []) as List<VocabContent>;
+        return VocabQuizScreen(questions: questions, event: event);
+      },
+    );
   }
 }

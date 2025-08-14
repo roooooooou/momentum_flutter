@@ -57,6 +57,28 @@ class DataPathService {
     return eventsCol.doc(eventId);
   }
 
+  /// 優先在 experiment/control 兩個集合中查找已存在的事件文檔
+  Future<DocumentReference?> findExistingEventDoc(String uid, String eventId) async {
+    final expCol = await getUserExperimentEventsCollection(uid);
+    final expDoc = expCol.doc(eventId);
+    final expSnap = await expDoc.get();
+    if (expSnap.exists) return expDoc;
+
+    final ctrlCol = await getUserControlEventsCollection(uid);
+    final ctrlDoc = ctrlCol.doc(eventId);
+    final ctrlSnap = await ctrlDoc.get();
+    if (ctrlSnap.exists) return ctrlDoc;
+
+    return null;
+  }
+
+  /// 自動解析事件所在集合（若找不到則回退到「當天分組」集合）
+  Future<DocumentReference> getEventDocAuto(String uid, String eventId) async {
+    final existing = await findExistingEventDoc(uid, eventId);
+    if (existing != null) return existing;
+    return await getUserEventDoc(uid, eventId);
+  }
+
   /// 获取指定日期的事件文档引用
   Future<DocumentReference> getDateEventDoc(String uid, String eventId, DateTime date) async {
     final eventsCol = await getDateEventsCollection(uid, date);
@@ -85,6 +107,18 @@ class DataPathService {
   Future<DocumentReference> getDateEventChatDoc(String uid, String eventId, String chatId, DateTime date) async {
     final eventDoc = await getDateEventDoc(uid, eventId, date);
     return eventDoc.collection('chats').doc(chatId);
+  }
+
+  /// 自動解析事件聊天文檔引用
+  Future<DocumentReference> getEventChatDocAuto(String uid, String eventId, String chatId) async {
+    final eventDoc = await getEventDocAuto(uid, eventId);
+    return eventDoc.collection('chats').doc(chatId);
+  }
+
+  /// 自動解析事件聊天集合引用
+  Future<CollectionReference> getEventChatsCollectionAuto(String uid, String eventId) async {
+    final eventDoc = await getEventDocAuto(uid, eventId);
+    return eventDoc.collection('chats');
   }
 
   /// 获取事件通知集合引用（基于当前日期）

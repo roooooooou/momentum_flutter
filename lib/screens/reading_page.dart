@@ -34,6 +34,25 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   bool _isAppActive = true;
   bool _showListView = false; // 新增：控制列表视图
 
+  // 將 **...** 片段渲染為粗體
+  List<TextSpan> _parseBoldSpans(String text, TextStyle baseStyle, TextStyle boldStyle) {
+    final List<TextSpan> spans = [];
+    final regex = RegExp(r'\*\*(.+?)\*\*');
+    int lastIndex = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start), style: baseStyle));
+      }
+      final boldText = match.group(1) ?? '';
+      spans.add(TextSpan(text: boldText, style: boldStyle));
+      lastIndex = match.end;
+    }
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex), style: baseStyle));
+    }
+    return spans;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -163,12 +182,12 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     });
 
     try {
-      // 使用event中的dayNumber加载冷知识内容
-      final dayNumber = widget.event.dayNumber ?? 0;
-      print('Loading content for dayNumber: $dayNumber'); // 添加调试信息
-      
-      final contents = await _readingService.loadDailyContent(dayNumber);
-      print('Loaded ${contents.length} contents'); // 添加调试信息
+      // 根據事件標題解析週/日，讀取對應文章與題目
+      final wd = _readingService.parseWeekDayFromTitle(widget.event.title);
+      List<ReadingContent> contents = [];
+      if (wd != null) {
+        contents = await _readingService.loadDailyReadingWithQuestions(wd[0], wd[1]);
+      }
       
       setState(() {
         _contents = contents;
@@ -200,9 +219,17 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   }
 
   void _toggleView() {
+    // 從閱讀切到列表，先記錄當前卡片停留時間
+    if (!_showListView) {
+      _recordCurrentCardDwellTime();
+    }
     setState(() {
       _showListView = !_showListView;
     });
+    // 從列表切回閱讀，重新開始計時
+    if (!_showListView) {
+      _cardStartTimes[_currentPage] = DateTime.now();
+    }
   }
 
   void _selectArticle(int index) {
@@ -210,17 +237,25 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       _currentPage = index;
       _showListView = false;
     });
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    // 等下一個 frame 確保 PageView 已掛載再跳頁，並開始新卡片計時
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(index);
+        _cardStartTimes[index] = DateTime.now();
+      }
+    });
   }
 
   Future<void> _completeTask() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        _recordCurrentCardDwellTime();
+        await _analyticsService.completeReadingSession(
+          uid: user.uid,
+          eventId: widget.event.id,
+        );
         // 记录事件完成
         await ExperimentEventHelper.recordEventCompletion(
           uid: user.uid,
@@ -547,15 +582,25 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                 
                 const SizedBox(height: 24),
                 
-                // 内容
+                // 内容（支援 **粗體**）
                 Expanded(
                   child: SingleChildScrollView(
-                    child: Text(
-                      content.content,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        height: 1.8,
-                        color: Colors.black54,
+                    child: RichText(
+                      text: TextSpan(
+                        children: _parseBoldSpans(
+                          content.content,
+                          const TextStyle(
+                            fontSize: 16,
+                            height: 1.8,
+                            color: Colors.black54,
+                          ),
+                          const TextStyle(
+                            fontSize: 16,
+                            height: 1.8,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   ),

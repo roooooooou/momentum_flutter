@@ -38,6 +38,11 @@ service cloud.firestore {
       match /vocab/{document} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // 詞彙測驗嘗試結果（新增）
+      match /vocab_quiz_attempts/{attemptId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // 對照組事件數據
@@ -68,10 +73,20 @@ service cloud.firestore {
       match /vocab/{document} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // 詞彙測驗嘗試結果（新增）
+      match /vocab_quiz_attempts/{attemptId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // 會話數據
     match /users/{userId}/sessions/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 實驗測驗結果（新路徑）
+    match /users/{userId}/experiment_quiz/{quizId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     

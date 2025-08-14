@@ -302,6 +302,22 @@ class ExperimentEventHelper {
 
   /// 获取用户事件文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getEventRef(String uid, String eventId) async {
+    // 優先：從 experiment/control 兩個集合中找到已存在的事件文檔
+    final expCol = await DataPathService.instance.getUserExperimentEventsCollection(uid);
+    final expDoc = expCol.doc(eventId);
+    final expSnap = await expDoc.get();
+    if (expSnap.exists) {
+      return expDoc;
+    }
+
+    final ctrlCol = await DataPathService.instance.getUserControlEventsCollection(uid);
+    final ctrlDoc = ctrlCol.doc(eventId);
+    final ctrlSnap = await ctrlDoc.get();
+    if (ctrlSnap.exists) {
+      return ctrlDoc;
+    }
+
+    // 後備：根據當前日期的分組回退
     final now = DateTime.now();
     final group = await DataPathService.instance.getDateGroupName(uid, now);
     final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
@@ -310,6 +326,22 @@ class ExperimentEventHelper {
 
   /// 获取用户事件聊天文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getChatRef(String uid, String eventId, String chatId) async {
+    // 優先：從 experiment/control 兩個集合中找到已存在的事件文檔
+    final expCol = await DataPathService.instance.getUserExperimentEventsCollection(uid);
+    final expEventDoc = expCol.doc(eventId);
+    final expSnap = await expEventDoc.get();
+    if (expSnap.exists) {
+      return expEventDoc.collection('chats').doc(chatId);
+    }
+
+    final ctrlCol = await DataPathService.instance.getUserControlEventsCollection(uid);
+    final ctrlEventDoc = ctrlCol.doc(eventId);
+    final ctrlSnap = await ctrlEventDoc.get();
+    if (ctrlSnap.exists) {
+      return ctrlEventDoc.collection('chats').doc(chatId);
+    }
+
+    // 後備：根據當前日期的分組回退
     final now = DateTime.now();
     final group = await DataPathService.instance.getDateGroupName(uid, now);
     final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);

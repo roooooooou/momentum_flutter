@@ -9,6 +9,10 @@ import '../screens/chat_screen.dart';
 import '../providers/chat_provider.dart';
 import '../services/analytics_service.dart';
 import '../services/task_router_service.dart';
+import '../services/vocab_service.dart';
+import '../navigation_service.dart';
+import '../screens/vocab_page.dart';
+import '../screens/reading_page.dart';
 
 class TaskStartDialog extends StatefulWidget {
   final EventModel event;
@@ -71,7 +75,7 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).pop();
+                      // 直接開始任務並導頁；避免先 pop 導致 context/mounted 問題
                       _startTask(context);
                       _recordNotificationResult(context, NotificationResult.start);
                     },
@@ -117,6 +121,27 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                         // 導航到聊天頁面
                         final uid = parentContext.read<AuthService>().currentUser?.uid;
                         if (uid != null) {
+                          // 根據事件標題解析週/日 counts，組合 taskDescription
+                          String? enrichedDesc = widget.event.description;
+                          int? durationMin;
+                          try {
+                            final start = widget.event.scheduledStartTime;
+                            final end = widget.event.scheduledEndTime;
+                            durationMin = end.difference(start).inMinutes;
+                          } catch (_) {}
+
+                          try {
+                            final svc = VocabService();
+                            final wd = svc.parseWeekDayFromTitle(widget.event.title);
+                            if (wd != null) {
+                              final counts = await svc.loadWeeklyCounts(wd[0], wd[1]);
+                              final newCnt = counts['new'] ?? 0;
+                              final reviewCnt = counts['review'] ?? 0;
+                              enrichedDesc = 'vocab — new=${newCnt}, review=${reviewCnt}';
+                            }
+                          } catch (e) {
+                            debugPrint('讀取vocab counts失敗: $e');
+                          }
                           final chatId = ExperimentEventHelper.generateChatId(widget.event.id, DateTime.now());
                           
                           navigator.push(
@@ -124,17 +149,18 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                               builder: (_) => ChangeNotifierProvider(
                                 create: (_) => ChatProvider(
                                   taskTitle: widget.event.title, 
-                                  taskDescription: widget.event.description, // 新增描述參數
+                                  taskDescription: enrichedDesc, // 帶入 new/review
                                   startTime: widget.event.scheduledStartTime,
                                   uid: uid,
                                   eventId: widget.event.id,
                                   chatId: chatId,
-                                  entryMethod: ChatEntryMethod.notification, // 🎯 新增：通知進入
-                                  dayNumber: widget.event.dayNumber, // 新增dayNumber參數
+                                  entryMethod: ChatEntryMethod.notification,
+                                  dayNumber: widget.event.dayNumber,
+                                  taskDurationMin: durationMin,
                                 ),
                                 child: ChatScreen(
                                   taskTitle: widget.event.title,
-                                  taskDescription: widget.event.description, // 新增描述參數
+                                  taskDescription: enrichedDesc,
                                 ),
                               ),
                             ),
@@ -192,15 +218,20 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
           SnackBar(
             content: Text('任務「${widget.event.title}」已開始'),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 1),
           ),
         );
         
-        // 关闭对话框
+        // 先關閉對話框
         Navigator.of(context).pop();
-        
-        // 跳转到相应的任务页面
-        TaskRouterService().navigateToTaskPage(context, widget.event);
+
+        // 使用全域導航避免對話框context失效
+        final lowerTitle = widget.event.title.toLowerCase();
+        if (lowerTitle.contains('vocab')) {
+          NavigationService.safeNavigateTo(VocabPage(event: widget.event));
+        } else {
+          NavigationService.safeNavigateTo(ReadingPage(event: widget.event));
+        }
       }
     } catch (e) {
       _showErrorMessage(context, '開始任務失敗: $e');
@@ -239,6 +270,7 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
             eventId: widget.event.id,
             notifId: notifId,
             result: result,
+            eventDate: widget.event.date,
           );
         }
       }

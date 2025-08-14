@@ -163,9 +163,15 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
     });
 
     try {
-      // 使用event中的dayNumber加载单词内容
-      final dayNumber = widget.event.dayNumber ?? 0;
-      final vocabList = await _vocabService.loadDailyVocab(dayNumber);
+      // 根據事件標題解析週/日，直接讀取對應 weekX_dayY.json
+      final wd = _vocabService.parseWeekDayFromTitle(widget.event.title);
+      List<VocabContent> vocabList = [];
+      if (wd != null) {
+        vocabList = await _vocabService.loadWeeklyVocab(wd[0], wd[1]);
+      } else {
+        // 若標題不符合規則，暫不載入
+        vocabList = [];
+      }
       setState(() {
         _vocabList = vocabList;
         _isLoading = false;
@@ -197,27 +203,49 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
   bool _showListView = false; // 新增：控制列表视图
 
   void _toggleView() {
+    // 從學習視圖切到列表前，先記錄當前卡片停留時間
+    if (!_showListView) {
+      _recordCurrentCardDwellTime();
+    }
     setState(() {
       _showListView = !_showListView;
     });
+    // 從列表切回學習視圖，開始當前卡片計時
+    if (!_showListView) {
+      _cardStartTimes[_currentPage] = DateTime.now();
+    }
   }
 
   void _selectWord(int index) {
+    // 從列表視圖選擇單字 → 切回學習視圖
     setState(() {
       _currentPage = index;
       _showListView = false;
     });
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+
+    // 等下一個 frame 確保 PageView 已掛載再跳頁，並開始新卡片計時
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(index);
+        _cardStartTimes[index] = DateTime.now();
+      }
+    });
   }
 
   Future<void> _completeTask() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // 先記錄當前卡片停留時間
+        _recordCurrentCardDwellTime();
+
+        // 記錄學習完成，寫入 endTime
+        await _analyticsService.completeLearningSession(
+          uid: user.uid,
+          eventId: widget.event.id,
+        );
+
         // 记录事件完成
         await ExperimentEventHelper.recordEventCompletion(
           uid: user.uid,
@@ -529,110 +557,162 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
           ),
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 单词
-                Center(
-                  child: Text(
-                    vocab.word,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                      height: 1.2,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 單字 + 詞性（右側小字）
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            vocab.word,
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (vocab.partOfSpeech.isNotEmpty)
+                        Text(
+                          vocab.partOfSpeech,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blueGrey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 定義（EN）
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // 定义
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '定義：',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '定義（EN）：',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        vocab.definition,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          height: 1.6,
-                          color: Colors.black87,
+                        const SizedBox(height: 8),
+                        Text(
+                          vocab.definition,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            height: 1.6,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // 例句
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.indigo.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '例句：',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.indigo.shade700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        vocab.example,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          height: 1.6,
-                          color: Colors.black87,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const Spacer(),
-                
-                // 底部装饰
-                Container(
-                  width: double.infinity,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blue.shade300,
-                        Colors.indigo.shade300,
                       ],
                     ),
                   ),
-                ),
-              ],
+                  
+                  const SizedBox(height: 16),
+                  
+                  // 中文意思
+                  if (vocab.zhExplanation.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '中文意思：',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            vocab.zhExplanation,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              height: 1.6,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                  ],
+
+                  // 例句（合併 EN + ZH）
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.indigo.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '例句：',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          vocab.example + (vocab.exampleZh.isNotEmpty ? '\n' + vocab.exampleZh : ''),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            height: 1.6,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // 底部裝飾
+                  Container(
+                    width: double.infinity,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.blue.shade300,
+                          Colors.indigo.shade300,
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -22,6 +22,7 @@ class ChatProvider extends ChangeNotifier {
   final String chatId;
   final ChatEntryMethod entryMethod;
   final int? dayNumber; // 新增dayNumber參數
+  final int? taskDurationMin; // 新增：任務時長（分鐘）
   final List<int> _latencies = [];
   bool _hasRecordedChatStart = false;
   int _totalTokens = 0;
@@ -35,6 +36,7 @@ class ChatProvider extends ChangeNotifier {
     required this.chatId,
     required this.entryMethod,
     this.dayNumber, // 新增dayNumber參數
+    this.taskDurationMin,
   }) {
     _loadChatHistory(); // 加载历史聊天记录
   }
@@ -64,9 +66,8 @@ class ChatProvider extends ChangeNotifier {
   /// 加载历史聊天记录
   Future<void> _loadChatHistory() async {
     try {
-      final now = DateTime.now();
       final chatsCollection = await DataPathService.instance
-          .getDateEventChatsCollection(uid, eventId, now);
+          .getEventChatsCollectionAuto(uid, eventId);
       
       final snapshot = await chatsCollection
           .doc(chatId)
@@ -99,9 +100,8 @@ class ChatProvider extends ChangeNotifier {
   /// 保存聊天消息到Firestore
   Future<void> _saveChatMessage(ChatMessage message) async {
     try {
-      final now = DateTime.now();
       final chatsCollection = await DataPathService.instance
-          .getDateEventChatsCollection(uid, eventId, now);
+          .getEventChatsCollectionAuto(uid, eventId);
       
       await chatsCollection
           .doc(chatId)
@@ -155,6 +155,7 @@ class ChatProvider extends ChangeNotifier {
         uid: uid,
         eventId: eventId,
         dayNumber: dayNumber, // 新增dayNumber參數
+        taskDurationMin: taskDurationMin,
       );
       
       _messages.add(result.message);

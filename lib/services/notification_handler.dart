@@ -217,7 +217,7 @@ class NotificationHandler {
         return null;
       }
 
-      final doc = await DataPathService.instance.getUserEventDoc(currentUser.uid, eventId).then((ref) => ref.get());
+      final doc = await DataPathService.instance.getEventDocAuto(currentUser.uid, eventId).then((ref) => ref.get());
 
       if (!doc.exists) {
         if (kDebugMode) {
@@ -351,17 +351,6 @@ class NotificationHandler {
         fromNotification: true,
       );
 
-      // 🎯 實驗數據收集：記錄完成提醒通知被點擊
-      final currentUser = AuthService.instance.currentUser;
-      if (currentUser != null) {
-        final notifId = '$eventId-complete';
-        await ExperimentEventHelper.recordNotificationOpened(
-          uid: currentUser.uid,
-          eventId: eventId,
-          notifId: notifId,
-        );
-      }
-
       if (kDebugMode) {
         print('任務完成提醒通知被點擊: $eventId');
       }
@@ -373,6 +362,18 @@ class NotificationHandler {
           print('找不到事件: $eventId');
         }
         return;
+      }
+
+      // 🎯 實驗數據收集：記錄完成提醒通知被點擊（帶入事件日期以選擇正確路徑）
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        final notifId = '$eventId-complete';
+        await ExperimentEventHelper.recordNotificationOpened(
+          uid: currentUser.uid,
+          eventId: eventId,
+          notifId: notifId,
+          eventDate: event.date,
+        );
       }
 
       // 檢查事件是否已完成
@@ -462,11 +463,14 @@ class NotificationHandler {
       final currentUser = AuthService.instance.currentUser;
       if (currentUser != null) {
         final notifId = '$eventId-complete';
+        // 取得事件以獲取正確的事件日期
+        final event = await _getEventById(eventId);
         await ExperimentEventHelper.recordNotificationResult(
           uid: currentUser.uid,
           eventId: eventId,
           notifId: notifId,
           result: result,
+          eventDate: event?.date,
         );
         
         if (kDebugMode) {
@@ -487,7 +491,7 @@ class NotificationHandler {
       if (currentUser == null) return;
 
       // 更新事件為已完成
-      final ref = await DataPathService.instance.getUserEventDoc(currentUser.uid, event.id);
+      final ref = await DataPathService.instance.getEventDocAuto(currentUser.uid, event.id);
       await ref.update({
         'isDone': true,
         'completedTime': Timestamp.fromDate(DateTime.now()),

@@ -18,22 +18,21 @@ def get_firestore_client():
     """延遲初始化Firestore客户端，避免部署超時"""
     return firestore.client()
 
-def generate_task_description(task_title: str, reading_topic: str = "") -> str:
-    """根据任务标题生成相应的任务描述"""
-    task_title_lower = task_title.lower()
-    
-    # 检查任务标题中是否包含特定关键词
-    if "vocab" in task_title_lower:
-        return "- vocab : The user must memorize 10 English words in the app we provide and they need to take a quiz few days later."
-    
-    elif "reading" in task_title_lower:
-        return f"- reading : The user must read 5 articles in this app. It may cost them 15 minutes. Today's topic is {reading_topic}. User needs to take quiz few days later."
+def generate_task_description(task_title: str, reading_topic: str = "", explicit_description: str | None = None) -> str:
+    """根据任务标题與可選描述生成任務說明。
+    若 explicit_description 提供，優先使用；否則按 task_title 類型給預設描述。"""
+    if explicit_description and explicit_description.strip():
+        return explicit_description.strip()
 
+    task_title_lower = task_title.lower()
+    if "vocab" in task_title_lower:
+        return "- vocab : The user must memorize the scheduled vocab (new + review) in the app and take a quiz later."
+    elif "reading" in task_title_lower:
+        return f"- reading : The user must read 5 articles in this app (≈15 mins). Today's topic is {reading_topic}."
     else:
-        # 默认任务描述
         return f"- task : The user needs to complete the task: {task_title}"
 
-def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str = None, yesterday_chat: str = None, yesterday_status: str = None, daily_summary: str = None, day_number: int = None) -> list[dict]:
+def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str | None = None, yesterday_chat: str | None = None, yesterday_status: str | None = None, daily_summary: str | None = None, day_number: int | None = None, scheduled_duration_min: int | None = None) -> list[dict]:
     """
     將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
     """
@@ -47,9 +46,18 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     if day_number is not None:
         reading_topic = system_prompt.get_reading_topic(day_number)
     
-    # 根据任务标题生成任务描述
-    task_description = generate_task_description(task, reading_topic)
-    system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan).replace("{{current_turn}}", str(current_turn)).replace("{{reading_topic}}", reading_topic).replace("{{task_description}}", task_description)
+    # 根据任务标题生成任务描述（允許外部提供）
+    task_description = generate_task_description(task, reading_topic, task_description)
+    system_content = (
+        system_prompt.SYSTEM_INSTRUCTION
+        .replace("{{task_title}}", task)
+        .replace("{{scheduled_start}}", start_time)
+        .replace("{{scheduled_duration_min}}", str(scheduled_duration_min or ""))
+        .replace("{{now}}", now_taiwan)
+        .replace("{{current_turn}}", str(current_turn))
+        .replace("{{reading_topic}}", reading_topic)
+        .replace("{{task_description}}", task_description)
+    )
     
     # 替换前一天的数据
     system_content = system_content.replace("{{yesterday_chat}}", yesterday_chat or "無")
@@ -81,13 +89,25 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
         start_time = req.data["startTime"]
         current_turn = req.data.get("currentTurn", 0)
         day_number = req.data.get("dayNumber")  # 新增dayNumber參數
+        scheduled_duration_min = req.data.get("taskDurationMin")  # 新增：任務時長（分鐘）
         
         # 获取前一天的数据
         yesterday_chat = req.data.get("yesterdayChat", "")
         yesterday_status = req.data.get("yesterdayStatus", "")
         daily_summary = req.data.get("dailySummary", "")
 
-        messages = build_prompt(task, dialogues, start_time, current_turn, task_description, yesterday_chat, yesterday_status, daily_summary, day_number)
+        messages = build_prompt(
+            task,
+            dialogues,
+            start_time,
+            current_turn,
+            task_description,
+            yesterday_chat,
+            yesterday_status,
+            daily_summary,
+            day_number,
+            scheduled_duration_min,
+        )
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,

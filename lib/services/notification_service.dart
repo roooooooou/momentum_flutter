@@ -375,10 +375,10 @@ class NotificationService {
           notificationTitle = '現在開始剛剛好';
           if (isControlGroup) {
             // 对照组：不提及聊天功能
-            notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！';
+            notificationBody = '你已經開始任務「$title」了嗎？現在開始剛剛好！';
           } else {
             // 实验组：保持原有文本
-            notificationBody = '任務「$title」應該已經開始了，現在開始剛剛好！需要跟我聊聊嗎？';
+            notificationBody = '你已經開始任務「$title」了嗎？還沒有想法的話，需要跟我聊聊嗎？';
           }
         } else {
           notificationTitle = '事件即將開始';
@@ -387,7 +387,7 @@ class NotificationService {
             notificationBody = '任務「$title」即將開始，準備好開始了嗎？';
           } else {
             // 实验组：保持原有文本
-            notificationBody = '任務「$title」即將開始，有開始的動力嗎？需要跟我聊聊嗎？';
+            notificationBody = '準備好開始任務「$title」了嗎？還不想開始的話，需要跟我聊聊嗎？';
           }
         }
         
@@ -702,7 +702,7 @@ class NotificationService {
       
       if (notifId != null && eventId != null) {
         // 获取事件信息来确定事件发生的日期
-        final eventDoc = await DataPathService.instance.getUserEventDoc(currentUser.uid, eventId);
+        final eventDoc = await DataPathService.instance.getEventDocAuto(currentUser.uid, eventId);
         final eventSnap = await eventDoc.get();
         
         if (eventSnap.exists) {
@@ -757,7 +757,7 @@ class NotificationScheduler {
       final currentUser = AuthService.instance.currentUser;
       if (currentUser != null) {
         // 使用 DataPathService 获取正确的事件文档引用
-        final doc = await DataPathService.instance.getUserEventDoc(currentUser.uid, eventId);
+        final doc = await DataPathService.instance.getEventDocAuto(currentUser.uid, eventId);
         
         await doc.update({
           'notifIds': ['${eventId}-1st'], // 只保留第一個通知

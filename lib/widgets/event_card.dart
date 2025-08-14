@@ -515,7 +515,7 @@ class _ActionButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onStop,
               style: buttonStyle,
-              child: const Text('暫停任務計時'),
+              child: const Text('暫停任務'),
             ),
           ),
         ],

@@ -26,11 +26,17 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
   bool _showResult = false;
   List<String> _userAnswers = [];
   final VocabAnalyticsService _analyticsService = VocabAnalyticsService();
+  String? _attemptSessionId;
 
   @override
   void initState() {
     super.initState();
     _userAnswers = List.filled(widget.questions.length, '');
+    _startAttempt();
+  }
+
+  Future<void> _startAttempt() async {
+    // no-op: 新儲存路徑不需要建立 attempts doc
   }
 
   void _selectAnswer(String answer) {
@@ -89,12 +95,29 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // 记录测验完成数据
-        await _analyticsService.completeQuiz(
+        // 儲存測驗結果（答案詳情 + 分數）
+        final answers = <Map<String, dynamic>>[];
+        for (var i = 0; i < widget.questions.length; i++) {
+          answers.add({
+            'index': i,
+            'question': widget.questions[i].example, // 我們把句子放在 example 欄位
+            'options': widget.questions[i].options,
+            'answer': widget.questions[i].answer,
+            'userAnswer': _userAnswers[i],
+            'isCorrect': _userAnswers[i] == widget.questions[i].answer,
+          });
+        }
+        final match = RegExp(r'w(\\d+)').firstMatch(widget.event.title.toLowerCase());
+        final week = match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+        final quizId = 'vocab_w$week';
+        await _analyticsService.saveVocabQuizToExperiment(
           uid: user.uid,
-          eventId: widget.event.id,
+          quizId: quizId,
+          answers: answers,
           correctAnswers: _correctAnswers,
           totalQuestions: widget.questions.length,
+          eventId: widget.event.id,
+          week: week,
         );
         
         // 记录事件完成

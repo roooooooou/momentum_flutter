@@ -11,12 +11,15 @@ class ReadingAnalyticsService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 获取阅读数据文档引用
+  /// 取得新的實驗測驗結果文件引用：users/{uid}/experiment_quiz/{quizId}
+  DocumentReference _getExperimentQuizDoc(String uid, String quizId) {
+    return _firestore.collection('users').doc(uid).collection('experiment_quiz').doc(quizId);
+  }
+
+  /// 获取阅读数据文档引用（自動解析事件所在集合）
   Future<DocumentReference> _getReadingDataRef(String uid, String eventId) async {
-    final now = DateTime.now();
-    final group = await DataPathService.instance.getDateGroupName(uid, now);
-    final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
-    return eventsCollection.doc(eventId).collection('reading').doc('analytics');
+    final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
+    return eventDoc.collection('reading').doc('analytics');
   }
 
   /// 开始阅读会话
@@ -168,8 +171,42 @@ class ReadingAnalyticsService {
         'quizScore': totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0,
         'updatedAt': Timestamp.fromDate(now),
       });
+
+      // 另存一份到 experiment_quiz
+      final match = RegExp(r'w(\d+)').firstMatch(eventId.toLowerCase());
+      final week = match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+      final quizId = 'reading_w$week';
+      final quizRef = _getExperimentQuizDoc(uid, quizId);
+      await quizRef.set({
+        'type': 'reading',
+        'eventId': eventId,
+        'week': week,
+        'correctAnswers': correctAnswers,
+        'totalQuestions': totalQuestions,
+        'score': totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0,
+        'savedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
     } catch (e) {
       print('完成测验记录失败: $e');
+    }
+  }
+
+  /// 完成閱讀會話（不經測驗亦可完結）
+  Future<void> completeReadingSession({
+    required String uid,
+    required String eventId,
+  }) async {
+    try {
+      final ref = await _getReadingDataRef(uid, eventId);
+      final now = DateTime.now();
+      await ref.set({
+        'status': 'completed',
+        'endTime': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('完成閱讀會話記錄失敗: $e');
     }
   }
 
