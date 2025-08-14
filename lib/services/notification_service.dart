@@ -350,7 +350,7 @@ class NotificationService {
         notificationTitle = customTitle;
         notificationBody = customBody;
       } else {
-        // 🎯 修复：根据事件发生的日期检查用户分组以确定通知内容
+      // 根據事件發生的日期檢查用戶組別以決定通知內容（W1/W2 + manual A/B）
         final currentUser = AuthService.instance.currentUser;
         bool isControlGroup = false;
         

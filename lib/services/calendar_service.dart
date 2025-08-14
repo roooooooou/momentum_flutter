@@ -237,6 +237,99 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
+  /// 同步「今天起未來 days 天」的事件進入 Firestore（w1/w2），並為未來事件排程通知
+  Future<void> syncUpcomingDaysAndSchedule(String uid, {int days = 15}) async {
+    try {
+      await _ensureReady();
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day).toUtc();
+      final end = start.add(Duration(days: days));
+
+      // 目標日曆（優先找 experiment）
+      String targetCalendarId = 'primary';
+      try {
+        final calendarList = await _api!.calendarList.list();
+        for (final calendar in calendarList.items ?? <cal.CalendarListEntry>[]) {
+          if (calendar.summary?.toLowerCase() == 'experiment' ||
+              calendar.summary?.toLowerCase() == 'experiments') {
+            targetCalendarId = calendar.id!;
+            break;
+          }
+        }
+      } catch (_) {}
+
+      // 取得未來範圍事件
+      final apiEvents = await _api!.events.list(
+        targetCalendarId,
+        timeMin: start,
+        timeMax: end,
+        singleEvents: true,
+        orderBy: 'startTime',
+      );
+
+      // 以日期分組
+      final eventsByDate = <DateTime, List<cal.Event>>{};
+      for (final ev in apiEvents.items ?? <cal.Event>[]) {
+        final s = ev.start?.dateTime, t = ev.end?.dateTime;
+        if (ev.id == null || s == null || t == null) continue;
+        final localDate = DateTime(s.year, s.month, s.day);
+        eventsByDate.putIfAbsent(localDate, () => <cal.Event>[]).add(ev);
+      }
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 寫入/更新 Firestore（各日的 w1/w2）
+      for (final entry in eventsByDate.entries) {
+        final localDate = entry.key.toLocal();
+        final col = await DataPathService.instance.getDateEventsCollection(uid, localDate);
+        for (final ev in entry.value) {
+          final s = ev.start!.dateTime!, t = ev.end!.dateTime!;
+          final docRef = col.doc(ev.id);
+          final dayNumber = await DayNumberService().calculateDayNumber(s.toLocal());
+          final data = <String, dynamic>{
+            'title': ev.summary ?? 'Untitled',
+            if (ev.description != null) 'description': ev.description,
+            'scheduledStartTime': Timestamp.fromDate(s.toUtc()),
+            'scheduledEndTime': Timestamp.fromDate(t.toUtc()),
+            'date': Timestamp.fromDate(s.toLocal()),
+            'dayNumber': dayNumber,
+            'googleEventId': ev.id,
+            'googleCalendarId': targetCalendarId,
+            'lifecycleStatus': EventLifecycleStatus.active.value,
+            'updatedAt': Timestamp.fromDate(ev.updated?.toUtc() ?? now.toUtc()),
+            'isDone': false,
+          };
+          batch.set(docRef, data, SetOptions(merge: true));
+        }
+      }
+
+      // 提交批次
+      await batch.commit();
+
+      // 排程今天起未來的事件（僅限尚未開始且未完成）
+      for (int i = 0; i < days; i++) {
+        final day = DateTime(now.year, now.month, now.day).add(Duration(days: i));
+        final startOfDay = day.toUtc();
+        final endOfDay = day.add(const Duration(days: 1)).toUtc();
+        final col = await DataPathService.instance.getDateEventsCollection(uid, day);
+        final snap = await col
+            .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('scheduledStartTime', isLessThan: Timestamp.fromDate(endOfDay))
+            .orderBy('scheduledStartTime')
+            .get();
+        final all = snap.docs.map(EventModel.fromDoc).toList();
+        final futureEvents = all.where((e) => !e.isDone && e.scheduledStartTime.isAfter(now)).toList();
+        if (futureEvents.isNotEmpty) {
+          await NotificationScheduler().sync(futureEvents);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('syncUpcomingDaysAndSchedule 失敗: $e');
+      }
+    }
+  }
+
   /// Syncs today's events from *primary* calendar into Firestore `/events`.
   Future<void> syncToday(String uid) async {
     if (_isSyncing) return; // 防止重複同步

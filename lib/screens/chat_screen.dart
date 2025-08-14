@@ -300,6 +300,11 @@ class _ChatScreenState extends State<ChatScreen> {
       throw Exception('用戶未登入');
     }
     
+    // 檢查 eventId 是否為 null
+    if (chat.eventId.isEmpty) {
+      throw Exception('聊天會話缺少事件ID');
+    }
+    
     // 🎯 從Firestore獲取EventModel實例
     final doc = await DataPathService.instance.getEventDocAuto(uid, chat.eventId).then((ref) => ref.get());
     
@@ -352,9 +357,9 @@ class _ChatScreenState extends State<ChatScreen> {
     EventModel? eventData;
 
     // 预先获取事件数据
-    if (uid != null) {
+    if (uid != null && chat.eventId.isNotEmpty) {
       try {
-        final doc = await DataPathService.instance.getUserEventDoc(uid, chat.eventId).then((ref) => ref.get());
+        final doc = await DataPathService.instance.getEventDocAuto(uid, chat.eventId).then((ref) => ref.get());
         if (doc.exists) {
           eventData = EventModel.fromDoc(doc);
         }
@@ -382,7 +387,11 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       // 启动任务
-      await _startTask(chat);
+      if (chat.eventId.isNotEmpty) {
+        await _startTask(chat);
+      } else {
+        throw Exception('聊天會話缺少事件ID，無法啟動任務');
+      }
       
       // 记录分析数据
       await AnalyticsService().logTaskStarted('chat');

@@ -267,7 +267,7 @@ class _VocabPageState extends State<VocabPage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('單字學習 - ${widget.event.title}'),
+        title: Text('單字學習'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         leading: IconButton(

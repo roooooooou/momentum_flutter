@@ -92,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (kDebugMode) {
             print('正在抓取任务数据...');
           }
+          // 僅同步當天（事件通知的排程僅在「新用戶建立」時一次性完成）
           await CalendarService.instance.syncToday(uid);
         } catch (e) {
           if (mounted) {

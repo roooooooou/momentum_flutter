@@ -277,7 +277,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('科普文章 - ${widget.event.title}'),
+        title: Text('文章閱讀'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         leading: IconButton(

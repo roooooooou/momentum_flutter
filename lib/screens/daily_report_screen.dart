@@ -166,7 +166,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       
-      // 獲取當前日期的組別
+      // 獲取當前日期的組別（基於 W1/W2 與 manual_week_assignment A/B）
       final groupName = await ExperimentConfigService.instance.getDateGroup(uid, today);
       
       final report = DailyReportModel(

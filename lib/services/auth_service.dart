@@ -130,6 +130,19 @@ class AuthService {
         });
         
         print('🎯 用戶文檔已創建: ${user.uid}');
+
+        // 新增：初始化時寫入 manual_week_assignment（預設 'A'，可於 Firestore 手動改為 'B'）
+        try {
+          const assign = 'A';
+          await userRef.set({'manual_week_assignment': assign}, SetOptions(merge: true));
+          if (kDebugMode) {
+            print('🎯 已初始化 manual_week_assignment=$assign');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('初始化 manual_week_assignment 失敗: $e');
+          }
+        }
         
         // 设置账号创建日期
         await DayNumberService().setAccountCreationDate(DateTime.now());
@@ -145,12 +158,7 @@ class AuthService {
         
         print('🎯 用戶文檔已更新: ${user.uid}');
         
-        // 检查是否需要迁移到日期分组
-        final data = userDoc.data()! as Map<String, dynamic>?;
-        if (data != null && !data.containsKey('date_based_grouping')) {
-          // 老用户：迁移到日期分组
-          await _migrateExistingUser(user.uid);
-        }
+        // 舊的日期分組遺留判斷移除
       }
     } catch (e) {
       print('🎯 創建/更新用戶文檔失敗: $e');

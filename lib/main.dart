@@ -11,26 +11,23 @@ import 'screens/home_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'services/notification_service.dart';
 import 'services/app_usage_service.dart';
-import 'services/remote_config_service.dart';
 import 'services/experiment_config_service.dart';
+import 'services/group_assignment_watcher.dart';
 import 'navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
-  // 初始化实验相关服务
-  await RemoteConfigService.instance.initialize();
-  
   await NotificationService.instance.initialize();
   await AuthService.instance.signInSilently();
 
-  // 检查用户组别变化并取消通知（如果用户已登录）
+  // 檢查用戶組別（依 W1/W2 + manual A/B）並取消通知（如果用户已登录）
   final currentUser = AuthService.instance.currentUser;
   if (currentUser != null) {
     try {
-      // 获取用户组别（这会触发组别检查和可能的通知取消）
-      await ExperimentConfigService.instance.getUserGroup(currentUser.uid);
+      // 啟動監聽 manual_week_assignment 變更 → 自動取消並重排今天通知
+      await GroupAssignmentWatcher.instance.start(currentUser.uid);
     } catch (e) {
       if (kDebugMode) {
         print('检查用户组别变化时出错: $e');
