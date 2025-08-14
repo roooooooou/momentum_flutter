@@ -302,49 +302,47 @@ class ExperimentEventHelper {
 
   /// 获取用户事件文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getEventRef(String uid, String eventId) async {
-    // 優先：從 experiment/control 兩個集合中找到已存在的事件文檔
-    final expCol = await DataPathService.instance.getUserExperimentEventsCollection(uid);
-    final expDoc = expCol.doc(eventId);
-    final expSnap = await expDoc.get();
-    if (expSnap.exists) {
-      return expDoc;
+    // 優先：從 w1/w2 兩個集合中找到已存在的事件文檔
+    final w1Col = await DataPathService.instance.getUserW1EventsCollection(uid);
+    final w1Doc = w1Col.doc(eventId);
+    final w1Snap = await w1Doc.get();
+    if (w1Snap.exists) {
+      return w1Doc;
     }
 
-    final ctrlCol = await DataPathService.instance.getUserControlEventsCollection(uid);
-    final ctrlDoc = ctrlCol.doc(eventId);
-    final ctrlSnap = await ctrlDoc.get();
-    if (ctrlSnap.exists) {
-      return ctrlDoc;
+    final w2Col = await DataPathService.instance.getUserW2EventsCollection(uid);
+    final w2Doc = w2Col.doc(eventId);
+    final w2Snap = await w2Doc.get();
+    if (w2Snap.exists) {
+      return w2Doc;
     }
 
-    // 後備：根據當前日期的分組回退
+    // 後備：依日期決定 w1/w2 集合
     final now = DateTime.now();
-    final group = await DataPathService.instance.getDateGroupName(uid, now);
-    final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
+    final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
     return eventsCollection.doc(eventId);
   }
 
   /// 获取用户事件聊天文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getChatRef(String uid, String eventId, String chatId) async {
-    // 優先：從 experiment/control 兩個集合中找到已存在的事件文檔
-    final expCol = await DataPathService.instance.getUserExperimentEventsCollection(uid);
-    final expEventDoc = expCol.doc(eventId);
-    final expSnap = await expEventDoc.get();
-    if (expSnap.exists) {
-      return expEventDoc.collection('chats').doc(chatId);
+    // 優先：從 w1/w2 兩個集合中找到已存在的事件文檔
+    final w1Col = await DataPathService.instance.getUserW1EventsCollection(uid);
+    final w1EventDoc = w1Col.doc(eventId);
+    final w1Snap = await w1EventDoc.get();
+    if (w1Snap.exists) {
+      return w1EventDoc.collection('chats').doc(chatId);
     }
 
-    final ctrlCol = await DataPathService.instance.getUserControlEventsCollection(uid);
-    final ctrlEventDoc = ctrlCol.doc(eventId);
-    final ctrlSnap = await ctrlEventDoc.get();
-    if (ctrlSnap.exists) {
-      return ctrlEventDoc.collection('chats').doc(chatId);
+    final w2Col = await DataPathService.instance.getUserW2EventsCollection(uid);
+    final w2EventDoc = w2Col.doc(eventId);
+    final w2Snap = await w2EventDoc.get();
+    if (w2Snap.exists) {
+      return w2EventDoc.collection('chats').doc(chatId);
     }
 
-    // 後備：根據當前日期的分組回退
+    // 後備：依日期決定 w1/w2 集合
     final now = DateTime.now();
-    final group = await DataPathService.instance.getDateGroupName(uid, now);
-    final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, group);
+    final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
     final eventDoc = eventsCollection.doc(eventId);
     return eventDoc.collection('chats').doc(chatId);
   }

@@ -426,13 +426,13 @@ class CalendarService extends ChangeNotifier {
         if (existingDoc == null) {
           // 根据事件日期获取正确的组别和集合
           final eventDate = s.toLocal();
-          final groupName = await ExperimentConfigService.instance.getDateGroup(uid, eventDate);
-          final correctEventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+          // 依日期的 dayNumber 決定 w1/w2
+          final correctEventsCollection = await DataPathService.instance.getDateEventsCollection(uid, eventDate);
           
           // 计算dayNumber
           final dayNumber = await DayNumberService().calculateDayNumber(eventDate);
           
-          // 创建新事件到正确的组别集合
+          // 创建新事件到正确的週別集合
           final ref = correctEventsCollection.doc(apiEvent.id);
           final data = <String, dynamic>{
             'title': apiEvent.summary ?? 'No title',
@@ -453,7 +453,8 @@ class CalendarService extends ChangeNotifier {
           newEventIds.add(apiEvent.id!);
           
           if (kDebugMode) {
-            print('syncToday: 创建新事件: ${apiEvent.summary ?? 'No title'} (ID: ${apiEvent.id}) 到组别: $groupName');
+            final weekFolder = (await DataPathService.instance.getDateEventsCollection(uid, eventDate)).id;
+            print('syncToday: 创建新事件: ${apiEvent.summary ?? 'No title'} (ID: ${apiEvent.id}) 到資料夾: $weekFolder');
             print('  事件时间: ${eventDate} (本地) / ${s.toUtc()} (UTC)');
           }
         }
@@ -553,8 +554,12 @@ class CalendarService extends ChangeNotifier {
     
     // 3) 根据新的事件日期获取正确的组别和集合
     final newEventDate = apiEvent.start!.dateTime!.toLocal();
-    final groupName = await ExperimentConfigService.instance.getDateGroup(uid, newEventDate);
-    final correctEventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+    final correctEventsCollection = await DataPathService.instance.getDateEventsCollection(uid, newEventDate);
+    // 補上 dayNumber 欄位
+    int? newDayNumber;
+    try {
+      newDayNumber = await DayNumberService().calculateDayNumber(newEventDate);
+    } catch (_) {}
     
     // 重新创建原ID的文档到正确的组别集合
     final originalRef = correctEventsCollection.doc(originalEventId);
@@ -564,6 +569,7 @@ class CalendarService extends ChangeNotifier {
       'scheduledStartTime': Timestamp.fromDate(apiEvent.start!.dateTime!.toUtc()),
       'scheduledEndTime': Timestamp.fromDate(apiEvent.end!.dateTime!.toUtc()),
       'date': Timestamp.fromDate(newEventDate), // 添加日期字段
+      if (newDayNumber != null) 'dayNumber': newDayNumber,
       'googleEventId': apiEvent.id,
       'googleCalendarId': targetCalendarId,
       'lifecycleStatus': EventLifecycleStatus.active.value,
@@ -598,6 +604,17 @@ class CalendarService extends ChangeNotifier {
       'lifecycleStatus': EventLifecycleStatus.active.value,
       'updatedAt': Timestamp.fromDate(apiEvent.updated?.toUtc() ?? now.toUtc()),
     };
+
+    // 盡量補齊 date 與 dayNumber（若缺少）
+    final apiStart = apiEvent.start?.dateTime;
+    if (apiStart != null) {
+      final localDate = apiStart.toLocal();
+      updateData['date'] = Timestamp.fromDate(localDate);
+      try {
+        final dayNumber = await DayNumberService().calculateDayNumber(localDate);
+        updateData['dayNumber'] = dayNumber;
+      } catch (_) {}
+    }
 
     await localDoc.reference.set(updateData, SetOptions(merge: true));
   }

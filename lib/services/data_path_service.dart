@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:momentum/services/experiment_config_service.dart';
+import 'day_number_service.dart';
 
 /// 统一管理所有Firestore数据路径，根据用户分组返回正确的路径
 class DataPathService {
@@ -8,47 +9,44 @@ class DataPathService {
 
   final _firestore = FirebaseFirestore.instance;
 
-  /// 获取用户分组名称（基于当前日期）
+  /// 获取用户分组名称（新版：以週為單位，支援 RC 覆寫）
   Future<String> getUserGroupName(String uid) async {
-    final today = DateTime.now();
-    return await ExperimentConfigService.instance.getDateGroup(uid, today);
+    return await ExperimentConfigService.instance.getWeekGroupName(uid);
   }
 
-  /// 获取指定日期的用户分组名称
+  /// 获取指定日期的用户分组名称（暫保留：回退到舊的 date-based）
   Future<String> getDateGroupName(String uid, DateTime date) async {
     return await ExperimentConfigService.instance.getDateGroup(uid, date);
   }
 
-  /// 获取用户实验组事件集合引用
-  Future<CollectionReference> getUserExperimentEventsCollection(String uid) async {
-    return _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('experiment_events');
+  /// 取得 w1 事件集合引用（week1: day0~7）
+  Future<CollectionReference> getUserW1EventsCollection(String uid) async {
+    return _firestore.collection('users').doc(uid).collection('w1');
   }
 
-  /// 获取用户对照组事件集合引用
-  Future<CollectionReference> getUserControlEventsCollection(String uid) async {
-    return _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('control_events');
+  /// 取得 w2 事件集合引用（week2: day8+）
+  Future<CollectionReference> getUserW2EventsCollection(String uid) async {
+    return _firestore.collection('users').doc(uid).collection('w2');
   }
 
-  /// 获取用户事件集合引用（基于当前日期）
+  /// 获取用户事件集合引用（基于當前日期所屬週：w1/w2）
   Future<CollectionReference> getUserEventsCollection(String uid) async {
-    final group = await getUserGroupName(uid);
-    return group == 'experiment' 
-        ? await getUserExperimentEventsCollection(uid)
-        : await getUserControlEventsCollection(uid);
+    final today = DateTime.now();
+    return await getDateEventsCollection(uid, today);
   }
 
-  /// 获取指定日期的事件集合引用
+  /// 获取指定日期的事件集合引用（依 dayNumber 判斷 w1/w2）
   Future<CollectionReference> getDateEventsCollection(String uid, DateTime date) async {
-    final group = await getDateGroupName(uid, date);
-    return group == 'experiment' 
-        ? await getUserExperimentEventsCollection(uid)
-        : await getUserControlEventsCollection(uid);
+    final dayNum = await DayNumberService().calculateDayNumber(date);
+    final isWeek1 = dayNum <= 7;
+    assert(() {
+      // 調試：輸出日期與目標資料夾
+      try {
+        print('DataPathService.getDateEventsCollection: uid=' + uid + ', date=' + date.toIso8601String() + ', dayNum=' + dayNum.toString() + ', folder=' + (isWeek1 ? 'w1' : 'w2'));
+      } catch (_) {}
+      return true;
+    }());
+    return isWeek1 ? await getUserW1EventsCollection(uid) : await getUserW2EventsCollection(uid);
   }
 
   /// 获取用户事件文档引用（基于当前日期）
@@ -57,17 +55,17 @@ class DataPathService {
     return eventsCol.doc(eventId);
   }
 
-  /// 優先在 experiment/control 兩個集合中查找已存在的事件文檔
+  /// 優先在 w1/w2 兩個集合中查找已存在的事件文檔
   Future<DocumentReference?> findExistingEventDoc(String uid, String eventId) async {
-    final expCol = await getUserExperimentEventsCollection(uid);
-    final expDoc = expCol.doc(eventId);
-    final expSnap = await expDoc.get();
-    if (expSnap.exists) return expDoc;
+    final w1Col = await getUserW1EventsCollection(uid);
+    final w1Doc = w1Col.doc(eventId);
+    final w1Snap = await w1Doc.get();
+    if (w1Snap.exists) return w1Doc;
 
-    final ctrlCol = await getUserControlEventsCollection(uid);
-    final ctrlDoc = ctrlCol.doc(eventId);
-    final ctrlSnap = await ctrlDoc.get();
-    if (ctrlSnap.exists) return ctrlDoc;
+    final w2Col = await getUserW2EventsCollection(uid);
+    final w2Doc = w2Col.doc(eventId);
+    final w2Snap = await w2Doc.get();
+    if (w2Snap.exists) return w2Doc;
 
     return null;
   }
@@ -204,18 +202,17 @@ class DataPathService {
     return group == ExperimentGroup.control;
   }
 
-  /// 获取所有事件集合（实验组和对照组）
+  /// 获取所有事件集合（w1 + w2）
   Future<List<CollectionReference>> getAllEventsCollections(String uid) async {
     return [
-      await getUserExperimentEventsCollection(uid),
-      await getUserControlEventsCollection(uid),
+      await getUserW1EventsCollection(uid),
+      await getUserW2EventsCollection(uid),
     ];
   }
 
-  /// 根据日期和组别获取事件集合
-  Future<CollectionReference> getEventsCollectionByGroup(String uid, String group) async {
-    return group == 'experiment' 
-        ? await getUserExperimentEventsCollection(uid)
-        : await getUserControlEventsCollection(uid);
+  /// 保留舊接口：根據日期與（舊）組別取得事件集合
+  /// 已不再使用 experiment/control，會回退到依日期的 w1/w2
+  Future<CollectionReference> getEventsCollectionByGroup(String uid, String group, {DateTime? date}) async {
+    return await getDateEventsCollection(uid, date ?? DateTime.now());
   }
 } 

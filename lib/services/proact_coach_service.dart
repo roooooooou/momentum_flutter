@@ -59,18 +59,15 @@ class ProactCoachService {
       List<String> allChatSummaries = [];
       DateTime? recentChatDate;
       try {
-        // 首先尝试获取实验组事件的聊天总结
-        final experimentChatsCollection = await DataPathService.instance.getUserExperimentEventsCollection(uid);
-        final experimentEvents = await experimentChatsCollection.get();
-        
-        // 然后尝试获取对照组事件的聊天总结
-        final controlChatsCollection = await DataPathService.instance.getUserControlEventsCollection(uid);
-        final controlEvents = await controlChatsCollection.get();
-        
-        // 合并所有事件
+        // 取得 w1 / w2 事件集合
+        final w1Col = await DataPathService.instance.getUserW1EventsCollection(uid);
+        final w2Col = await DataPathService.instance.getUserW2EventsCollection(uid);
+        final w1Events = await w1Col.get();
+        final w2Events = await w2Col.get();
+        // 合併所有事件
         final allEvents = <DocumentSnapshot>[];
-        allEvents.addAll(experimentEvents.docs);
-        allEvents.addAll(controlEvents.docs);
+        allEvents.addAll(w1Events.docs);
+        allEvents.addAll(w2Events.docs);
         
         // 查找最近有聊天总结的事件
         final summaries = <String>[];

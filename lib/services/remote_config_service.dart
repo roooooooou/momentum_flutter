@@ -1,5 +1,6 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
 /// Firebase Remote Config 服务
 /// 用于管理实验组配置和其他远程配置参数
@@ -19,9 +20,14 @@ class RemoteConfigService {
       
       // 设置配置参数默认值
       await _remoteConfig!.setDefaults(const {
-        'experiment_group_ratio': 0.5, // 实验组比例，0.5 表示 50% 用户分配到实验组
-        'default_group': 1.0, // 默认组别：1 = 实验组，0 = 对照组（使用double避免类型转换问题）
+        'experiment_group_ratio': 0.5, // legacy
+        'default_group': 1.0, // legacy
         'enable_experiment': true, // 是否启用实验功能
+        // 新：以週為單位分派的預設與覆寫
+        // 'A' = 週1=experiment, 週2=control；'B' = 週1=control, 週2=experiment
+        'default_week_assignment': 'A',
+        // JSON: { "uid1": "A", "uid2": "B" }
+        'week_assignment_overrides_json': '{}',
       });
 
       // 设置获取配置的设置
@@ -100,6 +106,37 @@ class RemoteConfigService {
         print('RemoteConfigService: 获取实验功能状态失败，使用默认值: $e');
       }
       return true;
+    }
+  }
+
+  /// 取得指定使用者的週分派規則（A/B），可被 Remote Config 覆寫
+  String getWeekAssignmentForUser(String uid) {
+    if (!_initialized || _remoteConfig == null) {
+      return 'A';
+    }
+    try {
+      final overrides = _remoteConfig!.getString('week_assignment_overrides_json');
+      if (overrides.isNotEmpty) {
+        final Map<String, dynamic> map = _safeJsonDecode(overrides);
+        final v = map[uid];
+        if (v is String && (v == 'A' || v == 'B')) {
+          return v;
+        }
+      }
+    } catch (_) {}
+    try {
+      final def = _remoteConfig!.getString('default_week_assignment');
+      return (def == 'B') ? 'B' : 'A';
+    } catch (_) {
+      return 'A';
+    }
+  }
+
+  Map<String, dynamic> _safeJsonDecode(String s) {
+    try {
+      return s.isEmpty ? {} : (jsonDecode(s) as Map<String, dynamic>);
+    } catch (_) {
+      return {};
     }
   }
 

@@ -281,19 +281,17 @@ class AuthService {
         final dateParts = dateKey.split('-');
         final date = DateTime(int.parse(dateParts[0]), int.parse(dateParts[1]), int.parse(dateParts[2]));
         
-        // 获取该日期的组别
-        final groupName = await ExperimentConfigService.instance.getDateGroup(uid, date);
-        
-        if (kDebugMode) {
-          print('🎯 日期 $dateKey 分配到组别: $groupName');
-        }
+        // 依日期決定 w1/w2 集合
+        final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, date);
 
-        // 获取该组别的事件集合
-        final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
-
-        // 添加事件到对应组别
+        // 添加事件到对应週別
         for (final event in events) {
           final eventDate = event.start!.dateTime!.toLocal();
+          // 計算 dayNumber（以本地基準日起算）
+          int? dayNumber;
+          try {
+            dayNumber = await DayNumberService().calculateDayNumber(eventDate);
+          } catch (_) {}
           final eventData = {
             'title': event.summary ?? 'Untitled',
             'description': event.description ?? '',
@@ -302,6 +300,7 @@ class AuthService {
             'scheduledStartTime': Timestamp.fromDate(event.start!.dateTime!),
             'scheduledEndTime': Timestamp.fromDate(event.end!.dateTime!),
             'date': Timestamp.fromDate(eventDate), // 添加日期字段
+            if (dayNumber != null) 'dayNumber': dayNumber,
             'isActive': true,
             'isDone': false,
             'lifecycleStatus': 1, // active status
@@ -383,11 +382,8 @@ class AuthService {
   /// 🎯 新增：检查指定日期是否有任务
   Future<bool> _checkIfHasTasksOnDate(String uid, DateTime date) async {
     try {
-      // 获取该日期的组别
-      final groupName = await ExperimentConfigService.instance.getDateGroup(uid, date);
-      
-      // 获取该组别的事件集合
-      final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+      // 依日期決定 w1/w2 集合
+      final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, date);
       
       // 查询该日期的事件
       final startOfDay = DateTime(date.year, date.month, date.day);
@@ -440,9 +436,8 @@ class AuthService {
       for (int i = 0; i < 15; i++) {
         final targetDate = now.add(Duration(days: i));
         
-        // 获取该日期的组别
-        final groupName = await ExperimentConfigService.instance.getDateGroup(uid, targetDate);
-        final eventsCollection = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
+        // 依日期決定 w1/w2 事件集合
+        final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, targetDate);
         
         // 查询该日期的事件
         final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);

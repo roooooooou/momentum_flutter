@@ -565,6 +565,14 @@ class NotificationService {
 
       // 转换為時區時間
       final scheduledDate = tz.TZDateTime.from(targetTime, tz.local);
+      final nowTz = tz.TZDateTime.now(tz.local);
+      // 若時間已過，直接略過，避免拋錯
+      if (!scheduledDate.isAfter(nowTz)) {
+        if (kDebugMode) {
+          print('跳過已過去的每日報告通知: ${scheduledDate.toString()}');
+        }
+        return false;
+      }
       
       await _plugin.zonedSchedule(
         notificationId,
@@ -610,13 +618,8 @@ class NotificationService {
         print('檢查任務範圍: ${startOfDay.toUtc()} 到 ${endOfDay.toUtc()}');
       }
 
-      // 🎯 修复：根据指定日期获取正确的组别和事件集合
-      final groupName = await ExperimentConfigService.instance.getDateGroup(uid, date);
-      final eventsCol = await DataPathService.instance.getEventsCollectionByGroup(uid, groupName);
-      
-      if (kDebugMode) {
-        print('🎯 检查日期 ${date.toString().substring(0, 10)} 的组别: $groupName');
-      }
+      // 🎯 依日期選擇 w1/w2 事件集合
+      final eventsCol = await DataPathService.instance.getDateEventsCollection(uid, date);
 
       final snapshot = await eventsCol
           .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay.toUtc()))

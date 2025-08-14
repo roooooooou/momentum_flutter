@@ -10,6 +10,75 @@ service cloud.firestore {
     
     // === 新的數據結構支持 ===
     
+    // 週資料夾事件數據（w1: day0-7, w2: day8+）
+    match /users/{userId}/w1/{eventId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // 事件通知數據
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 事件聊天數據
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        
+        // 聊天消息數據
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+      
+      // 閱讀數據
+      match /reading/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙學習數據
+      match /vocab/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙測驗嘗試結果
+      match /vocab_quiz_attempts/{attemptId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    match /users/{userId}/w2/{eventId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // 事件通知數據
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 事件聊天數據
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        
+        // 聊天消息數據
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+      
+      // 閱讀數據
+      match /reading/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙學習數據
+      match /vocab/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 詞彙測驗嘗試結果
+      match /vocab_quiz_attempts/{attemptId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
     // 實驗組事件數據
     match /users/{userId}/experiment_events/{eventId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
