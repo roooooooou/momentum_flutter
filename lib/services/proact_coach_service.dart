@@ -143,6 +143,7 @@ class ProactCoachService {
                     allChatSummaries.add(summary);
                   }
                 }
+                print('allChatSummaries: ${allChatSummaries}');
               } catch (e) {
                 print('获取指定日期的聊天总结时出错: $e');
               }
@@ -215,7 +216,7 @@ class ProactCoachService {
   }
 
   Future<ChatCompletionResult> getCompletion(
-      List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn, {String? taskDescription, String? uid, String? eventId}) async {
+      List<ChatMessage> history, String taskTitle, DateTime startTime, int currentTurn, {String? taskDescription, String? uid, String? eventId, int? dayNumber}) async {
     // 获取前一天的数据
     YesterdayData? yesterdayData;
     if (uid != null && eventId != null) {
@@ -247,7 +248,6 @@ class ProactCoachService {
       combinedChatSummary = yesterdayData?.chatSummary ?? '';
     }
     
-    print('history dialogues: ${mapped}');
     print('current turn: ${currentTurn}');
     print('yesterday data: ${yesterdayData?.chatSummary}, ${yesterdayData?.dailyReportSummary}');
     print('all chat summaries count: ${yesterdayData?.allChatSummaries.length ?? 0}');
@@ -258,11 +258,11 @@ class ProactCoachService {
       'dialogues': mapped,
       'startTime': formattedStartTime,
       'currentTurn': currentTurn,
+      'dayNumber': dayNumber, // 新增dayNumber參數
       'yesterdayChat': combinedChatSummary,
       'yesterdayStatus': yesterdayData?.yesterdayStatus ?? '',
       'dailySummary': yesterdayData?.dailyReportSummary ?? '',
     });
-    print('LLM response: ${res.data}');
     
     // 從響應中提取end_of_dialogue字段
     final endOfDialogue = res.data['end_of_dialogue'] ?? false;
@@ -278,10 +278,6 @@ class ProactCoachService {
     int totalTokens = 0;
     
     if (tokenUsageRaw != null) {
-      // 🎯 調試：檢查原始token usage數據
-      print('Token usage raw type: ${tokenUsageRaw.runtimeType}');
-      print('Token usage raw content: $tokenUsageRaw');
-      
       // 安全地轉換並提取total_tokens
       if (tokenUsageRaw is Map) {
         totalTokens = (tokenUsageRaw['total_tokens'] as num?)?.toInt() ?? 0;
@@ -291,10 +287,7 @@ class ProactCoachService {
     // 🎯 調試：檢查answer內容
     final answerContent = res.data['answer'];
     print('Raw answer content: "$answerContent"');
-    print('Answer content type: ${answerContent.runtimeType}');
-    print('Answer content length: ${answerContent?.toString().length ?? 0}');
     print('Suggested action: $suggestedAction');
-    print('Final total tokens: $totalTokens');
     
     final message = ChatMessage(
       role: ChatRole.assistant,
@@ -305,12 +298,7 @@ class ProactCoachService {
         if (commitPlan != null && commitPlan.toString().isNotEmpty) 'commit_plan': commitPlan.toString(),
       },
     );
-    
-    // 🎯 調試：檢查創建的message
-    print('Created message content: "${message.content}"');
-    print('Created message endOfDialogue: ${message.endOfDialogue}');
-    print('Created message suggested_action: ${message.extra?['suggested_action']}');
-    
+   
     return ChatCompletionResult(
       message: message,
       totalTokens: totalTokens,

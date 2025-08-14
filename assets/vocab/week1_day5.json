@@ -1,0 +1,343 @@
+{
+  "meta": {
+    "week": 1,
+    "day": 5,
+    "policy": "spaced_review:+1,+3 (within week)",
+    "selection_seed": 20250814,
+    "selection_method": "random_without_replacement",
+    "counts": {
+      "new": 0,
+      "review_due": 18
+    },
+    "session_time_limit_sec": 600
+  },
+  "new_items": [],
+  "review_items": [
+    {
+      "word": "eschew",
+      "part_of_speech": "verb",
+      "en_definition": "to deliberately avoid or abstain from",
+      "zh_explanation": "刻意避開；節制",
+      "example_en": "They eschew sugar during training season.",
+      "example_zh": "訓練季他們會刻意避開糖分。",
+      "label": "review"
+    },
+    {
+      "word": "fatuous",
+      "part_of_speech": "adj",
+      "en_definition": "silly and pointless",
+      "zh_explanation": "愚蠢；無意義",
+      "example_en": "His fatuous remark derailed the discussion.",
+      "example_zh": "他愚蠢的一句話讓討論走偏。",
+      "label": "review"
+    },
+    {
+      "word": "lachrymose",
+      "part_of_speech": "adj",
+      "en_definition": "tearful or given to weeping",
+      "zh_explanation": "愛哭；易落淚",
+      "example_en": "A lachrymose ballad played on repeat.",
+      "example_zh": "一首催淚的抒情歌反覆播放。",
+      "label": "review"
+    },
+    {
+      "word": "fulminate",
+      "part_of_speech": "verb",
+      "en_definition": "to protest vehemently",
+      "zh_explanation": "強烈抨擊；譴責",
+      "example_en": "Residents fulminated against the rezoning plan.",
+      "example_zh": "居民強烈抨擊重劃計畫。",
+      "label": "review"
+    },
+    {
+      "word": "ersatz",
+      "part_of_speech": "adj",
+      "en_definition": "artificial and inferior substitute",
+      "zh_explanation": "劣質仿製；代用品",
+      "example_en": "The ersatz leather peeled within weeks.",
+      "example_zh": "仿皮幾週內就開始剝落。",
+      "label": "review"
+    },
+    {
+      "word": "perspicacious",
+      "part_of_speech": "adj",
+      "en_definition": "having keen insight and understanding",
+      "zh_explanation": "洞察力強；敏銳",
+      "example_en": "Her perspicacious reading solved the puzzle.",
+      "example_zh": "她的敏銳解讀解開了難題。",
+      "label": "review"
+    },
+    {
+      "word": "garrulous",
+      "part_of_speech": "adj",
+      "en_definition": "excessively talkative",
+      "zh_explanation": "喋喋不休；多話",
+      "example_en": "The garrulous host dominated the conversation.",
+      "example_zh": "多話的主持人幾乎壟斷了談話。",
+      "label": "review"
+    },
+    {
+      "word": "gainsay",
+      "part_of_speech": "verb",
+      "en_definition": "to deny or contradict",
+      "zh_explanation": "否認；反駁",
+      "example_en": "No one could gainsay the clear evidence.",
+      "example_zh": "沒人能反駁那份明確的證據。",
+      "label": "review"
+    },
+    {
+      "word": "lugubrious",
+      "part_of_speech": "adj",
+      "en_definition": "looking or sounding dismal and gloomy",
+      "zh_explanation": "憂鬱陰鬱；悶悶不樂",
+      "example_en": "He spoke in a lugubrious, drawn-out tone.",
+      "example_zh": "他用陰鬱而拖長的語氣說話。",
+      "label": "review"
+    },
+    {
+      "word": "inexorable",
+      "part_of_speech": "adj",
+      "en_definition": "impossible to stop or persuade",
+      "zh_explanation": "無可阻擋；不可動搖",
+      "example_en": "The glacier's retreat proved inexorable.",
+      "example_zh": "冰川的退縮看來無可阻擋。",
+      "label": "review"
+    },
+    {
+      "word": "anodyne",
+      "part_of_speech": "adj",
+      "en_definition": "unlikely to offend; soothing",
+      "zh_explanation": "不致冒犯；撫慰的／無害的",
+      "example_en": "The speech was anodyne and offended no one.",
+      "example_zh": "那場演說中庸無害，沒有冒犯任何人。",
+      "label": "review"
+    },
+    {
+      "word": "quixotic",
+      "part_of_speech": "adj",
+      "en_definition": "exceedingly idealistic; unrealistic and impractical",
+      "zh_explanation": "過度理想；不切實際",
+      "example_en": "Her quixotic project ignored all constraints.",
+      "example_zh": "她那理想化的專案無視所有限制。",
+      "label": "review"
+    },
+    {
+      "word": "churlish",
+      "part_of_speech": "adj",
+      "en_definition": "rude in a mean-spirited way",
+      "zh_explanation": "粗鄙無禮且刻薄",
+      "example_en": "It would be churlish to refuse their help now.",
+      "example_zh": "此刻拒絕他們的幫忙會顯得無禮。",
+      "label": "review"
+    },
+    {
+      "word": "bilious",
+      "part_of_speech": "adj",
+      "en_definition": "irritable; nauseated",
+      "zh_explanation": "易怒；噁心不適",
+      "example_en": "He felt bilious after the turbulent flight.",
+      "example_zh": "顛簸的航班讓他噁心難受。",
+      "label": "review"
+    },
+    {
+      "word": "complaisant",
+      "part_of_speech": "adj",
+      "en_definition": "willing to please; obliging",
+      "zh_explanation": "殷勤順從；樂於取悅",
+      "example_en": "He was complaisant toward his influential client.",
+      "example_zh": "他對那位有影響力的客戶十分順從。",
+      "label": "review"
+    },
+    {
+      "word": "obstreperous",
+      "part_of_speech": "adj",
+      "en_definition": "noisy and difficult to control",
+      "zh_explanation": "吵鬧難管束",
+      "example_en": "An obstreperous crowd ignored the barriers.",
+      "example_zh": "吵鬧的人群無視圍欄。",
+      "label": "review"
+    },
+    {
+      "word": "recondite",
+      "part_of_speech": "adj",
+      "en_definition": "little known; abstruse",
+      "zh_explanation": "艱澀難懂；少人知",
+      "example_en": "A recondite theorem puzzled the class.",
+      "example_zh": "艱澀的定理讓全班困惑。",
+      "label": "review"
+    },
+    {
+      "word": "obdurate",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly refusing to change",
+      "zh_explanation": "頑固；不改變",
+      "example_en": "He remained obdurate despite strong evidence.",
+      "example_zh": "即便證據明確，他依舊頑固不改。",
+      "label": "review"
+    }
+  ],
+  "items_shuffled": [
+    {
+      "word": "bilious",
+      "part_of_speech": "adj",
+      "en_definition": "irritable; nauseated",
+      "zh_explanation": "易怒；噁心不適",
+      "example_en": "He felt bilious after the turbulent flight.",
+      "example_zh": "顛簸的航班讓他噁心難受。",
+      "label": "review"
+    },
+    {
+      "word": "lugubrious",
+      "part_of_speech": "adj",
+      "en_definition": "looking or sounding dismal and gloomy",
+      "zh_explanation": "憂鬱陰鬱；悶悶不樂",
+      "example_en": "He spoke in a lugubrious, drawn-out tone.",
+      "example_zh": "他用陰鬱而拖長的語氣說話。",
+      "label": "review"
+    },
+    {
+      "word": "obdurate",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly refusing to change",
+      "zh_explanation": "頑固；不改變",
+      "example_en": "He remained obdurate despite strong evidence.",
+      "example_zh": "即便證據明確，他依舊頑固不改。",
+      "label": "review"
+    },
+    {
+      "word": "gainsay",
+      "part_of_speech": "verb",
+      "en_definition": "to deny or contradict",
+      "zh_explanation": "否認；反駁",
+      "example_en": "No one could gainsay the clear evidence.",
+      "example_zh": "沒人能反駁那份明確的證據。",
+      "label": "review"
+    },
+    {
+      "word": "complaisant",
+      "part_of_speech": "adj",
+      "en_definition": "willing to please; obliging",
+      "zh_explanation": "殷勤順從；樂於取悅",
+      "example_en": "He was complaisant toward his influential client.",
+      "example_zh": "他對那位有影響力的客戶十分順從。",
+      "label": "review"
+    },
+    {
+      "word": "garrulous",
+      "part_of_speech": "adj",
+      "en_definition": "excessively talkative",
+      "zh_explanation": "喋喋不休；多話",
+      "example_en": "The garrulous host dominated the conversation.",
+      "example_zh": "多話的主持人幾乎壟斷了談話。",
+      "label": "review"
+    },
+    {
+      "word": "perspicacious",
+      "part_of_speech": "adj",
+      "en_definition": "having keen insight and understanding",
+      "zh_explanation": "洞察力強；敏銳",
+      "example_en": "Her perspicacious reading solved the puzzle.",
+      "example_zh": "她的敏銳解讀解開了難題。",
+      "label": "review"
+    },
+    {
+      "word": "inexorable",
+      "part_of_speech": "adj",
+      "en_definition": "impossible to stop or persuade",
+      "zh_explanation": "無可阻擋；不可動搖",
+      "example_en": "The glacier's retreat proved inexorable.",
+      "example_zh": "冰川的退縮看來無可阻擋。",
+      "label": "review"
+    },
+    {
+      "word": "obstreperous",
+      "part_of_speech": "adj",
+      "en_definition": "noisy and difficult to control",
+      "zh_explanation": "吵鬧難管束",
+      "example_en": "An obstreperous crowd ignored the barriers.",
+      "example_zh": "吵鬧的人群無視圍欄。",
+      "label": "review"
+    },
+    {
+      "word": "anodyne",
+      "part_of_speech": "adj",
+      "en_definition": "unlikely to offend; soothing",
+      "zh_explanation": "不致冒犯；撫慰的／無害的",
+      "example_en": "The speech was anodyne and offended no one.",
+      "example_zh": "那場演說中庸無害，沒有冒犯任何人。",
+      "label": "review"
+    },
+    {
+      "word": "churlish",
+      "part_of_speech": "adj",
+      "en_definition": "rude in a mean-spirited way",
+      "zh_explanation": "粗鄙無禮且刻薄",
+      "example_en": "It would be churlish to refuse their help now.",
+      "example_zh": "此刻拒絕他們的幫忙會顯得無禮。",
+      "label": "review"
+    },
+    {
+      "word": "fulminate",
+      "part_of_speech": "verb",
+      "en_definition": "to protest vehemently",
+      "zh_explanation": "強烈抨擊；譴責",
+      "example_en": "Residents fulminated against the rezoning plan.",
+      "example_zh": "居民強烈抨擊重劃計畫。",
+      "label": "review"
+    },
+    {
+      "word": "lachrymose",
+      "part_of_speech": "adj",
+      "en_definition": "tearful or given to weeping",
+      "zh_explanation": "愛哭；易落淚",
+      "example_en": "A lachrymose ballad played on repeat.",
+      "example_zh": "一首催淚的抒情歌反覆播放。",
+      "label": "review"
+    },
+    {
+      "word": "fatuous",
+      "part_of_speech": "adj",
+      "en_definition": "silly and pointless",
+      "zh_explanation": "愚蠢；無意義",
+      "example_en": "His fatuous remark derailed the discussion.",
+      "example_zh": "他愚蠢的一句話讓討論走偏。",
+      "label": "review"
+    },
+    {
+      "word": "quixotic",
+      "part_of_speech": "adj",
+      "en_definition": "exceedingly idealistic; unrealistic and impractical",
+      "zh_explanation": "過度理想；不切實際",
+      "example_en": "Her quixotic project ignored all constraints.",
+      "example_zh": "她那理想化的專案無視所有限制。",
+      "label": "review"
+    },
+    {
+      "word": "eschew",
+      "part_of_speech": "verb",
+      "en_definition": "to deliberately avoid or abstain from",
+      "zh_explanation": "刻意避開；節制",
+      "example_en": "They eschew sugar during training season.",
+      "example_zh": "訓練季他們會刻意避開糖分。",
+      "label": "review"
+    },
+    {
+      "word": "recondite",
+      "part_of_speech": "adj",
+      "en_definition": "little known; abstruse",
+      "zh_explanation": "艱澀難懂；少人知",
+      "example_en": "A recondite theorem puzzled the class.",
+      "example_zh": "艱澀的定理讓全班困惑。",
+      "label": "review"
+    },
+    {
+      "word": "ersatz",
+      "part_of_speech": "adj",
+      "en_definition": "artificial and inferior substitute",
+      "zh_explanation": "劣質仿製；代用品",
+      "example_en": "The ersatz leather peeled within weeks.",
+      "example_zh": "仿皮幾週內就開始剝落。",
+      "label": "review"
+    }
+  ]
+}

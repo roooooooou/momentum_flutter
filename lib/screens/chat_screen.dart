@@ -121,16 +121,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildInputArea(ChatProvider chat) {
     // 添加调试信息
     if (kDebugMode) {
-      print('ChatScreen: isDialogueEnded = ${chat.isDialogueEnded}');
-      print('ChatScreen: suggestedAction = ${chat.suggestedAction}');
-      print('ChatScreen: messages.length = ${chat.messages.length}');
       if (chat.messages.isNotEmpty) {
         final lastAssistantMessage = chat.messages.lastWhere(
           (msg) => msg.role == ChatRole.assistant,
           orElse: () => ChatMessage(role: ChatRole.assistant, content: ''),
         );
-        print('ChatScreen: lastAssistantMessage.endOfDialogue = ${lastAssistantMessage.endOfDialogue}');
-        print('ChatScreen: lastAssistantMessage.extra = ${lastAssistantMessage.extra}');
       }
     }
     
@@ -212,7 +207,7 @@ class _ChatScreenState extends State<ChatScreen> {
               enabled: !chat.isLoading, // 在loading時禁用輸入
               onSubmitted: chat.isLoading ? null : (_) => _send(chat),
               decoration: InputDecoration(
-                hintText: chat.isLoading ? 'AI正在思考中...' : '分享你的想法...',
+                hintText: chat.isLoading ? 'Coach正在思考中...' : '分享你的想法...',
                 border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12))),
                 isDense: true,

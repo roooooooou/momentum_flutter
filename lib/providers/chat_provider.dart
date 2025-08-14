@@ -21,6 +21,7 @@ class ChatProvider extends ChangeNotifier {
   final String eventId;
   final String chatId;
   final ChatEntryMethod entryMethod;
+  final int? dayNumber; // 新增dayNumber參數
   final List<int> _latencies = [];
   bool _hasRecordedChatStart = false;
   int _totalTokens = 0;
@@ -33,6 +34,7 @@ class ChatProvider extends ChangeNotifier {
     required this.eventId,
     required this.chatId,
     required this.entryMethod,
+    this.dayNumber, // 新增dayNumber參數
   }) {
     _loadChatHistory(); // 加载历史聊天记录
   }
@@ -152,6 +154,7 @@ class ChatProvider extends ChangeNotifier {
         taskDescription: taskDescription,
         uid: uid,
         eventId: eventId,
+        dayNumber: dayNumber, // 新增dayNumber參數
       );
       
       _messages.add(result.message);

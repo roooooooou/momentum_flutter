@@ -66,12 +66,24 @@ class ReadingAnalyticsService {
     try {
       final ref = await _getReadingDataRef(uid, eventId);
       
-      // 更新卡片停留时间
-      await ref.update({
-        'cardDwellTimes.$cardIndex': FieldValue.increment(dwellTimeMs),
-        'totalReadingTime': FieldValue.increment(dwellTimeMs),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
+      // 检查文档是否存在
+      final doc = await ref.get();
+      if (doc.exists) {
+        // 文档存在，更新卡片停留时间
+        await ref.update({
+          'cardDwellTimes.$cardIndex': FieldValue.increment(dwellTimeMs),
+          'totalReadingTime': FieldValue.increment(dwellTimeMs),
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } else {
+        // 文档不存在，创建新文档
+        await ref.set({
+          'eventId': eventId,
+          'cardDwellTimes': {cardIndex.toString(): dwellTimeMs},
+          'totalReadingTime': dwellTimeMs,
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
     } catch (e) {
       print('記錄卡片停留時間失敗: $e');
     }
@@ -85,11 +97,22 @@ class ReadingAnalyticsService {
     try {
       final ref = await _getReadingDataRef(uid, eventId);
       
-      // 增加离开次数
-      await ref.update({
-        'leaveCount': FieldValue.increment(1),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
+      // 检查文档是否存在
+      final doc = await ref.get();
+      if (doc.exists) {
+        // 文档存在，更新离开次数
+        await ref.update({
+          'leaveCount': FieldValue.increment(1),
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } else {
+        // 文档不存在，创建新文档
+        await ref.set({
+          'eventId': eventId,
+          'leaveCount': 1,
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
     } catch (e) {
       print('記錄離開學習頁面失敗: $e');
     }

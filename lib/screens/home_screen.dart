@@ -30,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<EventModel> _cached = const [];
   bool _isInitialSync = true;
+  bool _isFirstTimeSetup = true; // 第一次设置loading状态
   final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
   bool _isExperimentGroup = false; // 用户是否为实验组
   bool _isOpeningChat = false; // 防止重複點擊聊天按鈕
@@ -45,9 +46,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await AuthService.instance.signOut();
         // AuthGate 會自動顯示 SignInScreen
       } else {
+        // 第一次设置loading状态
+        setState(() {
+          _isFirstTimeSetup = true;
+        });
+
         // 获取用户当前日期的实验组别
         final uid = context.read<AuthService>().currentUser!.uid;
         try {
+          if (kDebugMode) {
+            print('正在分配用户组别...');
+          }
           _isExperimentGroup = await ExperimentConfigService.instance.isExperimentGroup(uid);
           if (mounted) {
             setState(() {});
@@ -65,6 +74,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         // 初始化通知服務
         try {
+          if (kDebugMode) {
+            print('正在初始化通知服务...');
+          }
           await NotificationService.instance.initialize();
           // 安排每日報告通知
           await NotificationService.instance.scheduleDailyReportNotification();
@@ -77,6 +89,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         // 初始同步
         try {
+          if (kDebugMode) {
+            print('正在抓取任务数据...');
+          }
           await CalendarService.instance.syncToday(uid);
         } catch (e) {
           if (mounted) {
@@ -87,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (mounted) {
             setState(() {
               _isInitialSync = false;
+              _isFirstTimeSetup = false; // 完成第一次设置
             });
           }
         }
@@ -126,13 +142,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         
         // 只有实验组才检查是否有任務需要顯示開始對話框
         if (_isExperimentGroup) {
-          // 如果app是由通知打開的，跳過此檢查以避免重複顯示對話框
-          if (!AppUsageService.instance.openedByNotification) {
-            _checkPendingTaskStart(uid);
-          } else {
+          // 如果app是由通知打開的，跳过此检查，因为notification_handler会处理对话框显示
+          if (AppUsageService.instance.openedByNotification) {
             if (kDebugMode) {
-              print('App由通知打開，跳過pending task start檢查');
+              print('App由通知打開，跳过pending task检查，由notification_handler处理');
             }
+          } else {
+            _checkPendingTaskStart(uid, forceShow: false);
           }
         }
         
@@ -205,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 檢查是否有任務需要顯示開始對話框（App Resume 時調用）
-  Future<void> _checkPendingTaskStart(String uid) async {
+  Future<void> _checkPendingTaskStart(String uid, {bool forceShow = false}) async {
     try {
       // 修复时区问题：使用台湾时区计算今天的范围
       final now = DateTime.now();
@@ -236,19 +252,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 任務還沒實際開始
         if (event.actualStartTime != null) return false;
         
-        // 已經顯示過對話框的任務不再顯示
-        if (_shownDialogTaskIds.contains(event.id)) return false;
+        // 如果强制显示（通过通知打开），跳过已显示对话框的检查
+        if (!forceShow) {
+          // 已經顯示過對話框的任務不再顯示
+          if (_shownDialogTaskIds.contains(event.id)) return false;
+          
+          // 已經顯示過完成提醒對話框的任務不再顯示開始對話框
+          if (NotificationHandler.instance.shownCompletionDialogTaskIds.contains(event.id)) return false;
+        }
         
-        // 已經顯示過完成提醒對話框的任務不再顯示開始對話框
-        if (NotificationHandler.instance.shownCompletionDialogTaskIds.contains(event.id)) return false;
-        
-        // 只在任務開始時間前後10分鐘內顯示對話框
-        final bufferTime = const Duration(minutes: 20);
-        final earliestShowTime = event.scheduledStartTime.subtract(bufferTime); // 開始前20分鐘
-        final latestShowTime = event.scheduledStartTime.add(bufferTime);       // 開始後20分鐘
+        // 只在任務開始時間前10分鐘到開始後20分鐘內顯示對話框
+        const beforeBuffer = Duration(minutes: 10); // 開始前10分鐘
+        const afterBuffer = Duration(minutes: 20);  // 開始後20分鐘
+        final earliestShowTime = event.scheduledStartTime.subtract(beforeBuffer); // 開始前10分鐘
+        final latestShowTime = event.scheduledStartTime.add(afterBuffer);         // 開始後20分鐘
         
         // 當前時間必須在時間窗口內
-        final inTimeWindow = now.isAfter(event.scheduledStartTime) && now.isBefore(latestShowTime);
+        final inTimeWindow = now.isAfter(earliestShowTime) && now.isBefore(latestShowTime);
 
         
         return inTimeWindow;
@@ -412,8 +432,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       color: const Color(0xFF3A4A46))),
               SizedBox(height: verticalSpacing),
               Expanded(
-                child: stream == null || _isInitialSync
-                    ? const Center(child: CircularProgressIndicator())
+                child: stream == null || _isInitialSync || _isFirstTimeSetup
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                            ),
+                          ],
+                        ),
+                      )
                     : StreamBuilder<List<EventModel>>(
                         stream: stream,
                         builder: (_, snap) {
@@ -472,6 +501,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                                         eventId: list[i].id,
                                                         chatId: chatId,
                                                         entryMethod: ChatEntryMethod.eventCard, // 🎯 新增：事件卡片進入
+                                                        dayNumber: list[i].dayNumber, // 新增dayNumber參數
                                                       ),
                                                       child: ChatScreen(
                                                         taskTitle: list[i].title,
@@ -497,21 +527,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   // 同步loading overlay
                                   if (isSyncing)
                                     Container(
-                                      color: Colors.white, // Changed from black.withOpacity(0.3)
+                                      color: const Color.fromARGB(255, 255, 250, 243),
                                       child: const Center(
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             CircularProgressIndicator(
                                               valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-                                            ),
-                                            SizedBox(height: 16),
-                                            Text(
-                                              '同步中...',
-                                              style: TextStyle(
-                                                color: Colors.deepPurple,
-                                                fontSize: 16,
-                                              ),
                                             ),
                                           ],
                                         ),

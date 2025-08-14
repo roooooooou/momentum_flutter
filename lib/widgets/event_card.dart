@@ -428,7 +428,7 @@ class _ActionButton extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onChat,
                 style: buttonStyle,
-                child: const Text('Chat'),
+                child: const Text('需要動力'),
               ),
             ),
             const SizedBox(height: 6), // 垂直間距
@@ -442,7 +442,7 @@ class _ActionButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onStart,
               style: buttonStyle,
-              child: const Text('Start'),
+              child: const Text('開始任務'),
             ),
           ),
         ],
@@ -466,7 +466,7 @@ class _ActionButton extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onChat,
                 style: buttonStyle,
-                child: const Text('Chat'),
+                child: const Text('需要動力'),
               ),
             ),
             const SizedBox(height: 6),
@@ -480,7 +480,7 @@ class _ActionButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onContinue,
               style: buttonStyle,
-              child: const Text('Continue'),
+              child: const Text('繼續任務'),
             ),
           ),
         ],
@@ -502,7 +502,7 @@ class _ActionButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onComplete,
               style: buttonStyle,
-              child: const Text('Done'),
+              child: const Text('完成'),
             ),
           ),
           const SizedBox(height: 6),
@@ -515,7 +515,7 @@ class _ActionButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onStop,
               style: buttonStyle,
-              child: const Text('Pause'),
+              child: const Text('暫停任務計時'),
             ),
           ),
         ],

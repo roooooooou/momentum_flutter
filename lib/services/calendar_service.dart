@@ -746,7 +746,7 @@ class CalendarService extends ChangeNotifier {
       // 只有當延遲時間為正數時才排程通知
       if (delaySeconds > 0) {
         // 使用固定的算法生成通知ID
-        final notificationId = 'task_completion_${event.id}'.hashCode.abs();
+        final notificationId = 2000 + (event.id.hashCode.abs() % 100000);
         
         final success = await NotificationService.instance.scheduleEventNotification(
           notificationId: notificationId,
@@ -779,10 +779,14 @@ class CalendarService extends ChangeNotifier {
 
     // 获取当前暫停次數並增加1
     final snap = await ref.get();
-    final data = snap.data() as Map<String, dynamic>;
     int currentPauseCount = 0;
-    if (data.containsKey('pauseCount')) {
-      currentPauseCount = (data['pauseCount'] as int?) ?? 0;
+    
+    // 檢查文檔是否存在，避免 null 轉換錯誤
+    if (snap.exists) {
+      final data = snap.data() as Map<String, dynamic>?;
+      if (data != null && data.containsKey('pauseCount')) {
+        currentPauseCount = (data['pauseCount'] as int?) ?? 0;
+      }
     }
 
     await ref.set({
@@ -938,7 +942,7 @@ class CalendarService extends ChangeNotifier {
   Future<void> _cancelCompletionNotification(String eventId) async {
     try {
       // 使用固定的算法生成通知ID（類似NotificationScheduler的做法）
-      final notificationId = 'task_completion_$eventId'.hashCode.abs();
+      final notificationId = 2000 + (eventId.hashCode.abs() % 100000);
       await NotificationService.instance.cancelNotification(notificationId);
       
       if (kDebugMode) {

@@ -1,0 +1,416 @@
+{
+  "meta": {
+    "week": 1,
+    "day": 2,
+    "policy": "spaced_review:+1,+3 (within week)",
+    "selection_seed": 20250814,
+    "selection_method": "random_without_replacement",
+    "counts": {
+      "new": 10,
+      "review_due": 12
+    },
+    "session_time_limit_sec": 600
+  },
+  "new_items": [
+    {
+      "word": "bilious",
+      "part_of_speech": "adj",
+      "en_definition": "irritable; nauseated",
+      "zh_explanation": "易怒；噁心不適",
+      "example_en": "He felt bilious after the turbulent flight.",
+      "example_zh": "顛簸的航班讓他噁心難受。",
+      "label": "new"
+    },
+    {
+      "word": "quixotic",
+      "part_of_speech": "adj",
+      "en_definition": "exceedingly idealistic; unrealistic and impractical",
+      "zh_explanation": "過度理想；不切實際",
+      "example_en": "Her quixotic project ignored all constraints.",
+      "example_zh": "她那理想化的專案無視所有限制。",
+      "label": "new"
+    },
+    {
+      "word": "perspicacious",
+      "part_of_speech": "adj",
+      "en_definition": "having keen insight and understanding",
+      "zh_explanation": "洞察力強；敏銳",
+      "example_en": "Her perspicacious reading solved the puzzle.",
+      "example_zh": "她的敏銳解讀解開了難題。",
+      "label": "new"
+    },
+    {
+      "word": "fulminate",
+      "part_of_speech": "verb",
+      "en_definition": "to protest vehemently",
+      "zh_explanation": "強烈抨擊；譴責",
+      "example_en": "Residents fulminated against the rezoning plan.",
+      "example_zh": "居民強烈抨擊重劃計畫。",
+      "label": "new"
+    },
+    {
+      "word": "garrulous",
+      "part_of_speech": "adj",
+      "en_definition": "excessively talkative",
+      "zh_explanation": "喋喋不休；多話",
+      "example_en": "The garrulous host dominated the conversation.",
+      "example_zh": "多話的主持人幾乎壟斷了談話。",
+      "label": "new"
+    },
+    {
+      "word": "inexorable",
+      "part_of_speech": "adj",
+      "en_definition": "impossible to stop or persuade",
+      "zh_explanation": "無可阻擋；不可動搖",
+      "example_en": "The glacier's retreat proved inexorable.",
+      "example_zh": "冰川的退縮看來無可阻擋。",
+      "label": "new"
+    },
+    {
+      "word": "ersatz",
+      "part_of_speech": "adj",
+      "en_definition": "artificial and inferior substitute",
+      "zh_explanation": "劣質仿製；代用品",
+      "example_en": "The ersatz leather peeled within weeks.",
+      "example_zh": "仿皮幾週內就開始剝落。",
+      "label": "new"
+    },
+    {
+      "word": "churlish",
+      "part_of_speech": "adj",
+      "en_definition": "rude in a mean-spirited way",
+      "zh_explanation": "粗鄙無禮且刻薄",
+      "example_en": "It would be churlish to refuse their help now.",
+      "example_zh": "此刻拒絕他們的幫忙會顯得無禮。",
+      "label": "new"
+    },
+    {
+      "word": "recondite",
+      "part_of_speech": "adj",
+      "en_definition": "little known; abstruse",
+      "zh_explanation": "艱澀難懂；少人知",
+      "example_en": "A recondite theorem puzzled the class.",
+      "example_zh": "艱澀的定理讓全班困惑。",
+      "label": "new"
+    },
+    {
+      "word": "lugubrious",
+      "part_of_speech": "adj",
+      "en_definition": "looking or sounding dismal and gloomy",
+      "zh_explanation": "憂鬱陰鬱；悶悶不樂",
+      "example_en": "He spoke in a lugubrious, drawn-out tone.",
+      "example_zh": "他用陰鬱而拖長的語氣說話。",
+      "label": "new"
+    }
+  ],
+  "review_items": [
+    {
+      "word": "ebullient",
+      "part_of_speech": "adj",
+      "en_definition": "cheerful and full of energy",
+      "zh_explanation": "熱情洋溢；充滿活力",
+      "example_en": "His ebullient energy lifted the whole team.",
+      "example_zh": "他滿溢的熱情帶動了整個團隊。",
+      "label": "review"
+    },
+    {
+      "word": "peripatetic",
+      "part_of_speech": "adj",
+      "en_definition": "traveling from place to place",
+      "zh_explanation": "到處奔走；巡迴",
+      "example_en": "His peripatetic career spanned three cities.",
+      "example_zh": "他巡迴式的職涯橫跨三座城市。",
+      "label": "review"
+    },
+    {
+      "word": "phlegmatic",
+      "part_of_speech": "adj",
+      "en_definition": "calm, unemotional, and hard to rouse",
+      "zh_explanation": "沉著冷靜；不易激動",
+      "example_en": "He stayed phlegmatic during the outage.",
+      "example_zh": "停電期間他仍保持冷靜。",
+      "label": "review"
+    },
+    {
+      "word": "apocryphal",
+      "part_of_speech": "adj",
+      "en_definition": "of doubtful authenticity",
+      "zh_explanation": "真偽可疑；未必可靠",
+      "example_en": "The story about the founder is likely apocryphal.",
+      "example_zh": "關於創辦人的那段故事多半是傳聞。",
+      "label": "review"
+    },
+    {
+      "word": "abstruse",
+      "part_of_speech": "adj",
+      "en_definition": "difficult to understand; obscure",
+      "zh_explanation": "難以理解；晦澀的",
+      "example_en": "The professor's abstruse proof confused the class.",
+      "example_zh": "教授晦澀的證明讓全班困惑。",
+      "label": "review"
+    },
+    {
+      "word": "contumacious",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly disobedient to authority",
+      "zh_explanation": "桀驁不馴；抗命",
+      "example_en": "The contumacious protesters defied the new order.",
+      "example_zh": "那些桀驁的抗議者無視新命令。",
+      "label": "review"
+    },
+    {
+      "word": "recalcitrant",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly uncooperative",
+      "zh_explanation": "桀驁不馴；不配合",
+      "example_en": "Recalcitrant members blocked the vote.",
+      "example_zh": "幾位不服從的成員擋下表決。",
+      "label": "review"
+    },
+    {
+      "word": "ribald",
+      "part_of_speech": "adj",
+      "en_definition": "referring to sexual matters in a coarse way",
+      "zh_explanation": "粗俗猥褻（語）",
+      "example_en": "A ribald joke broke the tense mood.",
+      "example_zh": "一個粗俗笑話打破了緊張氣氛。",
+      "label": "review"
+    },
+    {
+      "word": "ennui",
+      "part_of_speech": "noun",
+      "en_definition": "a feeling of listlessness and boredom",
+      "zh_explanation": "倦怠；厭煩無聊",
+      "example_en": "By noon a wave of ennui settled over the office.",
+      "example_zh": "到中午時，整個辦公室瀰漫著倦怠。",
+      "label": "review"
+    },
+    {
+      "word": "prevaricate",
+      "part_of_speech": "verb",
+      "en_definition": "to speak or act in an evasive way",
+      "zh_explanation": "支吾其詞；閃爍其詞",
+      "example_en": "Stop prevaricating and answer directly.",
+      "example_zh": "別再支吾其詞，直接回答。",
+      "label": "review"
+    },
+    {
+      "word": "chary",
+      "part_of_speech": "adj",
+      "en_definition": "cautiously or suspiciously reluctant",
+      "zh_explanation": "謹慎戒心；有所顧忌",
+      "example_en": "Investors are chary of such speculative ventures.",
+      "example_zh": "投資人對這種投機計畫相當謹慎。",
+      "label": "review"
+    },
+    {
+      "word": "enjoin",
+      "part_of_speech": "verb",
+      "en_definition": "to direct or prohibit by authoritative order",
+      "zh_explanation": "（權威）命令／禁止",
+      "example_en": "The court enjoined the firm from using the trademark.",
+      "example_zh": "法院禁制該公司使用該商標。",
+      "label": "review"
+    }
+  ],
+  "items_shuffled": [
+    {
+      "word": "ebullient",
+      "part_of_speech": "adj",
+      "en_definition": "cheerful and full of energy",
+      "zh_explanation": "熱情洋溢；充滿活力",
+      "example_en": "His ebullient energy lifted the whole team.",
+      "example_zh": "他滿溢的熱情帶動了整個團隊。",
+      "label": "review"
+    },
+    {
+      "word": "ribald",
+      "part_of_speech": "adj",
+      "en_definition": "referring to sexual matters in a coarse way",
+      "zh_explanation": "粗俗猥褻（語）",
+      "example_en": "A ribald joke broke the tense mood.",
+      "example_zh": "一個粗俗笑話打破了緊張氣氛。",
+      "label": "review"
+    },
+    {
+      "word": "fulminate",
+      "part_of_speech": "verb",
+      "en_definition": "to protest vehemently",
+      "zh_explanation": "強烈抨擊；譴責",
+      "example_en": "Residents fulminated against the rezoning plan.",
+      "example_zh": "居民強烈抨擊重劃計畫。",
+      "label": "new"
+    },
+    {
+      "word": "abstruse",
+      "part_of_speech": "adj",
+      "en_definition": "difficult to understand; obscure",
+      "zh_explanation": "難以理解；晦澀的",
+      "example_en": "The professor's abstruse proof confused the class.",
+      "example_zh": "教授晦澀的證明讓全班困惑。",
+      "label": "review"
+    },
+    {
+      "word": "churlish",
+      "part_of_speech": "adj",
+      "en_definition": "rude in a mean-spirited way",
+      "zh_explanation": "粗鄙無禮且刻薄",
+      "example_en": "It would be churlish to refuse their help now.",
+      "example_zh": "此刻拒絕他們的幫忙會顯得無禮。",
+      "label": "new"
+    },
+    {
+      "word": "phlegmatic",
+      "part_of_speech": "adj",
+      "en_definition": "calm, unemotional, and hard to rouse",
+      "zh_explanation": "沉著冷靜；不易激動",
+      "example_en": "He stayed phlegmatic during the outage.",
+      "example_zh": "停電期間他仍保持冷靜。",
+      "label": "review"
+    },
+    {
+      "word": "prevaricate",
+      "part_of_speech": "verb",
+      "en_definition": "to speak or act in an evasive way",
+      "zh_explanation": "支吾其詞；閃爍其詞",
+      "example_en": "Stop prevaricating and answer directly.",
+      "example_zh": "別再支吾其詞，直接回答。",
+      "label": "review"
+    },
+    {
+      "word": "enjoin",
+      "part_of_speech": "verb",
+      "en_definition": "to direct or prohibit by authoritative order",
+      "zh_explanation": "（權威）命令／禁止",
+      "example_en": "The court enjoined the firm from using the trademark.",
+      "example_zh": "法院禁制該公司使用該商標。",
+      "label": "review"
+    },
+    {
+      "word": "recalcitrant",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly uncooperative",
+      "zh_explanation": "桀驁不馴；不配合",
+      "example_en": "Recalcitrant members blocked the vote.",
+      "example_zh": "幾位不服從的成員擋下表決。",
+      "label": "review"
+    },
+    {
+      "word": "apocryphal",
+      "part_of_speech": "adj",
+      "en_definition": "of doubtful authenticity",
+      "zh_explanation": "真偽可疑；未必可靠",
+      "example_en": "The story about the founder is likely apocryphal.",
+      "example_zh": "關於創辦人的那段故事多半是傳聞。",
+      "label": "review"
+    },
+    {
+      "word": "contumacious",
+      "part_of_speech": "adj",
+      "en_definition": "stubbornly disobedient to authority",
+      "zh_explanation": "桀驁不馴；抗命",
+      "example_en": "The contumacious protesters defied the new order.",
+      "example_zh": "那些桀驁的抗議者無視新命令。",
+      "label": "review"
+    },
+    {
+      "word": "lugubrious",
+      "part_of_speech": "adj",
+      "en_definition": "looking or sounding dismal and gloomy",
+      "zh_explanation": "憂鬱陰鬱；悶悶不樂",
+      "example_en": "He spoke in a lugubrious, drawn-out tone.",
+      "example_zh": "他用陰鬱而拖長的語氣說話。",
+      "label": "new"
+    },
+    {
+      "word": "garrulous",
+      "part_of_speech": "adj",
+      "en_definition": "excessively talkative",
+      "zh_explanation": "喋喋不休；多話",
+      "example_en": "The garrulous host dominated the conversation.",
+      "example_zh": "多話的主持人幾乎壟斷了談話。",
+      "label": "new"
+    },
+    {
+      "word": "chary",
+      "part_of_speech": "adj",
+      "en_definition": "cautiously or suspiciously reluctant",
+      "zh_explanation": "謹慎戒心；有所顧忌",
+      "example_en": "Investors are chary of such speculative ventures.",
+      "example_zh": "投資人對這種投機計畫相當謹慎。",
+      "label": "review"
+    },
+    {
+      "word": "inexorable",
+      "part_of_speech": "adj",
+      "en_definition": "impossible to stop or persuade",
+      "zh_explanation": "無可阻擋；不可動搖",
+      "example_en": "The glacier's retreat proved inexorable.",
+      "example_zh": "冰川的退縮看來無可阻擋。",
+      "label": "new"
+    },
+    {
+      "word": "perspicacious",
+      "part_of_speech": "adj",
+      "en_definition": "having keen insight and understanding",
+      "zh_explanation": "洞察力強；敏銳",
+      "example_en": "Her perspicacious reading solved the puzzle.",
+      "example_zh": "她的敏銳解讀解開了難題。",
+      "label": "new"
+    },
+    {
+      "word": "recondite",
+      "part_of_speech": "adj",
+      "en_definition": "little known; abstruse",
+      "zh_explanation": "艱澀難懂；少人知",
+      "example_en": "A recondite theorem puzzled the class.",
+      "example_zh": "艱澀的定理讓全班困惑。",
+      "label": "new"
+    },
+    {
+      "word": "peripatetic",
+      "part_of_speech": "adj",
+      "en_definition": "traveling from place to place",
+      "zh_explanation": "到處奔走；巡迴",
+      "example_en": "His peripatetic career spanned three cities.",
+      "example_zh": "他巡迴式的職涯橫跨三座城市。",
+      "label": "review"
+    },
+    {
+      "word": "bilious",
+      "part_of_speech": "adj",
+      "en_definition": "irritable; nauseated",
+      "zh_explanation": "易怒；噁心不適",
+      "example_en": "He felt bilious after the turbulent flight.",
+      "example_zh": "顛簸的航班讓他噁心難受。",
+      "label": "new"
+    },
+    {
+      "word": "ersatz",
+      "part_of_speech": "adj",
+      "en_definition": "artificial and inferior substitute",
+      "zh_explanation": "劣質仿製；代用品",
+      "example_en": "The ersatz leather peeled within weeks.",
+      "example_zh": "仿皮幾週內就開始剝落。",
+      "label": "new"
+    },
+    {
+      "word": "quixotic",
+      "part_of_speech": "adj",
+      "en_definition": "exceedingly idealistic; unrealistic and impractical",
+      "zh_explanation": "過度理想；不切實際",
+      "example_en": "Her quixotic project ignored all constraints.",
+      "example_zh": "她那理想化的專案無視所有限制。",
+      "label": "new"
+    },
+    {
+      "word": "ennui",
+      "part_of_speech": "noun",
+      "en_definition": "a feeling of listlessness and boredom",
+      "zh_explanation": "倦怠；厭煩無聊",
+      "example_en": "By noon a wave of ennui settled over the office.",
+      "example_zh": "到中午時，整個辦公室瀰漫著倦怠。",
+      "label": "review"
+    }
+  ]
+}

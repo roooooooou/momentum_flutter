@@ -130,6 +130,7 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                                   eventId: widget.event.id,
                                   chatId: chatId,
                                   entryMethod: ChatEntryMethod.notification, // 🎯 新增：通知進入
+                                  dayNumber: widget.event.dayNumber, // 新增dayNumber參數
                                 ),
                                 child: ChatScreen(
                                   taskTitle: widget.event.title,

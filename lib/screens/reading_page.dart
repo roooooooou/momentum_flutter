@@ -6,7 +6,6 @@ import '../services/reading_service.dart';
 import '../services/reading_analytics_service.dart';
 import '../services/calendar_service.dart';
 import '../models/enums.dart';
-import 'quiz_screen.dart';
 
 class ReadingPage extends StatefulWidget {
   final EventModel event;
@@ -33,6 +32,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   Map<int, DateTime> _cardStartTimes = {};
   String? _currentUserId;
   bool _isAppActive = true;
+  bool _showListView = false; // 新增：控制列表视图
 
   @override
   void initState() {
@@ -165,7 +165,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     try {
       // 使用event中的dayNumber加载冷知识内容
       final dayNumber = widget.event.dayNumber ?? 0;
+      print('Loading content for dayNumber: $dayNumber'); // 添加调试信息
+      
       final contents = await _readingService.loadDailyContent(dayNumber);
+      print('Loaded ${contents.length} contents'); // 添加调试信息
+      
       setState(() {
         _contents = contents;
         _isLoading = false;
@@ -182,6 +186,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
         _cardStartTimes[0] = DateTime.now();
       }
     } catch (e) {
+      print('Load content error: $e'); // 添加调试信息
       setState(() {
         _isLoading = false;
       });
@@ -194,37 +199,43 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     }
   }
 
-  void _startQuiz() async {
-    // 记录最后一张卡片的停留时间
-    if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
-      final endTime = DateTime.now();
-      final startTime = _cardStartTimes[_currentPage]!;
-      final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
-      
-      await _analyticsService.recordCardDwellTime(
-        uid: _currentUserId!,
-        eventId: widget.event.id,
-        cardIndex: _currentPage,
-        dwellTimeMs: dwellTimeMs,
-      );
-    }
-    
-    // 开始测验数据收集
-    if (_currentUserId != null) {
-      await _analyticsService.startQuiz(
-        uid: _currentUserId!,
-        eventId: widget.event.id,
-      );
-    }
-    
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => QuizScreen(
-          contents: _contents,
-          event: widget.event,
-        ),
-      ),
+  void _toggleView() {
+    setState(() {
+      _showListView = !_showListView;
+    });
+  }
+
+  void _selectArticle(int index) {
+    setState(() {
+      _currentPage = index;
+      _showListView = false;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
     );
+  }
+
+  Future<void> _completeTask() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // 记录事件完成
+        await ExperimentEventHelper.recordEventCompletion(
+          uid: user.uid,
+          eventId: widget.event.id,
+          chatId: widget.event.chatId,
+        );
+      }
+      
+      // 跳回home screen
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      print('完成任務時出錯: $e');
+      // 即使出错也要跳回home screen
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   @override
@@ -238,6 +249,14 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => _handleBackPress(),
         ),
+        actions: [
+          // 切换视图按钮
+          IconButton(
+            icon: Icon(_showListView ? Icons.view_agenda : Icons.list),
+            onPressed: _toggleView,
+            tooltip: _showListView ? '切換到閱讀視圖' : '切換到列表視圖',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(
@@ -264,123 +283,228 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    // 页面指示器
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          _contents.length,
-                          (index) => Container(
-                            width: 8,
-                            height: 8,
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _currentPage == index
-                                  ? Colors.green
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    // 页面计数器
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${_currentPage + 1} / ${_contents.length}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          Text(
-                            '左右滑动切换',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // 单字卡内容
-                    Expanded(
-                      child: PageView.builder(
-                        controller: _pageController,
-                        onPageChanged: (index) {
-                          // 记录前一张卡片的停留时间
-                          if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
-                            final endTime = DateTime.now();
-                            final startTime = _cardStartTimes[_currentPage]!;
-                            final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
-                            
-                            _analyticsService.recordCardDwellTime(
-                              uid: _currentUserId!,
-                              eventId: widget.event.id,
-                              cardIndex: _currentPage,
-                              dwellTimeMs: dwellTimeMs,
-                            );
-                          }
-                          
-                          setState(() {
-                            _currentPage = index;
-                          });
-                          
-                          // 记录新卡片的开始时间
-                          _cardStartTimes[index] = DateTime.now();
-                        },
-                        itemCount: _contents.length,
-                        itemBuilder: (context, index) {
-                          final content = _contents[index];
-                          return _buildCard(content, index);
-                        },
-                      ),
-                    ),
-                    
-                    // Start Quiz 按钮
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _contents.isNotEmpty ? _startQuiz : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '开始测验',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+              : _showListView
+                  ? _buildListView()
+                  : _buildReadingView(),
+      bottomNavigationBar: _contents.isNotEmpty && !_showListView
+          ? Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: _completeTask,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
+                child: const Text(
+                  '完成任務',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildListView() {
+    return Column(
+      children: [
+        // 列表标题
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.article, color: Colors.green),
+              const SizedBox(width: 8),
+              Text(
+                '文章列表 (${_contents.length}篇)',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // 文章列表
+        Expanded(
+          child: ListView.builder(
+            itemCount: _contents.length,
+            itemBuilder: (context, index) {
+              final content = _contents[index];
+              final isSelected = index == _currentPage;
+              
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                elevation: isSelected ? 4 : 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: isSelected 
+                      ? BorderSide(color: Colors.green, width: 2)
+                      : BorderSide.none,
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isSelected ? Colors.green : Colors.grey.shade300,
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.grey.shade600,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    content.title,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? Colors.green.shade800 : Colors.black87,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '點擊閱讀文章',
+                    style: TextStyle(
+                      color: isSelected ? Colors.green.shade600 : Colors.grey.shade600,
+                    ),
+                  ),
+                  trailing: isSelected 
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                  onTap: () => _selectArticle(index),
+                ),
+              );
+            },
+          ),
+        ),
+        
+        // 完成任务按钮
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton(
+            onPressed: _completeTask,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              '完成任務',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReadingView() {
+    return Column(
+      children: [
+        // 页面指示器
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              _contents.length,
+              (index) => Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentPage == index
+                      ? Colors.green
+                      : Colors.grey.shade300,
+                ),
+              ),
+            ),
+          ),
+        ),
+        
+        // 页面计数器
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${_currentPage + 1} / ${_contents.length}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                '左右滑動切換',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // 文章内容
+        Expanded(
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              // 记录前一张卡片的停留时间
+              if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
+                final endTime = DateTime.now();
+                final startTime = _cardStartTimes[_currentPage]!;
+                final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
+                
+                _analyticsService.recordCardDwellTime(
+                  uid: _currentUserId!,
+                  eventId: widget.event.id,
+                  cardIndex: _currentPage,
+                  dwellTimeMs: dwellTimeMs,
+                );
+              }
+              
+              setState(() {
+                _currentPage = index;
+              });
+              
+              // 记录新卡片的开始时间
+              _cardStartTimes[index] = DateTime.now();
+            },
+            itemCount: _contents.length,
+            itemBuilder: (context, index) {
+              final content = _contents[index];
+              return _buildCard(content, index);
+            },
+          ),
+        ),
+      ],
     );
   }
 

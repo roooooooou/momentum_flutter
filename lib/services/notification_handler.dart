@@ -40,8 +40,15 @@ class NotificationHandler {
     
     // 通过查找ChatScreen来判断是否在聊天页面
     try {
-      return context.findAncestorWidgetOfExactType<ChatScreen>() != null;
+      final isInChat = context.findAncestorWidgetOfExactType<ChatScreen>() != null;
+      if (kDebugMode) {
+        print('检查是否在聊天页面: $isInChat');
+      }
+      return isInChat;
     } catch (e) {
+      if (kDebugMode) {
+        print('检查聊天页面状态时出错: $e');
+      }
       return false;
     }
   }
@@ -55,12 +62,35 @@ class NotificationHandler {
   }
 
   /// 處理通知點擊事件
-  Future<void> handleNotificationTap(String? payload) async {
+  Future<void> handleNotificationTap(String? payload, {bool forceShow = false}) async {
     if (payload == null || payload.isEmpty) {
       if (kDebugMode) {
         print('通知 payload 為空');
       }
       return;
+    }
+
+    // 确保应用已完全启动
+    if (NavigationService.context == null) {
+      if (kDebugMode) {
+        print('应用尚未完全启动，等待...');
+      }
+      // 等待应用启动
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (NavigationService.context != null) {
+          if (kDebugMode) {
+            print('应用已启动，继续处理通知');
+          }
+          break;
+        }
+      }
+      if (NavigationService.context == null) {
+        if (kDebugMode) {
+          print('应用启动超时，无法处理通知');
+        }
+        return;
+      }
     }
 
     try {
@@ -151,11 +181,27 @@ class NotificationHandler {
       }
 
       // 顯示任務開始彈窗（仅限实验组）
-      await _showTaskStartDialog(event);
+      // 在release mode中添加延迟以确保应用完全启动
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _showTaskStartDialog(event, forceShow: forceShow);
 
     } catch (e) {
       if (kDebugMode) {
         print('處理通知點擊時發生錯誤: $e');
+      }
+      // 在release mode中，即使出错也尝试显示对话框
+      try {
+        if (payload != 'daily_report' && !payload.startsWith('task_completion_')) {
+          final event = await _getEventById(payload);
+          if (event != null && !event.isDone && event.actualStartTime == null) {
+            await Future.delayed(const Duration(milliseconds: 500));
+            await _showTaskStartDialog(event, forceShow: forceShow);
+          }
+        }
+      } catch (retryError) {
+        if (kDebugMode) {
+          print('重试顯示任務開始彈窗失敗: $retryError');
+        }
       }
     }
   }
@@ -190,7 +236,7 @@ class NotificationHandler {
   }
 
   /// 顯示任務開始彈窗
-  Future<void> _showTaskStartDialog(EventModel event) async {
+  Future<void> _showTaskStartDialog(EventModel event, {bool forceShow = false}) async {
     // 检查是否已有TaskStartDialog在显示
     if (_isTaskStartDialogShowing) {
       if (kDebugMode) {
@@ -212,27 +258,47 @@ class NotificationHandler {
       if (kDebugMode) {
         print('無法獲取 NavigationService 的 context');
       }
-      return;
+      // 在release mode中，如果context不可用，延迟重试
+      await Future.delayed(const Duration(milliseconds: 500));
+      final retryContext = NavigationService.context;
+      if (retryContext == null) {
+        if (kDebugMode) {
+          print('重试后仍無法獲取 NavigationService 的 context');
+        }
+        return;
+      }
     }
 
     // 設置對話框顯示狀態
     setTaskStartDialogShowing(true);
 
-    // 確保在主線程中執行
+    // 確保在主線程中執行，并添加延迟以确保UI完全加载
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => TaskStartDialog(event: event),
-        ).then((_) {
-          // 對話框關閉時重置狀態
+      Future.delayed(const Duration(milliseconds: 100), () {
+        final currentContext = NavigationService.context;
+        if (currentContext != null && currentContext.mounted) {
+          showDialog(
+            context: currentContext,
+            barrierDismissible: false,
+            builder: (context) => TaskStartDialog(event: event),
+          ).then((_) {
+            // 對話框關閉時重置狀態
+            setTaskStartDialogShowing(false);
+          }).catchError((error) {
+            // 处理对话框显示错误
+            if (kDebugMode) {
+              print('顯示任務開始彈窗時發生錯誤: $error');
+            }
+            setTaskStartDialogShowing(false);
+          });
+        } else {
+          // 如果context不可用，重置狀態
+          if (kDebugMode) {
+            print('延遲后仍無法獲取有效的 context');
+          }
           setTaskStartDialogShowing(false);
-        });
-      } else {
-        // 如果context不可用，重置狀態
-        setTaskStartDialogShowing(false);
-      }
+        }
+      });
     });
 
     if (kDebugMode) {

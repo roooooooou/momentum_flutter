@@ -18,6 +18,58 @@ def get_firestore_client():
     """延遲初始化Firestore客户端，避免部署超時"""
     return firestore.client()
 
+def generate_task_description(task_title: str, reading_topic: str = "") -> str:
+    """根据任务标题生成相应的任务描述"""
+    task_title_lower = task_title.lower()
+    
+    # 检查任务标题中是否包含特定关键词
+    if "vocab" in task_title_lower:
+        return "- vocab : The user must memorize 10 English words in the app we provide and they need to take a quiz few days later."
+    
+    elif "reading" in task_title_lower:
+        return f"- reading : The user must read 5 articles in this app. It may cost them 15 minutes. Today's topic is {reading_topic}. User needs to take quiz few days later."
+
+    else:
+        # 默认任务描述
+        return f"- task : The user needs to complete the task: {task_title}"
+
+def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str = None, yesterday_chat: str = None, yesterday_status: str = None, daily_summary: str = None, day_number: int = None) -> list[dict]:
+    """
+    將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
+    """
+    # 將任務資訊帶入 SYSTEM_INSTRUCTION 模板
+    # 使用台灣時區
+    taiwan_tz = pytz.timezone('Asia/Taipei')
+    now_taiwan = datetime.now(taiwan_tz).strftime('%Y-%m-%d %H:%M')
+    
+    # 处理reading_topic
+    reading_topic = ""
+    if day_number is not None:
+        reading_topic = system_prompt.get_reading_topic(day_number)
+    
+    # 根据任务标题生成任务描述
+    task_description = generate_task_description(task, reading_topic)
+    system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan).replace("{{current_turn}}", str(current_turn)).replace("{{reading_topic}}", reading_topic).replace("{{task_description}}", task_description)
+    
+    # 替换前一天的数据
+    system_content = system_content.replace("{{yesterday_chat}}", yesterday_chat or "無")
+    system_content = system_content.replace("{{daily_summary}}", daily_summary or "無")
+    
+    # 如果有描述，在任務標題後添加描述信息
+    if task_description and task_description.strip():
+        # 在"任務："行後添加描述
+        system_content = system_content.replace(
+            f"- 任務：{task}", 
+            f"- 任務：{task}\n- 以下是使用者對於任務的描述或感受：{task_description.strip()}"
+        )
+    
+    system_content += f"\n\n🔄 對話狀態：目前為第 {current_turn} 輪對話"
+    
+    # 建立訊息陣列：僅保留一個 system role，後續直接接上 dialogues
+    messages: list[dict] = [{"role": "system", "content": system_content}]
+    messages.extend(dialogues)
+    return messages
+
 @https_fn.on_call(secrets=["OPENAI_APIKEY"])
 def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
     client = OpenAI(api_key=os.environ.get("OPENAI_APIKEY"))
@@ -28,13 +80,14 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
         dialogues = req.data["dialogues"]
         start_time = req.data["startTime"]
         current_turn = req.data.get("currentTurn", 0)
+        day_number = req.data.get("dayNumber")  # 新增dayNumber參數
         
         # 获取前一天的数据
         yesterday_chat = req.data.get("yesterdayChat", "")
         yesterday_status = req.data.get("yesterdayStatus", "")
         daily_summary = req.data.get("dailySummary", "")
 
-        messages = build_prompt(task, dialogues, start_time, current_turn, task_description, yesterday_chat, yesterday_status, daily_summary)
+        messages = build_prompt(task, dialogues, start_time, current_turn, task_description, yesterday_chat, yesterday_status, daily_summary, day_number)
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
@@ -58,36 +111,6 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
                                   message="Error",
                                   details=e)
 
-
-def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str = None, yesterday_chat: str = None, yesterday_status: str = None, daily_summary: str = None) -> list[dict]:
-    """
-    將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
-    """
-    # 將任務資訊帶入 SYSTEM_INSTRUCTION 模板
-    # 使用台灣時區
-    taiwan_tz = pytz.timezone('Asia/Taipei')
-    now_taiwan = datetime.now(taiwan_tz).strftime('%Y-%m-%d %H:%M')
-    system_content = system_prompt.SYSTEM_INSTRUCTION.replace("{{task_title}}", task).replace("{{scheduled_start}}", start_time).replace("{{now}}", now_taiwan)
-    
-    # 替换前一天的数据
-    system_content = system_content.replace("{{yesterday_chat}}", yesterday_chat or "無")
-    system_content = system_content.replace("{{yesterday_status}}", yesterday_status or "無")
-    system_content = system_content.replace("{{daily_summary}}", daily_summary or "無")
-    
-    # 如果有描述，在任務標題後添加描述信息
-    if task_description and task_description.strip():
-        # 在"任務："行後添加描述
-        system_content = system_content.replace(
-            f"- 任務：{task}", 
-            f"- 任務：{task}\n- 以下是使用者對於任務的描述或感受：{task_description.strip()}"
-        )
-    
-    system_content += f"\n\n🔄 對話狀態：目前為第 {current_turn} 輪對話"
-    
-    # 建立訊息陣列：僅保留一個 system role，後續直接接上 dialogues
-    messages: list[dict] = [{"role": "system", "content": system_content}]
-    messages.extend(dialogues)
-    return messages
 
 @https_fn.on_call(secrets=["OPENAI_APIKEY"])
 def summarize_chat(req: https_fn.CallableRequest) -> any:
@@ -452,12 +475,16 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
     print(f"用戶 {uid} 分組: {group_path}")
     
     # === Event相關指標（使用新的數據結構） ===
+    # 初始化變量
+    events_ref = None
+    events = []
+    
     try:
         # 查詢 experiment_events
         experiment_events_ref = db.collection('users').document(uid).collection('experiment_events')
         control_events_ref = db.collection('users').document(uid).collection('control_events')
+        
         # 查詢時間範圍
-        events = []
         try:
             exp_query = experiment_events_ref.where('scheduledStartTime', '>=', start_utc).where('scheduledStartTime', '<', end_utc)
             events += list(exp_query.stream())
@@ -469,6 +496,13 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
         except Exception as e:
             print(f"查詢 control_events 失敗: {e}")
         print(f"從新結構獲取到 {len(events)} 個事件")
+        
+        # 為新結構設置 events_ref（用於後續查詢）
+        if group_path == 'experiment':
+            events_ref = experiment_events_ref
+        else:
+            events_ref = control_events_ref
+            
     except Exception as e:
         print(f"新結構查詢失敗，嘗試舊結構: {e}")
         # 如果新結構失敗，回退到舊結構
@@ -498,13 +532,17 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
             event_overdue_count += 1
             
         # 檢查是否有commit plan（從chats sub-collection中查詢）
-        chats_ref = events_ref.document(event_doc.id).collection('chats')
-        chats = list(chats_ref.stream())
-        for chat_doc in chats:
-            chat_data = chat_doc.to_dict()
-            if chat_data.get('commit_plan', False):
-                event_commit_plan_count += 1
-                break  # 一個事件只計算一次
+        try:
+            chats_ref = events_ref.document(event_doc.id).collection('chats')
+            chats = list(chats_ref.stream())
+            for chat_doc in chats:
+                chat_data = chat_doc.to_dict()
+                if chat_data.get('commit_plan', False):
+                    event_commit_plan_count += 1
+                    break  # 一個事件只計算一次
+        except Exception as e:
+            print(f"檢查事件 {event_doc.id} 的commit plan失敗: {e}")
+            continue
     
     # === 通知相關指標 ===
     notif_total_count = 0
@@ -513,18 +551,22 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
     
     for event_doc in events:
         # 獲取所有通知記錄（包含 -1st 和 -2nd）
-        notifications_ref = events_ref.document(event_doc.id).collection('notifications')
-        notifications = list(notifications_ref.stream())
-        
-        for notif_doc in notifications:
-            notif_data = notif_doc.to_dict()
-            notif_total_count += 1
+        try:
+            notifications_ref = events_ref.document(event_doc.id).collection('notifications')
+            notifications = list(notifications_ref.stream())
             
-            # 檢查是否被點開
-            if notif_data.get('opened_time'):
-                notif_open_count += 1
-            else:
-                notif_dismiss_count += 1
+            for notif_doc in notifications:
+                notif_data = notif_doc.to_dict()
+                notif_total_count += 1
+                
+                # 檢查是否被點開
+                if notif_data.get('opened_time'):
+                    notif_open_count += 1
+                else:
+                    notif_dismiss_count += 1
+        except Exception as e:
+            print(f"獲取事件 {event_doc.id} 的通知記錄失敗: {e}")
+            continue
     
     # === 應用使用相關指標（使用新的數據結構） ===
     date_string = target_date.strftime('%Y%m%d')
@@ -566,20 +608,24 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
     chat_snooze_count = 0
     
     for event_doc in events:
-        chats_ref = events_ref.document(event_doc.id).collection('chats')
-        chats = list(chats_ref.stream())
-        
-        for chat_doc in chats:
-            chat_data = chat_doc.to_dict()
-            chat_total_count += 1
+        try:
+            chats_ref = events_ref.document(event_doc.id).collection('chats')
+            chats = list(chats_ref.stream())
             
-            result = chat_data.get('result')
-            if result == 0:  # start
-                chat_start_count += 1
-            elif result == 1:  # snooze
-                chat_snooze_count += 1
-            elif result == 2:  # leave
-                chat_leave_count += 1
+            for chat_doc in chats:
+                chat_data = chat_doc.to_dict()
+                chat_total_count += 1
+                
+                result = chat_data.get('result')
+                if result == 0:  # start
+                    chat_start_count += 1
+                elif result == 1:  # snooze
+                    chat_snooze_count += 1
+                elif result == 2:  # leave
+                    chat_leave_count += 1
+        except Exception as e:
+            print(f"獲取事件 {event_doc.id} 的聊天記錄失敗: {e}")
+            continue
     
     # 返回所有指標
     return {

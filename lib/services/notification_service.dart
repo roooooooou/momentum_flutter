@@ -15,6 +15,11 @@ import '../services/experiment_config_service.dart';
 const int firstNotifOffsetMin = -10;  // 第一個通知：開始前10分鐘
 const int secondNotifOffsetMin = 0;   // 第二個通知：開始後5分鐘
 
+// 通知ID範圍常數
+const int EVENT_NOTIFICATION_ID_BASE = 1000;      // 事件通知基礎ID
+const int DAILY_REPORT_NOTIFICATION_ID = 999999;  // 每日報告通知ID
+const int TASK_COMPLETION_ID_BASE = 2000;         // 任務完成提醒基礎ID
+
 // ⬇️ iOS terminated 時的 top-level 函式
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse resp) {
@@ -264,7 +269,7 @@ class NotificationService {
           await cancelNotification(secondNotificationId);
           
           // 取消任务完成提醒通知
-          final completionNotificationId = 'task_completion_${event.id}'.hashCode.abs();
+          final completionNotificationId = TASK_COMPLETION_ID_BASE + (event.id.hashCode.abs() % 100000);
           await cancelNotification(completionNotificationId);
           
           cancelledCount++;
@@ -503,7 +508,7 @@ class NotificationService {
       final scheduledDate = tz.TZDateTime.from(today10PM, tz.local);
       
       await _plugin.zonedSchedule(
-        999999, // 使用固定的ID給每日報告通知
+        DAILY_REPORT_NOTIFICATION_ID, // 使用固定的ID給每日報告通知
         '📋 今日任務總結',
         '今天過得如何？來填寫每日報告，記錄今日的任務完成情況吧！',
         scheduledDate,
@@ -655,7 +660,7 @@ class NotificationService {
   /// 取消每日报告通知
   Future<void> cancelDailyReportNotification() async {
     try {
-      await _plugin.cancel(999999);
+      await _plugin.cancel(DAILY_REPORT_NOTIFICATION_ID);
       if (kDebugMode) {
         print('每日報告通知已取消');
       }
@@ -701,15 +706,17 @@ class NotificationService {
         final eventSnap = await eventDoc.get();
         
         if (eventSnap.exists) {
-          final eventData = eventSnap.data() as Map<String, dynamic>;
-          final eventDate = (eventData['date'] as Timestamp?)?.toDate();
-          
-          await ExperimentEventHelper.recordNotificationDelivered(
-            uid: currentUser.uid,
-            eventId: eventId,
-            notifId: notifId,
-            eventDate: eventDate,
-          );
+          final eventData = eventSnap.data() as Map<String, dynamic>?;
+          if (eventData != null) {
+            final eventDate = (eventData['date'] as Timestamp?)?.toDate();
+            
+            await ExperimentEventHelper.recordNotificationDelivered(
+              uid: currentUser.uid,
+              eventId: eventId,
+              notifId: notifId,
+              eventDate: eventDate,
+            );
+          }
         }
       }
     } catch (e) {
@@ -883,12 +890,16 @@ class NotificationScheduler {
 
   /// 生成第一個通知 ID
   int _generateFirstNotificationId(String eventId) {
-    return eventId.hashCode.abs();
+    // 使用事件ID的hashCode，但確保在安全範圍內
+    final hash = eventId.hashCode.abs();
+    return EVENT_NOTIFICATION_ID_BASE + (hash % 100000); // 確保ID在1000-101000範圍內
   }
 
   /// 生成第二個通知 ID
   int _generateSecondNotificationId(String eventId) {
-    return -(eventId.hashCode.abs()); // 使用負數避免衝突
+    // 使用事件ID的hashCode，但確保在安全範圍內且為負數
+    final hash = eventId.hashCode.abs();
+    return -(EVENT_NOTIFICATION_ID_BASE + (hash % 100000)); // 確保ID在-1000到-101000範圍內
   }
 
   /// 取消事件的所有通知
