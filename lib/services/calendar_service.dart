@@ -788,8 +788,7 @@ class CalendarService extends ChangeNotifier {
       startTrigger: StartTrigger.tapCard,
     );
 
-    // 📅 排程任務完成提醒通知
-    await _scheduleCompletionNotification(e);
+    // 移除：不再排程任務完成提醒通知
   }
 
   /// 從聊天開始任務（用於聊天頁面的開始任務按鈕）
@@ -801,8 +800,7 @@ class CalendarService extends ChangeNotifier {
       startTrigger: StartTrigger.chat,
     );
 
-    // 📅 排程任務完成提醒通知
-    await _scheduleCompletionNotification(e);
+    // 移除：不再排程任務完成提醒通知
   }
 
   /// 排程任務完成提醒通知
@@ -949,8 +947,7 @@ class CalendarService extends ChangeNotifier {
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
 
-    // 重新排程任務完成提醒通知
-    await _scheduleCompletionNotification(e);
+    // 移除：不再排程任務完成提醒通知
   }
 
   Future<void> completeEvent(String uid, EventModel e) async {
@@ -965,9 +962,6 @@ class CalendarService extends ChangeNotifier {
     if (e.notifIds.contains('${e.id}-2nd')) {
       await NotificationScheduler().cancelSecondNotification(e.id);
     }
-
-    // 取消任務完成提醒通知
-    await _cancelCompletionNotification(e.id);
   }
 
   /// 更新事件狀態（用於同步時檢查overdue/notStarted狀態）

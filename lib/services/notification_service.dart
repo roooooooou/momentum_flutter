@@ -18,7 +18,6 @@ const int secondNotifOffsetMin = 0;   // 第二個通知：開始後5分鐘
 // 通知ID範圍常數
 const int EVENT_NOTIFICATION_ID_BASE = 1000;      // 事件通知基礎ID
 const int DAILY_REPORT_NOTIFICATION_ID = 999999;  // 每日報告通知ID
-const int TASK_COMPLETION_ID_BASE = 2000;         // 任務完成提醒基礎ID
 
 // ⬇️ iOS terminated 時的 top-level 函式
 @pragma('vm:entry-point')
@@ -268,9 +267,7 @@ class NotificationService {
           final secondNotificationId = -(event.id.hashCode.abs());
           await cancelNotification(secondNotificationId);
           
-          // 取消任务完成提醒通知
-          final completionNotificationId = TASK_COMPLETION_ID_BASE + (event.id.hashCode.abs() % 100000);
-          await cancelNotification(completionNotificationId);
+          // 移除：不再取消任務完成提醒通知
           
           cancelledCount++;
           
@@ -416,11 +413,7 @@ class NotificationService {
           String? notifId;
           String? eventId;
           
-          if (payload.startsWith('task_completion_')) {
-            // 完成提醒通知
-            eventId = payload.replaceFirst('task_completion_', '');
-            notifId = '$eventId-complete';
-          } else if (customTitle == null) {
+          if (customTitle == null) {
             // 普通事件通知（开始前通知）
             eventId = payload;
             notifId = isSecondNotification ? '$payload-2nd' : '$payload-1st';
@@ -693,11 +686,7 @@ class NotificationService {
       String? notifId;
       String? eventId;
       
-      if (payload.startsWith('task_completion_')) {
-        // 完成提醒通知
-        eventId = payload.replaceFirst('task_completion_', '');
-        notifId = '$eventId-complete';
-      } else {
+      {
         // 普通事件通知（开始前通知）
         eventId = payload;
         notifId = payload; // 使用payload作为notifId

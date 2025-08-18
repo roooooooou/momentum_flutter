@@ -181,37 +181,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 檢查通知排程（App Resume 時調用）
   Future<void> _checkNotificationSchedule(String uid) async {
     try {
-      // 修复时区问题：使用台湾时区计算今天的范围
+      // 修復時區：以本地午夜作為每日日界線
       final now = DateTime.now();
-      final localToday = DateTime(now.year, now.month, now.day); // 本地午夜
-      final localTomorrow = localToday.add(const Duration(days: 1)); // 本地明天午夜
       
-      // 转换为UTC用于Firestore查询
-      final start = localToday.toUtc();
-      final end = localTomorrow.toUtc();
-      
-      // 使用 DataPathService 获取当前日期的 events 集合
-      final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
-      
-      final snap = await eventsCollection
-          .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('scheduledStartTime', isLessThan: Timestamp.fromDate(end))
-          .orderBy('scheduledStartTime')
-          .get();
-      
-      final allEvents = snap.docs.map(EventModel.fromDoc).toList();
-      final events = allEvents.where((event) => event.isActive).toList();
-      
-      // 過濾出未開始的事件
-      final futureEvents = events.where((event) => 
-        event.scheduledStartTime.isAfter(now) && !event.isDone
-      ).toList();
-      
-      // 執行通知排程檢查
-      if (futureEvents.isNotEmpty) {
-        await NotificationScheduler().sync(futureEvents);
-        if (kDebugMode) {
-          print('App Resume: 檢查了 ${futureEvents.length} 個未來事件的通知排程');
+      for (int i = 0; i <= 2; i++) {
+        final targetDay = DateTime(now.year, now.month, now.day).add(Duration(days: i));
+        final startOfDayLocal = targetDay; // 本地日界線
+        final endOfDayLocal = startOfDayLocal.add(const Duration(days: 1));
+        final startUtc = startOfDayLocal.toUtc();
+        final endUtc = endOfDayLocal.toUtc();
+
+        // 依目標日期取得正確集合（w1/w2）
+        final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, targetDay);
+        final snap = await eventsCollection
+            .where('scheduledStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startUtc))
+            .where('scheduledStartTime', isLessThan: Timestamp.fromDate(endUtc))
+            .orderBy('scheduledStartTime')
+            .get();
+
+        final allEvents = snap.docs.map(EventModel.fromDoc).toList();
+        final activeEvents = allEvents.where((e) => e.isActive).toList();
+
+        // 今日：只補 now 之後；未來兩天：補當日全部未完成事件
+        final toSchedule = activeEvents.where((e) {
+          if (i == 0) {
+            return !e.isDone && e.scheduledStartTime.isAfter(now);
+          }
+          return !e.isDone;
+        }).toList();
+
+        if (toSchedule.isNotEmpty) {
+          await NotificationScheduler().sync(toSchedule);
+          if (kDebugMode) {
+            print('App Resume: 補排 ${targetDay.toString().substring(0,10)} 的 ${toSchedule.length} 個事件通知');
+          }
         }
       }
     } catch (e) {
