@@ -260,8 +260,6 @@ class ProactCoachService {
       'dayNumber': dayNumber, // 新增dayNumber參數
       'taskDurationMin': taskDurationMin, // 新增任務時長（分鐘）
       'yesterdayChat': combinedChatSummary,
-      'yesterdayStatus': yesterdayData?.yesterdayStatus ?? '',
-      'dailySummary': yesterdayData?.dailyReportSummary ?? '',
     });
     
     // 從響應中提取end_of_dialogue字段

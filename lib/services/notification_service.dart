@@ -12,7 +12,7 @@ import '../services/data_path_service.dart';
 import '../services/experiment_config_service.dart';
 
 // 通知偏移時間常數
-const int firstNotifOffsetMin = -10;  // 第一個通知：開始前10分鐘
+const int firstNotifOffsetMin = -1;  // 第一個通知：開始前10分鐘
 const int secondNotifOffsetMin = 0;   // 第二個通知：開始後5分鐘
 
 // 通知ID範圍常數
@@ -347,44 +347,57 @@ class NotificationService {
         notificationTitle = customTitle;
         notificationBody = customBody;
       } else {
-      // 根據事件發生的日期檢查用戶組別以決定通知內容（W1/W2 + manual A/B）
-        final currentUser = AuthService.instance.currentUser;
-        bool isControlGroup = false;
+        // 🎯 特殊處理：test 任務的通知內容
+        bool isControlGroup = false; // 初始化變數
         
-        if (currentUser != null) {
-          try {
-            // 使用事件发生的日期来确定组别，而不是当前日期
-            final eventDate = eventStartTime.toLocal();
-            final groupName = await ExperimentConfigService.instance.getDateGroup(currentUser.uid, eventDate);
-            isControlGroup = groupName == 'control';
-            
-            if (kDebugMode) {
-              print('🎯 事件日期 ${eventDate.toString().substring(0, 10)} 的组别: $groupName');
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              print('检查用户分组失败，使用默认实验组通知: $e');
-            }
-          }
-        }
-        
-        if (isSecondNotification) {
-          notificationTitle = '現在開始剛剛好';
-          if (isControlGroup) {
-            // 对照组：不提及聊天功能
-            notificationBody = '你已經開始任務「$title」了嗎？現在開始剛剛好！';
+        if (title.toLowerCase().contains('test')) {
+          if (isSecondNotification) {
+            notificationTitle = '排定的測驗時間到了';
+            notificationBody = '排定的 $title 時間到了，請務必完成';
           } else {
-            // 实验组：保持原有文本
-            notificationBody = '你已經開始任務「$title」了嗎？還沒有想法的話，需要跟我聊聊嗎？';
+            notificationTitle = '排定的測驗時間到了';
+            notificationBody = '排定的 $title 時間到了，請務必完成';
           }
         } else {
-          notificationTitle = '事件即將開始';
-          if (isControlGroup) {
-            // 对照组：不提及聊天功能
-            notificationBody = '任務「$title」即將開始，準備好開始了嗎？';
+          // 根據事件發生的日期檢查用戶組別以決定通知內容（W1/W2 + manual A/B）
+          final currentUser = AuthService.instance.currentUser;
+          bool isControlGroup = false;
+          
+          if (currentUser != null) {
+            try {
+              // 使用事件发生的日期来确定组别，而不是当前日期
+              final eventDate = eventStartTime.toLocal();
+              final groupName = await ExperimentConfigService.instance.getDateGroup(currentUser.uid, eventDate);
+              isControlGroup = groupName == 'control';
+              
+              if (kDebugMode) {
+                print('🎯 事件日期 ${eventDate.toString().substring(0, 10)} 的组别: $groupName');
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('检查用户分组失败，使用默认实验组通知: $e');
+              }
+            }
+          }
+          
+          if (isSecondNotification) {
+            notificationTitle = '尚未點擊任務通知';
+            if (isControlGroup) {
+              // 对照组：不提及聊天功能
+              notificationBody = '今日任務「$title」尚未達成，請點擊通知以開始任務';
+            } else {
+              // 实验组：保持原有文本
+              notificationBody = '今日任務「$title」尚未達成，點擊通知讓我陪你一起開始任務「$title」吧！';
+            }
           } else {
-            // 实验组：保持原有文本
-            notificationBody = '準備好開始任務「$title」了嗎？還不想開始的話，需要跟我聊聊嗎？';
+            notificationTitle = '點擊通知以進行任務';
+            if (isControlGroup) {
+              // 对照组：不提及聊天功能
+              notificationBody = '十分鐘後開始「$title」，點擊通知進行任務。';
+            } else {
+              // 实验组：保持原有文本
+              notificationBody = '十分鐘後開始「$title」，需不需要我陪你一起做任務前的準備呢？';
+            }
           }
         }
         

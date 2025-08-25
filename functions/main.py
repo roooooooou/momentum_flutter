@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timedelta
 import pytz
 import system_prompt
+import re
 
 # 使用默認憑證初始化，確保有完整的 admin 權限
 initialize_app()
@@ -26,13 +27,54 @@ def generate_task_description(task_title: str, reading_topic: str = "", explicit
 
     task_title_lower = task_title.lower()
     if "vocab" in task_title_lower:
-        return "- vocab : The user must memorize the scheduled vocab (new + review) in the app and take a quiz later."
+        return "- vocab : The user must memorize the 8 words every day in the app. And they need to take a quiz few days later."
     elif "reading" in task_title_lower:
-        return f"- reading : The user must read 5 articles in this app (≈15 mins). Today's topic is {reading_topic}."
+        return f"- reading : The user must read 3 articles every dayin this app (≈15 mins). Today's topic is {reading_topic}. And they need to take a quiz few days later."
     else:
         return f"- task : The user needs to complete the task: {task_title}"
 
-def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str | None = None, yesterday_chat: str | None = None, yesterday_status: str | None = None, daily_summary: str | None = None, day_number: int | None = None, scheduled_duration_min: int | None = None) -> list[dict]:
+def parse_week_day_from_title(task_title: str) -> tuple[int, int]:
+    """从任务标题中解析出 week 和 day"""
+    
+    # 转换为小写并去除空格
+    title = task_title.lower().strip()
+    
+    # 匹配 reading-w{week}-d{day} 格式
+    pattern1 = r'^reading[-_]?w(\d+)[-_]?d(\d+)$'
+    match1 = re.match(pattern1, title)
+    if match1:
+        week = int(match1.group(1))
+        day = int(match1.group(2))
+        return week, day
+    
+    # 匹配 reading-{week}-{day} 格式
+    pattern2 = r'^reading[-_]?(\d+)[-_]?(\d+)$'
+    match2 = re.match(pattern2, title)
+    if match2:
+        week = int(match2.group(1))
+        day = int(match2.group(2))
+        return week, day
+    
+    # 匹配 vocab-w{week}-d{day} 格式
+    pattern3 = r'^vocab[-_]?w(\d+)[-_]?d(\d+)$'
+    match3 = re.match(pattern3, title)
+    if match3:
+        week = int(match3.group(1))
+        day = int(match3.group(2))
+        return week, day
+    
+    # 匹配 vocab-{week}-{day} 格式
+    pattern4 = r'^vocab[-_]?(\d+)[-_]?(\d+)$'
+    match4 = re.match(pattern4, title)
+    if match4:
+        week = int(match4.group(1))
+        day = int(match4.group(2))
+        return week, day
+    
+    # 如果没有匹配到，返回默认值
+    return None, None
+
+def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn: int, task_description: str | None = None, yesterday_chat: str | None = None, day_number: int | None = None, scheduled_duration_min: int | None = None) -> list[dict]:
     """
     將 system prompt 與使用者對話組合成 OpenAI ChatCompletion 用的 messages 陣列
     """
@@ -44,7 +86,13 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     # 处理reading_topic
     reading_topic = ""
     if day_number is not None:
-        reading_topic = system_prompt.get_reading_topic(day_number)
+        # 尝试从任务标题解析 week 和 day
+        week, day = parse_week_day_from_title(task)
+        if week is not None and day is not None:
+            reading_topic = system_prompt.get_reading_topic(day_number, week, day)
+        else:
+            # 如果无法解析 week 和 day，使用原有的 day_number 逻辑
+            reading_topic = system_prompt.get_reading_topic(day_number)
     
     # 根据任务标题生成任务描述（允許外部提供）
     task_description = generate_task_description(task, reading_topic, task_description)
@@ -61,7 +109,6 @@ def build_prompt(task: str, dialogues: list[dict], start_time: str, current_turn
     
     # 替换前一天的数据
     system_content = system_content.replace("{{yesterday_chat}}", yesterday_chat or "無")
-    system_content = system_content.replace("{{daily_summary}}", daily_summary or "無")
     
     # 如果有描述，在任務標題後添加描述信息
     if task_description and task_description.strip():
@@ -94,7 +141,6 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
         # 获取前一天的数据
         yesterday_chat = req.data.get("yesterdayChat", "")
         yesterday_status = req.data.get("yesterdayStatus", "")
-        daily_summary = req.data.get("dailySummary", "")
 
         messages = build_prompt(
             task,
@@ -104,7 +150,6 @@ def procrastination_coach_completion(req: https_fn.CallableRequest) -> any:
             task_description,
             yesterday_chat,
             yesterday_status,
-            daily_summary,
             day_number,
             scheduled_duration_min,
         )
@@ -564,6 +609,30 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
             print(f"檢查事件 {event_doc.id} 的commit plan失敗: {e}")
             continue
     
+    # === 複習相關指標 (新結構) ===
+    review_count = 0
+    review_total_duration = 0
+    
+    for event_doc in events:
+        try:
+            # 查詢 review 子集合
+            reviews_ref = events_ref.document(event_doc.id).collection('review')
+            review_sessions = list(reviews_ref.stream())
+            
+            # 累加複習次數
+            review_count += len(review_sessions)
+            
+            # 累加複習總時長
+            for session in review_sessions:
+                session_data = session.to_dict()
+                duration = session_data.get('durationMin', 0)
+                if isinstance(duration, int) and duration > 0:
+                    review_total_duration += duration
+                    
+        except Exception as e:
+            print(f"獲取事件 {event_doc.id} 的複習記錄失敗: {e}")
+            continue
+
     # === 通知相關指標 ===
     notif_total_count = 0
     notif_open_count = 0 
@@ -656,6 +725,10 @@ def calculate_daily_metrics(uid: str, target_date: datetime, db) -> dict:
         'event_not_finish_count': event_not_finish_count,
         'event_commit_plan_count': event_commit_plan_count,
         
+        # 複習相關
+        'review_count': review_count,
+        'review_total_duration': review_total_duration,
+
         # 通知相關
         'notif_total_count': notif_total_count,
         'notif_open_count': notif_open_count,

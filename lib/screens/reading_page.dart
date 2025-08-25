@@ -7,13 +7,17 @@ import '../services/reading_analytics_service.dart';
 import '../services/calendar_service.dart';
 import '../models/enums.dart';
 import '../services/analytics_service.dart';
+import '../services/experiment_config_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added for DocumentReference
 
 class ReadingPage extends StatefulWidget {
   final EventModel event;
+  final String source; // 任務來源
   
   const ReadingPage({
     super.key,
     required this.event,
+    required this.source,
   });
 
   @override
@@ -30,11 +34,15 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   final CalendarService _calendarService = CalendarService.instance;
   
   // 数据收集相关
+  DocumentReference? _sessionRef; // 新增：保存當前會話的引用
   Map<int, DateTime> _cardStartTimes = {};
   String? _currentUserId;
   bool _isAppActive = true;
   bool _showListView = false; // 新增：控制列表视图
-  DateTime? _startTime; // 記錄頁面開始時間
+  DateTime? _pageLoadTime; // 記錄頁面載入時間
+  DateTime? _pauseStartTime; // 記錄暫停開始時間
+  Duration _totalPausedDuration = Duration.zero; // 累計總暫停時間
+  bool _sessionEnded = false; // 確保 session end 只記錄一次
 
   // 將 **...** 片段渲染為粗體
   List<TextSpan> _parseBoldSpans(String text, TextStyle baseStyle, TextStyle boldStyle) {
@@ -58,7 +66,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime.now(); // 記錄開始時間
+    _pageLoadTime = DateTime.now(); // 記錄載入時間
     WidgetsBinding.instance.addObserver(this);
     _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _loadContent();
@@ -67,10 +75,39 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // 記錄 learning_session_end 事件
+    _logEndSession();
     // 保險：視圖銷毀時結束複習（若此頁也作為複習內容使用）
     _endReviewIfAny();
     _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _logEndSession() async {
+    if (_sessionEnded) return; // 防止重複記錄
+    _sessionEnded = true;
+
+    if (_currentUserId != null && _pageLoadTime != null) {
+      final isControlGroup = await ExperimentConfigService.instance.isControlGroup(_currentUserId!);
+      final userGroup = isControlGroup ? 'control' : 'experiment';
+      final totalDuration = DateTime.now().difference(_pageLoadTime!);
+      final activeDuration = totalDuration - _totalPausedDuration;
+      final durationInSeconds = activeDuration.inSeconds > 0 ? activeDuration.inSeconds : 0;
+
+      final isReview = widget.source == 'home_screen_review';
+
+      // 只記錄學習會話結束，複習會話結束在 _endReviewIfAny() 中處理
+      if (!isReview) {
+        AnalyticsService().logLearningSessionEnd(
+          userGroup: userGroup,
+          learningType: 'reading',
+          eventId: widget.event.id,
+          durationSeconds: durationInSeconds,
+          itemsViewed: _currentPage + 1,
+          totalItems: _contents.length,
+        );
+      }
+    }
   }
 
   @override
@@ -80,20 +117,24 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       // App进入后台或非活跃状态，停止计时并暂停事件
       _isAppActive = false;
+      _pauseStartTime = DateTime.now(); // 記錄暫停開始時間
       _recordCurrentCardDwellTime();
       
       // 记录离开学习页面
-      if (_currentUserId != null) {
-        _analyticsService.recordLeaveSession(
-          uid: _currentUserId!,
-          eventId: widget.event.id,
-        );
+      if (_sessionRef != null) {
+        _analyticsService.recordLeaveSession(sessionRef: _sessionRef!);
       }
       
       _pauseEvent(); // 暂停事件
     } else if (state == AppLifecycleState.resumed) {
       // App恢复活跃状态，重新开始计时
       _isAppActive = true;
+      // 計算並累計暫停時間
+      if (_pauseStartTime != null) {
+        final pausedDuration = DateTime.now().difference(_pauseStartTime!);
+        _totalPausedDuration += pausedDuration;
+        _pauseStartTime = null;
+      }
       _cardStartTimes[_currentPage] = DateTime.now();
       
       // 如果事件是暂停状态，继续事件
@@ -104,14 +145,13 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   }
 
   void _recordCurrentCardDwellTime() {
-    if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
+    if (_sessionRef != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
       final endTime = DateTime.now();
       final startTime = _cardStartTimes[_currentPage]!;
       final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
       
       _analyticsService.recordCardDwellTime(
-        uid: _currentUserId!,
-        eventId: widget.event.id,
+        sessionRef: _sessionRef!,
         cardIndex: _currentPage,
         dwellTimeMs: dwellTimeMs,
       );
@@ -167,11 +207,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       _recordCurrentCardDwellTime();
       
       // 记录离开学习页面
-      if (_currentUserId != null) {
-        await _analyticsService.recordLeaveSession(
-          uid: _currentUserId!,
-          eventId: widget.event.id,
-        );
+      if (_sessionRef != null) {
+        await _analyticsService.recordLeaveSession(sessionRef: _sessionRef!);
       }
       
       // 暂停事件
@@ -201,13 +238,35 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
         _isLoading = false;
       });
       
-      // 开始阅读会话数据收集
+      // 开始阅读/复习会话数据收集
       if (_currentUserId != null && contents.isNotEmpty) {
-        await _analyticsService.startReadingSession(
+        // GA Event: learning_session_start or review_session_start
+        final isControlGroup = await ExperimentConfigService.instance.isControlGroup(_currentUserId!);
+        final userGroup = isControlGroup ? 'control' : 'experiment';
+        final isReview = widget.source == 'home_screen_review';
+
+        if (isReview) {
+          // 複習會話的開始記錄已整合到 startReadingSession 中
+        } else {
+          AnalyticsService().logLearningSessionStart(
+            userGroup: userGroup,
+            learningType: 'reading',
+            eventId: widget.event.id,
+            itemCount: contents.length,
+          );
+        }
+
+        // 新的 startReadingSession
+        final sessionRef = await _analyticsService.startReadingSession(
           uid: _currentUserId!,
           eventId: widget.event.id,
+          source: widget.source,
           contents: contents,
         );
+        setState(() {
+          _sessionRef = sessionRef;
+        });
+        
         // 记录第一张卡片的开始时间
         _cardStartTimes[0] = DateTime.now();
       }
@@ -258,37 +317,49 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // 記錄 task_complete 事件
-        if (_startTime != null) {
-          final duration = DateTime.now().difference(_startTime!);
-          AnalyticsService().logTaskComplete(
-            taskType: 'reading',
+        final isControlGroup = await ExperimentConfigService.instance.isControlGroup(user.uid);
+        final userGroup = isControlGroup ? 'control' : 'experiment';
+        final isReview = widget.source == 'home_screen_review';
+
+        // 记录 session 结束
+        _recordCurrentCardDwellTime();
+        if (_sessionRef != null) {
+          await _analyticsService.completeReadingSession(sessionRef: _sessionRef!);
+        }
+        
+        // 如果是学习，而不是复习，才记录任务完成
+        if (!isReview) {
+          if (_pageLoadTime != null) {
+            final totalDuration = DateTime.now().difference(_pageLoadTime!);
+            final activeDuration = totalDuration - _totalPausedDuration;
+            AnalyticsService().logTaskComplete(
+              userGroup: userGroup,
+              taskType: 'reading',
+              eventId: widget.event.id,
+              durationSeconds: activeDuration.inSeconds > 0 ? activeDuration.inSeconds : 0,
+            );
+          }
+          await ExperimentEventHelper.recordEventCompletion(
+            uid: user.uid,
             eventId: widget.event.id,
-            durationSeconds: duration.inSeconds,
+            chatId: widget.event.chatId,
           );
         }
 
-        _recordCurrentCardDwellTime();
-        await _analyticsService.completeReadingSession(
-          uid: user.uid,
-          eventId: widget.event.id,
-        );
-        // 记录事件完成
-        await ExperimentEventHelper.recordEventCompletion(
-          uid: user.uid,
-          eventId: widget.event.id,
-          chatId: widget.event.chatId,
-        );
-        // 結束複習（若有）
+        // 结束复习（若有）
         await _endReviewIfAny();
       }
       
       // 跳回home screen
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } catch (e) {
       print('完成任務時出錯: $e');
       // 即使出错也要跳回home screen
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     }
   }
 
@@ -296,8 +367,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   Future<void> _endReviewIfAny() async {
     if (_reviewEndedLogged) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
+    if (uid != null && widget.source == 'home_screen_review') {
       try {
+        // 複習結束統一由 ExperimentEventHelper 處理
         await ExperimentEventHelper.recordReviewEnd(uid: uid, eventId: widget.event.id);
       } catch (_) {}
     }
@@ -545,14 +617,13 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
             controller: _pageController,
             onPageChanged: (index) {
               // 记录前一张卡片的停留时间
-              if (_currentUserId != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
+              if (_sessionRef != null && _cardStartTimes.containsKey(_currentPage) && _isAppActive) {
                 final endTime = DateTime.now();
                 final startTime = _cardStartTimes[_currentPage]!;
                 final dwellTimeMs = endTime.difference(startTime).inMilliseconds;
                 
                 _analyticsService.recordCardDwellTime(
-                  uid: _currentUserId!,
-                  eventId: widget.event.id,
+                  sessionRef: _sessionRef!,
                   cardIndex: _currentPage,
                   dwellTimeMs: dwellTimeMs,
                 );

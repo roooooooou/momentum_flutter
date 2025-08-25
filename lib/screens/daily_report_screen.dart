@@ -88,7 +88,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       setState(() {
         _todayEvents = todayQuery.docs
             .map(EventModel.fromDoc)
-            .where((event) => event.isActive) // 只顯示活躍事件
+
             .toList();
         
         // 檢查是否有未完成的任務（第一題條件）

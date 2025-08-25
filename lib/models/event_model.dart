@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'enums.dart';
 import '../services/data_path_service.dart';
+import '../services/notification_service.dart';
 
 class EventModel {
   final String id;
@@ -24,11 +25,9 @@ class EventModel {
   final DateTime? pauseAt;             // 🎯 新增：暫停時間
   final DateTime? resumeAt;            // 🎯 新增：繼續時間
   
-  // === 複習統計 ===
-  final int? reviewCount;              // 複習次數
-  final int? reviewTotalDurationMin;   // 複習總時長（分鐘）
-  final DateTime? reviewStartedAt;     // 正在複習的開始時間（未結束時非空）
-  
+  // === 複習統計 (新結構) ===
+  final String? activeReviewSessionId; // 正在進行的複習會話ID
+
   // === 互動 ===
   final StartTrigger? startTrigger;     // enum:int 0-tap_notif 1-tap_card 2-chat 3-auto
   final String? chatId;                 // evt42_20250703T0130
@@ -39,12 +38,8 @@ class EventModel {
   final int? startToOpenLatency;        // (actual - scheduled)/1000；預寫好省 ETL
   final bool isDone;
 
-  // === 事件生命周期 ===
-  final EventLifecycleStatus lifecycleStatus;  // 事件生命周期状态
+  // === 事件歷史記錄 ===
   final DateTime? archivedAt;                    // 归档时间（被删除/移动的时间）
-  final String? previousEventId;                 // 原事件ID（用于移动后ID相同的情况）
-  final DateTime? movedFromStartTime;            // 移动前的开始时间
-  final DateTime? movedFromEndTime;              // 移动前的结束时间
 
   // === meta ===
   final DateTime? createdAt;            // serverTimestamp
@@ -72,11 +67,8 @@ class EventModel {
     List<String>? notifIds,
     this.status,
     this.startToOpenLatency,
-    this.lifecycleStatus = EventLifecycleStatus.active,
+
     this.archivedAt,
-    this.previousEventId,
-    this.movedFromStartTime,
-    this.movedFromEndTime,
     this.createdAt,
     this.updatedAt,
     this.googleEventId,
@@ -87,11 +79,9 @@ class EventModel {
     this.pauseCount,
     this.pauseAt,
     this.resumeAt,
+    this.activeReviewSessionId,
     this.dayNumber,
-    this.reviewCount,
-    this.reviewTotalDurationMin,
-    this.reviewStartedAt,
-      }) : notifIds = notifIds ?? [];
+  }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
     final d = doc.data()! as Map<String, dynamic>;
@@ -103,34 +93,27 @@ class EventModel {
       isDone: d['isDone'] ?? false,
       scheduledStartTime: (d['scheduledStartTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       date: (d['date'] as Timestamp?)?.toDate() ?? (d['scheduledStartTime'] as Timestamp?)?.toDate() ?? DateTime.now(), // 新增字段，如果沒有則使用 scheduledStartTime 或當前時間
-      dayNumber: d['dayNumber'],
+      dayNumber: d['dayNumber'] is int ? d['dayNumber'] as int : (d['dayNumber'] is String ? int.tryParse(d['dayNumber'] as String) : null),
       actualStartTime: (d['actualStartTime'] as Timestamp?)?.toDate(),
       completedTime: (d['completedTime'] as Timestamp?)?.toDate(),
-      startTrigger: d['startTrigger'] != null ? StartTrigger.fromValue(d['startTrigger']) : null,
+      startTrigger: d['startTrigger'] != null ? StartTrigger.fromValue(d['startTrigger'] is int ? d['startTrigger'] as int : (d['startTrigger'] is String ? int.tryParse(d['startTrigger'] as String) ?? 0 : 0)) : null,
       chatId: d['chatId'],
       notifIds: d['notifIds'] != null ? List<String>.from(d['notifIds']) : [],
-      status: d['status'] != null ? TaskStatus.fromValue(d['status']) : null,
-      startToOpenLatency: d['startToOpenLatency'],
-      lifecycleStatus: d['lifecycleStatus'] != null 
-          ? EventLifecycleStatus.fromValue(d['lifecycleStatus']) 
-          : EventLifecycleStatus.active,
+      status: d['status'] != null ? TaskStatus.fromValue(d['status'] is int ? d['status'] as int : (d['status'] is String ? int.tryParse(d['status'] as String) ?? 0 : 0)) : null,
+      startToOpenLatency: d['startToOpenLatency'] is int ? d['startToOpenLatency'] as int : (d['startToOpenLatency'] is String ? int.tryParse(d['startToOpenLatency'] as String) : null),
+
       archivedAt: (d['archivedAt'] as Timestamp?)?.toDate(),
-      previousEventId: d['previousEventId'],
-      movedFromStartTime: (d['movedFromStartTime'] as Timestamp?)?.toDate(),
-      movedFromEndTime: (d['movedFromEndTime'] as Timestamp?)?.toDate(),
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
       googleEventId: d['googleEventId'],
       googleCalendarId: d['googleCalendarId'],
               notifScheduledAt: (d['notifScheduledAt'] as Timestamp?)?.toDate(),
-        expectedDurationMin: d['expectedDurationMin'],
-        actualDurationMin: d['actualDurationMin'],
-        pauseCount: d['pauseCount'],
+        expectedDurationMin: d['expectedDurationMin'] is int ? d['expectedDurationMin'] as int : (d['expectedDurationMin'] is String ? int.tryParse(d['expectedDurationMin'] as String) : null),
+        actualDurationMin: d['actualDurationMin'] is int ? d['actualDurationMin'] as int : (d['actualDurationMin'] is String ? int.tryParse(d['actualDurationMin'] as String) : null),
+        pauseCount: d['pauseCount'] is int ? d['pauseCount'] as int : (d['pauseCount'] is String ? int.tryParse(d['pauseCount'] as String) : null),
         pauseAt: (d['pauseAt'] as Timestamp?)?.toDate(),
         resumeAt: (d['resumeAt'] as Timestamp?)?.toDate(),
-      reviewCount: d['reviewCount'],
-      reviewTotalDurationMin: d['reviewTotalDurationMin'],
-      reviewStartedAt: (d['reviewStartedAt'] as Timestamp?)?.toDate(),
+        activeReviewSessionId: d['activeReviewSessionId'] as String?,
       );
   }
 
@@ -150,11 +133,7 @@ class EventModel {
       'notifIds': notifIds,
       if (status != null) 'status': status!.value,
       if (startToOpenLatency != null) 'startToOpenLatency': startToOpenLatency,
-      'lifecycleStatus': lifecycleStatus.value,
       if (archivedAt != null) 'archivedAt': Timestamp.fromDate(archivedAt!),
-      if (previousEventId != null) 'previousEventId': previousEventId,
-      if (movedFromStartTime != null) 'movedFromStartTime': Timestamp.fromDate(movedFromStartTime!),
-      if (movedFromEndTime != null) 'movedFromEndTime': Timestamp.fromDate(movedFromEndTime!),
       if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
       if (googleEventId != null) 'googleEventId': googleEventId,
@@ -165,9 +144,7 @@ class EventModel {
         if (pauseCount != null) 'pauseCount': pauseCount,
         if (pauseAt != null) 'pauseAt': Timestamp.fromDate(pauseAt!),
         if (resumeAt != null) 'resumeAt': Timestamp.fromDate(resumeAt!),
-      if (reviewCount != null) 'reviewCount': reviewCount,
-      if (reviewTotalDurationMin != null) 'reviewTotalDurationMin': reviewTotalDurationMin,
-      if (reviewStartedAt != null) 'reviewStartedAt': Timestamp.fromDate(reviewStartedAt!),
+        if (activeReviewSessionId != null) 'activeReviewSessionId': activeReviewSessionId,
       };
   }
 
@@ -176,15 +153,7 @@ class EventModel {
     return '${f.format(scheduledStartTime.toLocal())} - ${f.format(scheduledEndTime.toLocal())}';
   }
 
-  /// 是否为活跃事件（未被删除或移动）
-  bool get isActive {
-    return lifecycleStatus == EventLifecycleStatus.active;
-  }
 
-  /// 是否为已归档事件（被删除或移动）
-  bool get isArchived {
-    return lifecycleStatus != EventLifecycleStatus.active;
-  }
 
   TaskStatus get computedStatus {
     // 如果有明確設定status，使用設定的值
@@ -257,11 +226,8 @@ class EventModel {
     List<String>? notifIds,
     TaskStatus? status,
     int? startToOpenLatency,
-    EventLifecycleStatus? lifecycleStatus,
+
     DateTime? archivedAt,
-    String? previousEventId,
-    DateTime? movedFromStartTime,
-    DateTime? movedFromEndTime,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? googleEventId,
@@ -272,10 +238,8 @@ class EventModel {
     int? pauseCount,
     DateTime? pauseAt,
     DateTime? resumeAt,
+    String? activeReviewSessionId,
     int? dayNumber,
-    int? reviewCount,
-    int? reviewTotalDurationMin,
-    DateTime? reviewStartedAt,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -292,11 +256,8 @@ class EventModel {
       notifIds: notifIds ?? this.notifIds,
       status: status ?? this.status,
       startToOpenLatency: startToOpenLatency ?? this.startToOpenLatency,
-      lifecycleStatus: lifecycleStatus ?? this.lifecycleStatus,
+
       archivedAt: archivedAt ?? this.archivedAt,
-      previousEventId: previousEventId ?? this.previousEventId,
-      movedFromStartTime: movedFromStartTime ?? this.movedFromStartTime,
-      movedFromEndTime: movedFromEndTime ?? this.movedFromEndTime,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       googleEventId: googleEventId ?? this.googleEventId,
@@ -307,10 +268,8 @@ class EventModel {
       pauseCount: pauseCount ?? this.pauseCount,
       pauseAt: pauseAt ?? this.pauseAt,
       resumeAt: resumeAt ?? this.resumeAt,
+      activeReviewSessionId: activeReviewSessionId ?? this.activeReviewSessionId,
       dayNumber: dayNumber ?? this.dayNumber,
-      reviewCount: reviewCount ?? this.reviewCount,
-      reviewTotalDurationMin: reviewTotalDurationMin ?? this.reviewTotalDurationMin,
-      reviewStartedAt: reviewStartedAt ?? this.reviewStartedAt,
     );
   }
 }
@@ -410,57 +369,136 @@ class ExperimentEventHelper {
       if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
       if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
     }, SetOptions(merge: true));
+
+    // 🎯 任務完成時取消所有相關通知並記錄為取消狀態
+    // 注意：這裡沒有具體的通知ID，因為任務完成時所有通知都應該被取消
+    await _cancelNotificationsAndRecordComplete(uid, eventId, snap.data() as Map<String, dynamic>?);
   }
 
+  /// 任務完成時：只將未發送的通知標記為 cancel，已發送的通知保持原狀態
+  /// 不會覆蓋已經有用戶互動記錄的通知
+  static Future<void> _cancelNotificationsAndRecordComplete(String uid, String eventId, Map<String, dynamic>? eventData) async {
+    try {
+      if (eventData == null) return;
 
-  /// 開始複習：設置 reviewStartedAt（若已在複習則不覆蓋）
+      final eventDate = eventData['date'] != null ? (eventData['date'] as Timestamp).toDate() : null;
+
+      // 1. 處理第一個和第二個通知（如果存在notifIds）
+      final notifIds = eventData['notifIds'] as List<dynamic>?;
+      if (notifIds != null && notifIds.isNotEmpty) {
+        for (final notifId in notifIds) {
+          if (notifId is String) {
+            // 計算通知ID並取消
+            if (notifId.endsWith('-1st')) {
+              final firstNotificationId = 1000 + (eventId.hashCode.abs() % 100000);
+              await NotificationService.instance.cancelNotification(firstNotificationId);
+              
+              // 🎯 檢查通知是否已經有用戶互動，只有在未發送時才記錄為 cancel
+              await _recordNotificationCompleteIfNotExists(uid, eventId, notifId, eventDate);
+              
+            } else if (notifId.endsWith('-2nd')) {
+              final secondNotificationId = 1000 + (eventId.hashCode.abs() % 100000) + 1;
+              await NotificationService.instance.cancelNotification(secondNotificationId);
+              
+              // 🎯 檢查通知是否已經有用戶互動，只有在未發送時才記錄為 cancel
+              await _recordNotificationCompleteIfNotExists(uid, eventId, notifId, eventDate);
+            }
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('🎯 任務完成：已取消事件 $eventId 的未發送通知並記錄為 cancel 狀態');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('取消通知並記錄完成狀態失敗: $e');
+      }
+    }
+  }
+
+  /// 🎯 [Corrected] 記錄第二個通知因為任務已開始而被取消
+  static Future<void> recordSecondNotificationCancelled({
+    required String uid,
+    required String eventId,
+    required DateTime eventDate,
+  }) async {
+    final notifId = '$eventId-2nd';
+    // 直接調用 `_recordNotificationCompleteIfNotExists` 即可，
+    // 因為它的邏輯是檢查文檔是否存在，如果不存在（代表未發送），則記錄為 cancel。
+    // 這完全符合我們的需求。
+    await _recordNotificationCompleteIfNotExists(uid, eventId, notifId, eventDate);
+  }
+
+  /// 開始複習：只更新主事件的 activeReviewSessionId（由具體的 AnalyticsService 創建 review 文檔）
   static Future<void> recordReviewStart({
     required String uid,
     required String eventId,
   }) async {
     final now = DateTime.now();
-    final ref = await _getEventRef(uid, eventId);
+    final eventRef = await _getEventRef(uid, eventId);
 
-    final snap = await ref.get();
-    DateTime? existing;
-    if (snap.exists) {
-      final data = snap.data()! as Map<String, dynamic>;
-      existing = (data['reviewStartedAt'] as Timestamp?)?.toDate();
+    // 檢查是否已有正在進行的複習
+    final eventSnap = await eventRef.get();
+    if (eventSnap.exists) {
+      final data = eventSnap.data() as Map<String, dynamic>?;
+      if (data != null && data.containsKey('activeReviewSessionId') && data['activeReviewSessionId'] != null) {
+        if (kDebugMode) {
+          print('Review session already active. Skipping start.');
+        }
+        return; // 已有活動中的複習，不再重複開始
+      }
     }
 
-    await ref.set({
-      // 僅當目前沒有複習進行中時才設定開始時間
-      if (existing == null) 'reviewStartedAt': Timestamp.fromDate(now),
+    // 標記複習已開始，但不創建 review 文檔（由 AnalyticsService 負責）
+    await eventRef.set({
+      'reviewStarted': true, // 標記複習已開始
       'updatedAt': Timestamp.fromDate(now),
       'date': Timestamp.fromDate(now),
     }, SetOptions(merge: true));
   }
 
-  /// 結束複習：累加複習總時長（分鐘）並增加複習次數，清除 reviewStartedAt
+  /// 結束複習：清除主事件的 activeReviewSessionId（review 文檔的結束由 AnalyticsService 處理）
   static Future<void> recordReviewEnd({
     required String uid,
     required String eventId,
   }) async {
     final now = DateTime.now();
-    final ref = await _getEventRef(uid, eventId);
+    final eventRef = await _getEventRef(uid, eventId);
 
-    final snap = await ref.get();
-    if (!snap.exists) return;
-    final data = snap.data()! as Map<String, dynamic>;
-    final reviewStartedAt = (data['reviewStartedAt'] as Timestamp?)?.toDate();
+    final eventSnap = await eventRef.get();
+    if (!eventSnap.exists) return;
 
-    if (reviewStartedAt == null) {
-      // 沒有進行中的複習，直接返回
+    final data = eventSnap.data()! as Map<String, dynamic>;
+    final activeSessionId = data['activeReviewSessionId'] as String?;
+
+    if (activeSessionId == null) {
+      if (kDebugMode) {
+        print('No active review session to end.');
+      }
+      return; // 沒有活動中的複習
+    }
+
+    final reviewSessionRef = eventRef.collection('review').doc(activeSessionId);
+    final reviewSnap = await reviewSessionRef.get();
+
+    if (!reviewSnap.exists) {
+       if (kDebugMode) {
+        print('Active review session document not found. Clearing activeReviewSessionId.');
+      }
+      // 如果文檔不存在，至少要清理主事件的狀態，避免卡死
+      await eventRef.set({
+        'activeReviewSessionId': null,
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
       return;
     }
 
-    final minutes = now.difference(reviewStartedAt).inMinutes;
-    await ref.set({
-      'reviewStartedAt': null,
-      'reviewCount': FieldValue.increment(1),
-      'reviewTotalDurationMin': FieldValue.increment(minutes),
+    // AnalyticsService 已經處理了 review 文檔的結束，這裡只需要清理主事件狀態
+    await eventRef.set({
+      'activeReviewSessionId': null,
+      'reviewStarted': false, // 標記複習已結束
       'updatedAt': Timestamp.fromDate(now),
-      'date': Timestamp.fromDate(now),
     }, SetOptions(merge: true));
   }
 
@@ -470,14 +508,37 @@ class ExperimentEventHelper {
   static Future<void> recordNotificationTap({
     required String uid,
     required String eventId,
+    String? notifId,
   }) async {
     final ref = await _getEventRef(uid, eventId);
 
+    // 🎯 修正：只設置觸發源，不設置任務狀態
+    // 任務狀態將由 recordEventStart 設置
     await ref.set({
       'startTrigger': StartTrigger.tapNotification.value,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
       'date': Timestamp.fromDate(DateTime.now()), // 添加日期字段
     }, SetOptions(merge: true));
+
+    // 🎯 如果有通知ID，記錄通知點擊狀態
+    if (notifId != null) {
+      // 獲取事件日期以記錄通知狀態
+      final eventSnap = await ref.get();
+      if (eventSnap.exists) {
+        final eventData = eventSnap.data() as Map<String, dynamic>;
+        final eventDate = eventData['date'] != null ? (eventData['date'] as Timestamp).toDate() : null;
+        
+        // 🎯 修正：不預設記錄為 start 狀態，因為任務可能還沒有開始
+        // 通知結果將由實際的用戶操作決定
+        await recordNotificationResult(
+          uid: uid,
+          eventId: eventId,
+          notifId: notifId,
+          result: NotificationResult.dismiss, // 預設為已查看但未採取行動
+          eventDate: eventDate,
+        );
+      }
+    }
   }
 
   /// 記錄聊天觸發（不開始任務，只設置chatId和觸發源）
@@ -556,12 +617,9 @@ class ExperimentEventHelper {
       }
 
       await ref.set({
-        'delivered_time': null, // 通知还未发送
         'opened_time': null,
         'notification_scheduled_time': scheduledTime != null ? Timestamp.fromDate(scheduledTime) : null,
         'result': NotificationResult.dismiss.value,
-        'snooze_minutes': null,
-        'latency_sec': null,
         'notif_to_click_sec': null,
         'created_at': FieldValue.serverTimestamp(),
       });
@@ -597,17 +655,13 @@ class ExperimentEventHelper {
       // 若文檔存在則更新，否則建立
       final snap = await ref.get();
       if (snap.exists) {
-        await ref.update({
-          'delivered_time': Timestamp.fromDate(now),
-        });
+        // 文檔已存在，不需要更新任何字段
+        return;
       } else {
         await ref.set({
-          'delivered_time': Timestamp.fromDate(now),
           'opened_time': null,
           'notification_scheduled_time': null,
           'result': NotificationResult.dismiss.value,
-          'snooze_minutes': null,
-          'latency_sec': null,
           'notif_to_click_sec': null,
           'created_at': FieldValue.serverTimestamp(),
         });
@@ -644,25 +698,23 @@ class ExperimentEventHelper {
       final snap = await ref.get();
       if (snap.exists) {
         final data = snap.data() as Map<String, dynamic>;
-        final deliveredTime = (data['delivered_time'] as Timestamp?)?.toDate();
-        final notifToClickSec = deliveredTime != null 
-            ? now.difference(deliveredTime).inSeconds 
+        // 🎯 新增：計算從通知發送到點擊的時間
+        // 使用 notification_scheduled_time 作為參考時間點
+        final scheduledTime = (data['notification_scheduled_time'] as Timestamp?)?.toDate();
+        final notifToClickSec = scheduledTime != null 
+            ? now.difference(scheduledTime).inSeconds 
             : null;
 
         await ref.update({
           'opened_time': Timestamp.fromDate(now),
-          'latency_sec': notifToClickSec, // 保持向後兼容
-          'notif_to_click_sec': notifToClickSec, // 新字段
+          'notif_to_click_sec': notifToClickSec, // 記錄通知發送到點擊的秒數
         });
       } else {
         // 🎯 修復：如果文档不存在，创建一个新文档
         await ref.set({
-          'delivered_time': null, // 没有发送记录
           'opened_time': Timestamp.fromDate(now),
           'notification_scheduled_time': null, // 沒有排程記錄
           'result': NotificationResult.dismiss.value,
-          'snooze_minutes': null,
-          'latency_sec': null, // 无法计算延迟
           'notif_to_click_sec': null, // 无法计算延迟
           'created_at': FieldValue.serverTimestamp(),
         });
@@ -680,46 +732,84 @@ class ExperimentEventHelper {
     required String eventId,
     required String notifId,
     required NotificationResult result,
-    int? snoozeMinutes,
     DateTime? eventDate, // 🎯 新增：事件发生的日期
   }) async {
+    // 🎯 調試：輸出即將記錄的通知結果信息
+    debugPrint('🎯 recordNotificationResult 開始');
+    debugPrint('🎯 uid: $uid, eventId: $eventId, notifId: $notifId');
+    debugPrint('🎯 result: ${result.value} (${result.name})');
+    debugPrint('🎯 eventDate: $eventDate');
+    
     // 🎯 修复：根据事件发生的日期获取正确的通知文档路径
     DocumentReference ref;
     if (eventDate != null) {
+      debugPrint('🎯 使用事件日期獲取通知文檔路徑: eventDate=$eventDate');
       ref = await DataPathService.instance.getDateEventNotificationDoc(uid, eventId, notifId, eventDate);
     } else {
+      debugPrint('🎯 使用當前日期獲取通知文檔路徑');
       ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
     }
+    
+    debugPrint('🎯 通知文檔路徑: ${ref.path}');
 
     try {
       final updateData = <String, dynamic>{
         'result': result.value,
       };
 
-      if (result == NotificationResult.snooze && snoozeMinutes != null) {
-        updateData['snooze_minutes'] = snoozeMinutes;
-      }
-
       // 檢查文档是否存在
       final snap = await ref.get();
       if (snap.exists) {
+        debugPrint('🎯 通知文檔已存在，準備更新');
+        // 文檔存在，更新結果
         await ref.update(updateData);
+        debugPrint('🎯 通知文檔更新成功: result=${result.value}');
+        
+        // 驗證更新結果
+        final verifySnap = await ref.get();
+        if (verifySnap.exists) {
+          final verifyData = verifySnap.data() as Map<String, dynamic>;
+          debugPrint('🎯 驗證更新結果: result=${verifyData['result']}, 預期=${result.value}');
+          if (verifyData['result'] == result.value) {
+            debugPrint('🎯 ✅ 驗證成功：通知結果已正確更新');
+          } else {
+            debugPrint('🎯 ❌ 驗證失敗：通知結果更新異常');
+          }
+        }
       } else {
+        debugPrint('🎯 通知文檔不存在，準備創建新文檔');
         // 🎯 修復：如果文档不存在，创建一个新文档
-        await ref.set({
-          'delivered_time': null,
+        final createData = {
           'opened_time': null,
           'notification_scheduled_time': null, // 沒有排程記錄
           'result': result.value,
-          'snooze_minutes': snoozeMinutes,
-          'latency_sec': null,
           'notif_to_click_sec': null,
           'created_at': FieldValue.serverTimestamp(),
-        });
+        };
+        
+        await ref.set(createData);
+        debugPrint('🎯 通知文檔創建成功: result=${result.value}');
+        debugPrint('🎯 創建內容: $createData');
+        
+        // 驗證創建結果
+        final verifySnap = await ref.get();
+        if (verifySnap.exists) {
+          final verifyData = verifySnap.data() as Map<String, dynamic>;
+          debugPrint('🎯 驗證創建結果: result=${verifyData['result']}, 預期=${result.value}');
+          if (verifyData['result'] == result.value) {
+            debugPrint('🎯 ✅ 驗證成功：通知文檔已正確創建');
+          } else {
+            debugPrint('🎯 ❌ 驗證失敗：通知文檔創建異常');
+          }
+        }
       }
+      
+      debugPrint('🎯 recordNotificationResult 完成');
     } catch (e) {
       // 🎯 調試：輸出錯誤信息
-      debugPrint('記錄通知結果失敗: notifId=$notifId, result=${result.value}, error=$e');
+      debugPrint('🎯 記錄通知結果失敗: notifId=$notifId, result=${result.value}, error=$e');
+      debugPrint('🎯 嘗試路徑: ${ref.path}');
+      debugPrint('🎯 錯誤詳情: $e');
       rethrow;
     }
   }
@@ -868,192 +958,82 @@ class ExperimentEventHelper {
     }
   }
 
-  /// 手动归档事件（管理员功能）
-  static Future<void> archiveEvent({
-    required String uid,
-    required String eventId,
-    required EventLifecycleStatus lifecycleStatus,
-    String? reason,
-  }) async {
-    final now = DateTime.now();
-    final ref = await _getEventRef(uid, eventId);
 
-    await ref.set({
-      'lifecycleStatus': lifecycleStatus.value,
-      'archivedAt': Timestamp.fromDate(now),
-      'updatedAt': Timestamp.fromDate(now),
-      'date': Timestamp.fromDate(now), // 添加日期字段
-      if (reason != null) 'archiveReason': reason,
-    }, SetOptions(merge: true));
 
-    debugPrint('archiveEvent - 事件已归档: eventId=$eventId, status=${lifecycleStatus.displayName}');
-  }
 
-  /// 恢复已归档的事件
-  static Future<void> restoreEvent({
-    required String uid,
-    required String eventId,
-  }) async {
-    final now = DateTime.now();
-    final ref = await _getEventRef(uid, eventId);
 
-    await ref.set({
-      'lifecycleStatus': EventLifecycleStatus.active.value,
-      'archivedAt': null,
-      'updatedAt': Timestamp.fromDate(now),
-      'date': Timestamp.fromDate(now), // 添加日期字段
-    }, SetOptions(merge: true));
-
-    debugPrint('restoreEvent - 事件已恢复: eventId=$eventId');
-  }
-
-  /// 获取事件的生命周期历史（如果有关联的前一个事件）
-  static Future<List<EventModel>> getEventHistory({
-    required String uid,
-    required String eventId,
-  }) async {
-    final history = <EventModel>[];
-    var currentEventId = eventId;
-
-    while (currentEventId.isNotEmpty) {
-      final ref = await _getEventRef(uid, currentEventId);
-      final doc = await ref.get();
-
-      if (!doc.exists) break;
-
-      final event = EventModel.fromDoc(doc);
-      history.add(event);
-
-      // 查找下一个关联的事件
-      final previousEventId = event.previousEventId;
-      if (previousEventId == null) break;
-
-      currentEventId = previousEventId;
-    }
-
-    return history.reversed.toList(); // 按时间顺序返回
-  }
-
-  /// 查询已归档的事件
-  static Future<List<EventModel>> getArchivedEvents({
-    required String uid,
-    EventLifecycleStatus? status,
-    DateTime? startDate,
-    DateTime? endDate,
-    int limit = 50,
-  }) async {
-    // 获取所有事件集合（实验组和对照组）
-    final allCollections = await DataPathService.instance.getAllEventsCollections(uid);
-    final allEvents = <EventModel>[];
-
-    for (final collection in allCollections) {
-      Query<Map<String, dynamic>> query = collection as Query<Map<String, dynamic>>;
-
-      // 先查询特定状态，避免复合索引问题
-      if (status != null) {
-        query = query.where('lifecycleStatus', isEqualTo: status.value);
+  /// 🎯 私有方法：只在通知未發送時才記錄為 cancel 狀態
+  /// 這用於處理任務開始時取消第二個通知，或任務完成時取消未發送的通知
+  /// 不會覆蓋已經有用戶互動記錄的通知
+  static Future<void> _recordNotificationCompleteIfNotExists(
+    String uid, 
+    String eventId, 
+    String notifId, 
+    DateTime? eventDate
+  ) async {
+    try {
+      // 獲取通知文檔引用
+      DocumentReference ref;
+      if (eventDate != null) {
+        ref = await DataPathService.instance.getDateEventNotificationDoc(uid, eventId, notifId, eventDate);
+      } else {
+        ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
       }
 
-      // 如果有时间范围，添加时间过滤
-      if (startDate != null) {
-        query = query.where('archivedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-      }
-
-      if (endDate != null) {
-        query = query.where('archivedAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-      }
-
-      final snapshot = await query
-          .limit(limit * 2) // 多获取一些数据以防过滤后不够
-          .get();
-
-      // 在内存中过滤出归档事件
-      final archivedEvents = snapshot.docs
-          .map(EventModel.fromDoc)
-          .where((event) => event.isArchived)
-          .where((event) {
-            // 如果没有指定状态，只要是归档状态就行
-            if (status == null) return true;
-            return event.lifecycleStatus == status;
-          })
-          .toList();
-
-      allEvents.addAll(archivedEvents);
-    }
-
-    // 按归档时间排序并限制数量
-    allEvents.sort((a, b) {
-      if (a.archivedAt == null && b.archivedAt == null) return 0;
-      if (a.archivedAt == null) return 1;
-      if (b.archivedAt == null) return -1;
-      return b.archivedAt!.compareTo(a.archivedAt!);
-    });
-
-    return allEvents.take(limit).toList();
-  }
-
-  /// 统计事件生命周期状态
-  static Future<Map<EventLifecycleStatus, int>> getLifecycleStats({
-    required String uid,
-    DateTime? startDate,
-    DateTime? endDate,
-  }) async {
-    final stats = <EventLifecycleStatus, int>{
-      EventLifecycleStatus.active: 0,
-      EventLifecycleStatus.deleted: 0,
-      EventLifecycleStatus.moved: 0,
-    };
-
-    // 获取所有事件集合（实验组和对照组）
-    final allCollections = await DataPathService.instance.getAllEventsCollections(uid);
-
-    for (final collection in allCollections) {
-      Query<Map<String, dynamic>> query = collection as Query<Map<String, dynamic>>;
-
-      if (startDate != null && endDate != null) {
-        query = query
-            .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-            .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-      }
-
-      final snapshot = await query.get();
-
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final statusValue = data['lifecycleStatus'] as int?;
-        // 现在默认为active，兼容旧数据中可能为null的情况
-        final status = statusValue != null 
-            ? EventLifecycleStatus.fromValue(statusValue)
-            : EventLifecycleStatus.active;
+      // 🎯 檢查通知文檔是否存在以及是否已經有用戶互動
+      final snap = await ref.get();
+      if (snap.exists) {
+        final data = snap.data() as Map<String, dynamic>;
         
-        stats[status] = (stats[status] ?? 0) + 1;
+        // 檢查是否已經有用戶互動（opened_time 不為 null 或 result 不是 dismiss）
+        final hasUserInteraction = data['opened_time'] != null || 
+                                  (data['result'] != null && data['result'] != NotificationResult.dismiss.value);
+        
+        if (hasUserInteraction) {
+          if (kDebugMode) {
+            print('🎯 通知 $notifId 已經有用戶互動，保持原狀態不覆蓋');
+          }
+          return; // 已經有用戶互動，不覆蓋狀態
+        }
       }
-    }
 
-    return stats;
+      // 🎯 只有在通知未發送或沒有用戶互動時才記錄為 cancel 狀態
+      await ref.set({
+        'opened_time': null,
+        'notification_scheduled_time': null,
+        'result': NotificationResult.cancel.value, // 設為 cancel(4)
+        'notif_to_click_sec': null,
+        'created_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (kDebugMode) {
+        print('🎯 通知 $notifId 未發送或無用戶互動，已記錄為 cancel 狀態');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🎯 記錄通知 cancel 狀態失敗: $notifId, error: $e');
+      }
+      // 不重新拋出錯誤，避免影響主要流程
+    }
   }
+
+
 }
 
 /// 通知實驗數據模型
 class NotificationData {
   final String id;                    // 通知ID
-  final DateTime? deliveredTime;      // 發送成功時間
   final DateTime? openedTime;         // 用戶點擊時間
   final DateTime? notificationScheduledTime; // 通知排程時間
   final NotificationResult? result;   // 操作結果
-  final int? snoozeMinutes;          // 延後分鐘數
-  final int? latencySec;             // 延遲秒數（保留向後兼容）
   final int? notifToClickSec;        // 通知發送到點擊的秒數
   final DateTime? createdAt;         // 創建時間
 
   NotificationData({
     required this.id,
-    this.deliveredTime,
     this.openedTime,
     this.notificationScheduledTime,
     this.result,
-    this.snoozeMinutes,
-    this.latencySec,
     this.notifToClickSec,
     this.createdAt,
   });
@@ -1062,14 +1042,11 @@ class NotificationData {
     final data = doc.data()! as Map<String, dynamic>;
     return NotificationData(
       id: doc.id,
-      deliveredTime: (data['delivered_time'] as Timestamp?)?.toDate(),
       openedTime: (data['opened_time'] as Timestamp?)?.toDate(),
       notificationScheduledTime: (data['notification_scheduled_time'] as Timestamp?)?.toDate(),
       result: data['result'] != null 
           ? NotificationResult.fromValue(data['result']) 
           : null,
-      snoozeMinutes: data['snooze_minutes'],
-      latencySec: data['latency_sec'],
       notifToClickSec: data['notif_to_click_sec'],
       createdAt: (data['created_at'] as Timestamp?)?.toDate(),
     );
@@ -1077,12 +1054,9 @@ class NotificationData {
 
   Map<String, dynamic> toFirestore() {
     return {
-      if (deliveredTime != null) 'delivered_time': Timestamp.fromDate(deliveredTime!),
       if (openedTime != null) 'opened_time': Timestamp.fromDate(openedTime!),
       if (notificationScheduledTime != null) 'notification_scheduled_time': Timestamp.fromDate(notificationScheduledTime!),
       if (result != null) 'result': result!.value,
-      if (snoozeMinutes != null) 'snooze_minutes': snoozeMinutes,
-      if (latencySec != null) 'latency_sec': latencySec,
       if (notifToClickSec != null) 'notif_to_click_sec': notifToClickSec,
       if (createdAt != null) 'created_at': Timestamp.fromDate(createdAt!),
     };

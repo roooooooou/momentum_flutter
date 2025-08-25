@@ -66,7 +66,7 @@ class EventsProvider extends ChangeNotifier {
           .snapshots()
           .map((q) => q.docs
               .map(EventModel.fromDoc)
-              .where((event) => event.isActive) // 只显示活跃事件
+
               .toList());
 
       notifyListeners();
@@ -84,11 +84,12 @@ class EventsProvider extends ChangeNotifier {
     setUser(user);
   }
 
-  /// 取得本週已發生(現在之前)的事件串流（Past Events）。
-  /// 僅包含活躍事件，過濾測試事件，且依開始時間排序（新到舊）。
+  /// 取得本週已發生(現在之前)的事件串流（Past Events），按dayNumber分組。
+  /// 過濾測試事件，且依開始時間排序（新到舊）。
   /// 邏輯：d0=測試天(不包含), d1-d7=w1, d8+=w2
   /// 範例：今天是d3時，顯示d1,d2的事件；今天是d8時，不應有past events
-  Stream<List<EventModel>> getPastEventsStream(User user) async* {
+  /// 返回格式：Map<int, List<EventModel>>，key為dayNumber，value為該天的events
+  Stream<Map<int, List<EventModel>>> getPastEventsStreamGrouped(User user) async* {
     try {
       final now = DateTime.now();
       // dayNumber 以 DayNumberService 計算
@@ -96,23 +97,23 @@ class EventsProvider extends ChangeNotifier {
       
       print('🔍 getPastEventsStream: dayNumber = $dayNumber');
       
-      // 🎯 關鍵修正：w2 第一天 (d8) 直接返回空陣列，不做任何查詢
-      if (dayNumber == 8) {
-        print('🔍 w2-d1: 直接返回空陣列，不查詢任何事件');
-        yield <EventModel>[];
+      // 🎯 關鍵修正：w2 第一天 (d8) 直接返回空Map，不做任何查詢
+      if (dayNumber == 7) {
+        print('🔍 w2-d1: 直接返回空Map，不查詢任何事件');
+        yield <int, List<EventModel>>{};
         return;
       }
       
       // d0 是測試天，d1 是第一天，所以 d1 也不應該有 past events
       if (dayNumber <= 1) {
-        print('🔍 dayNumber <= 1: 返回空陣列');
-        yield <EventModel>[];
+        print('🔍 dayNumber <= 1: 返回空Map');
+        yield <int, List<EventModel>>{};
         return;
       }
       
-      final List<EventModel> all = [];
+      final Map<int, List<EventModel>> groupedEvents = {};
       
-      if (dayNumber >= 2 && dayNumber <= 7) {
+      if (dayNumber >= 2 && dayNumber <= 6) {
         print('🔍 w1 情況 (d$dayNumber)：查詢 d1 到 d${dayNumber-1} 的事件');
         // w1 情況：d2-d7，顯示 d1 到 dayNumber-1 的事件
         final w1Collection = await DataPathService.instance.getEventsCollectionByDayNumber(user.uid, dayNumber);
@@ -122,7 +123,6 @@ class EventsProvider extends ChangeNotifier {
           // 先嘗試使用 Firestore 查詢過濾 dayNumber
           var snap = await w1Collection
               .where('dayNumber', isEqualTo: d)
-              .where('isActive', isEqualTo: true)
               .get();
           
           var items = snap.docs
@@ -132,10 +132,8 @@ class EventsProvider extends ChangeNotifier {
           
           // 如果沒有找到結果，可能是因為舊事件沒有 dayNumber 字段，嘗試備用查詢
           if (items.isEmpty) {
-            print('🔍 w1 d$d: dayNumber 查詢無結果，嘗試備用查詢（查詢所有 isActive=true 事件並在記憶體過濾）');
-            final fallbackSnap = await w1Collection
-                .where('isActive', isEqualTo: true)
-                .get();
+            print('🔍 w1 d$d: dayNumber 查詢無結果，嘗試備用查詢（查詢所有事件並在記憶體過濾）');
+            final fallbackSnap = await w1Collection.get();
             items = fallbackSnap.docs
                 .map(EventModel.fromDoc)
                 .where((e) => e.dayNumber == d) // 在記憶體中過濾
@@ -144,10 +142,14 @@ class EventsProvider extends ChangeNotifier {
           }
           
           print('🔍 w1 d$d: 找到 ${items.length} 個過去事件');
-          all.addAll(items);
+          if (items.isNotEmpty) {
+            // 按開始時間排序（新到舊）
+            items.sort((a, b) => b.scheduledStartTime.compareTo(a.scheduledStartTime));
+            groupedEvents[d] = items;
+          }
         }
-      } else if (dayNumber > 8) {
-        print('🔍 w2 其他天 (d$dayNumber)：查詢 d8 到 d${dayNumber-1} 的事件');
+      } else if (dayNumber > 7) {
+        print('🔍 w2 其他天 (d$dayNumber)：查詢 d7 到 d${dayNumber-1} 的事件');
         // w2 其他天：顯示 d8 到 dayNumber-1 的事件
         final w2Collection = await DataPathService.instance.getEventsCollectionByDayNumber(user.uid, dayNumber);
         
@@ -156,7 +158,6 @@ class EventsProvider extends ChangeNotifier {
           // 先嘗試使用 Firestore 查詢過濾 dayNumber
           var snap = await w2Collection
               .where('dayNumber', isEqualTo: d)
-              .where('isActive', isEqualTo: true)
               .get();
           
           var items = snap.docs
@@ -166,10 +167,8 @@ class EventsProvider extends ChangeNotifier {
           
           // 如果沒有找到結果，可能是因為舊事件沒有 dayNumber 字段，嘗試備用查詢
           if (items.isEmpty) {
-            print('🔍 w2 d$d: dayNumber 查詢無結果，嘗試備用查詢（查詢所有 isActive=true 事件並在記憶體過濾）');
-            final fallbackSnap = await w2Collection
-                .where('isActive', isEqualTo: true)
-                .get();
+            print('🔍 w2 d$d: dayNumber 查詢無結果，嘗試備用查詢（查詢所有事件並在記憶體過濾）');
+            final fallbackSnap = await w2Collection.get();
             items = fallbackSnap.docs
                 .map(EventModel.fromDoc)
                 .where((e) => e.dayNumber == d) // 在記憶體中過濾
@@ -178,17 +177,34 @@ class EventsProvider extends ChangeNotifier {
           }
           
           print('🔍 w2 d$d: 找到 ${items.length} 個過去事件');
-          all.addAll(items);
+          if (items.isNotEmpty) {
+            // 按開始時間排序（新到舊）
+            items.sort((a, b) => b.scheduledStartTime.compareTo(a.scheduledStartTime));
+            groupedEvents[d] = items;
+          }
         }
       }
       
-      print('🔍 總共找到 ${all.length} 個 past events');
-      // 依開始時間由新到舊排序
-      all.sort((a, b) => b.scheduledStartTime.compareTo(a.scheduledStartTime));
-      yield all;
+      final totalEvents = groupedEvents.values.fold(0, (total, list) => total + list.length);
+      print('🔍 總共找到 $totalEvents 個 past events，分組數：${groupedEvents.length}');
+      yield groupedEvents;
     } catch (e) {
       print('EventsProvider: 獲取本週 Past Events 失敗: $e');
-      yield <EventModel>[];
+      yield <int, List<EventModel>>{};
+    }
+  }
+
+  /// 取得本週已發生(現在之前)的事件串流（Past Events）- 向下相容方法
+  /// 過濾測試事件，且依開始時間排序（新到舊）
+  Stream<List<EventModel>> getPastEventsStream(User user) async* {
+    await for (final groupedEvents in getPastEventsStreamGrouped(user)) {
+      final allEvents = <EventModel>[];
+      // 按dayNumber順序收集所有事件（從小到大的dayNumber，但同一天內按時間新到舊）
+      final sortedKeys = groupedEvents.keys.toList()..sort();
+      for (final dayNumber in sortedKeys.reversed) { // 倒序，讓較新的天排在前面
+        allEvents.addAll(groupedEvents[dayNumber]!);
+      }
+      yield allEvents;
     }
   }
 
@@ -220,7 +236,7 @@ class EventsProvider extends ChangeNotifier {
       final snapshot = await query.get();
       final events = snapshot.docs
           .map(EventModel.fromDoc)
-          .where((event) => event.isArchived) // 在内存中过滤已归档事件
+          .where((event) => event.archivedAt != null) // 在内存中过滤已归档事件
           .toList()
         ..sort((a, b) => b.archivedAt!.compareTo(a.archivedAt!)); // 按时间排序
       

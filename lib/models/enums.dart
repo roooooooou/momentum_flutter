@@ -13,6 +13,20 @@ enum StartTrigger {
   }
 }
 
+/// Task Start Dialog 觸發來源
+enum TaskStartDialogTrigger {
+  notification(0),  // 來自通知點擊
+  appResume(1),    // 來自 app resume
+  manual(2);       // 手動觸發
+
+  const TaskStartDialogTrigger(this.value);
+  final int value;
+
+  static TaskStartDialogTrigger fromValue(int value) {
+    return TaskStartDialogTrigger.values.firstWhere((e) => e.value == value);
+  }
+}
+
 /// 任務狀態
 enum TaskStatus {
   notStarted(0),   // 未開始
@@ -30,36 +44,15 @@ enum TaskStatus {
   }
 }
 
-/// 事件生命周期状态
-enum EventLifecycleStatus {
-  active(0),      // 活跃（正常存在于Google Calendar中）
-  deleted(1),     // 已从Google Calendar中删除
-  moved(2);       // 在同一日历内移动（时间改变）
 
-  const EventLifecycleStatus(this.value);
-  final int value;
-
-  static EventLifecycleStatus fromValue(int value) {
-    return EventLifecycleStatus.values.firstWhere((e) => e.value == value);
-  }
-
-  String get displayName {
-    switch (this) {
-      case EventLifecycleStatus.active:
-        return '活躍';
-      case EventLifecycleStatus.deleted:
-        return '已刪除';
-      case EventLifecycleStatus.moved:
-        return '已移動';
-    }
-  }
-}
 
 /// 通知结果
 enum NotificationResult {
   dismiss(0),   // 忽略/關閉
-  snooze(1),    // 延後
-  start(2);     // 開始
+  snooze(1),  // 對照組：延後
+  chat(2),    // 實驗組：聊天
+  start(3),    // 開始
+  cancel(4); // 任務已開始，通知取消
 
   const NotificationResult(this.value);
   final int value;
@@ -72,9 +65,8 @@ enum NotificationResult {
 /// 聊天結果
 enum ChatResult {
   start(0),    // 開始任務
-  snooze(1),   // 延後
-  giveUp(2),
-  leave(3);    // 直接離開
+  snooze(1),   // 放棄
+  leave(2);    // 直接離開
 
   const ChatResult(this.value);
   final int value;

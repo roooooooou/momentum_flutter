@@ -55,8 +55,13 @@ class TaskRouterService {
   }
 
   /// 根据任务跳转到相应页面
-  void navigateToTaskPage(BuildContext context, EventModel event, {required String source}) {
-    print('TaskRouterService: Navigating to task page for event: ${event.title}');
+  void navigateToTaskPage(BuildContext context, EventModel event, {required String source, required String userGroup}) {
+    print('🎯 TaskRouterService: Navigating to task page for event: ${event.title}');
+    print('🎯 TaskRouterService: Event ID: ${event.id}');
+    print('🎯 TaskRouterService: Event Date: ${event.date}');
+    print('🎯 TaskRouterService: Event DayNumber: ${event.dayNumber}');
+    print('🎯 TaskRouterService: Source: $source');
+    print('🎯 TaskRouterService: UserGroup: $userGroup');
     
     // 检查context是否有效
     if (!context.mounted) {
@@ -67,7 +72,8 @@ class TaskRouterService {
     final taskType = _getTaskType(event.title);
     
     // 記錄 task_start 事件
-    AnalyticsService().logTaskStart(
+    AnalyticsService().logTaskStarted(
+      userGroup: userGroup,
       taskType: taskType.name,
       eventId: event.id,
       triggerSource: source,
@@ -76,40 +82,46 @@ class TaskRouterService {
     try {
       switch (taskType) {
         case TaskType.vocab:
-          print('TaskRouterService: Navigating to VocabPage');
-          Navigator.of(context).push(
+          print('🎯 TaskRouterService: Navigating to VocabPage');
+          final result = Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => VocabPage(event: event),
+              builder: (context) => VocabPage(event: event, source: source),
             ),
           );
+          print('🎯 TaskRouterService: VocabPage navigation initiated: $result');
           break;
         case TaskType.vocabQuiz:
-          print('TaskRouterService: Navigating to VocabQuizScreen');
-          Navigator.of(context).push(
+          print('🎯 TaskRouterService: Navigating to VocabQuizScreen');
+          final result = Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => _buildQuizRoute(context, event),
             ),
           );
+          print('🎯 TaskRouterService: VocabQuizScreen navigation initiated: $result');
           break;
         case TaskType.reading:
-          print('TaskRouterService: Navigating to ReadingPage');
-          Navigator.of(context).push(
+          print('🎯 TaskRouterService: Navigating to ReadingPage');
+          final result = Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => ReadingPage(event: event),
+              builder: (context) => ReadingPage(event: event, source: source),
             ),
           );
+          print('🎯 TaskRouterService: ReadingPage navigation initiated: $result');
           break;
         case TaskType.readingQuiz:
-          print('TaskRouterService: Navigating to ReadingQuizScreen');
-          Navigator.of(context).push(
+          print('🎯 TaskRouterService: Navigating to ReadingQuizScreen');
+          final result = Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => _buildReadingQuizRoute(context, event),
             ),
           );
+          print('🎯 TaskRouterService: ReadingQuizScreen navigation initiated: $result');
           break;
       }
+      print('🎯 TaskRouterService: Navigation switch completed successfully');
     } catch (e) {
-      print('TaskRouterService: Navigation error: $e');
+      print('🎯 TaskRouterService: Navigation error: $e');
+      print('🎯 TaskRouterService: Error details: ${e.toString()}');
     }
   }
 }

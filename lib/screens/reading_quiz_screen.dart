@@ -6,6 +6,7 @@ import '../services/reading_analytics_service.dart';
 import '../services/calendar_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/analytics_service.dart';
+import '../services/experiment_config_service.dart';
 
 class ReadingQuizScreen extends StatefulWidget {
   final List<ReadingQuestion> questions;
@@ -83,6 +84,10 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> with WidgetsBindi
   Future<void> _finish() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // 獲取使用者分組
+      final isControlGroup = await ExperimentConfigService.instance.isControlGroup(user.uid);
+      final userGroup = isControlGroup ? 'control' : 'experiment';
+
       // 簡單計分：與 answerLetter 比較
       _correct = 0;
       for (var i = 0; i < widget.questions.length; i++) {
@@ -96,6 +101,7 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> with WidgetsBindi
       
       // 記錄 quiz_complete 事件
       AnalyticsService().logQuizComplete(
+        userGroup: userGroup,
         quizType: 'reading',
         eventId: widget.event.id,
         score: (widget.questions.isNotEmpty ? (_correct / widget.questions.length * 100).round() : 0),
@@ -167,7 +173,10 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> with WidgetsBindi
     if (_showResult) {
       final score = (_correct / (widget.questions.isEmpty ? 1 : widget.questions.length) * 100).round();
       return Scaffold(
-        appBar: AppBar(title: const Text('閱讀測驗結果')),
+        appBar: AppBar(
+        title: const Text('閱讀測驗結果'),
+        automaticallyImplyLeading: false,
+      ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -189,7 +198,8 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> with WidgetsBindi
     final q = widget.questions[_idx];
     return Scaffold(
       appBar: AppBar(
-        title: Text('閱讀測驗 ${_idx + 1}/${widget.questions.length}')
+        title: Text('閱讀測驗 ${_idx + 1}/${widget.questions.length}'),
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

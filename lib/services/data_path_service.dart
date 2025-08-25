@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:momentum/services/experiment_config_service.dart';
 import 'day_number_service.dart';
+import 'package:flutter/foundation.dart'; // Added for kDebugMode
 
 /// 统一管理所有Firestore数据路径，根据用户分组返回正确的路径
 class DataPathService {
@@ -58,13 +59,15 @@ class DataPathService {
       collection = await getUserW2EventsCollection(uid);
     }
     
-    assert(() {
-      // 調試：輸出日期與目標資料夾
-      try {
-        print('DataPathService.getDateEventsCollection: uid=' + uid + ', date=' + date.toIso8601String() + ', dayNum=' + dayNum.toString() + ', folder=' + folder);
-      } catch (_) {}
-      return true;
-    }());
+    // 🎯 調試：輸出日期與目標資料夾的詳細信息
+    if (kDebugMode) {
+      print('🎯 DataPathService.getDateEventsCollection:');
+      print('🎯 uid: $uid');
+      print('🎯 date: ${date.toIso8601String()}');
+      print('🎯 dayNum: $dayNum');
+      print('🎯 folder: $folder');
+      print('🎯 collection path: ${collection.path}');
+    }
     
     return collection;
   }
@@ -107,8 +110,27 @@ class DataPathService {
 
   /// 获取指定日期的事件文档引用
   Future<DocumentReference> getDateEventDoc(String uid, String eventId, DateTime date) async {
+    if (kDebugMode) {
+      print('🎯 DataPathService.getDateEventDoc 開始');
+      print('🎯 uid: $uid');
+      print('🎯 eventId: $eventId');
+      print('🎯 date: ${date.toIso8601String()}');
+    }
+    
     final eventsCol = await getDateEventsCollection(uid, date);
-    return eventsCol.doc(eventId);
+    
+    if (kDebugMode) {
+      print('🎯 事件集合路徑: ${eventsCol.path}');
+    }
+    
+    final eventDoc = eventsCol.doc(eventId);
+    
+    if (kDebugMode) {
+      print('🎯 事件文檔路徑: ${eventDoc.path}');
+      print('🎯 DataPathService.getDateEventDoc 完成');
+    }
+    
+    return eventDoc;
   }
 
   /// 获取事件聊天集合引用（基于当前日期）
@@ -167,8 +189,28 @@ class DataPathService {
 
   /// 获取指定日期的事件通知文档引用
   Future<DocumentReference> getDateEventNotificationDoc(String uid, String eventId, String notifId, DateTime date) async {
+    if (kDebugMode) {
+      print('🎯 DataPathService.getDateEventNotificationDoc 開始');
+      print('🎯 uid: $uid');
+      print('🎯 eventId: $eventId');
+      print('🎯 notifId: $notifId');
+      print('🎯 date: ${date.toIso8601String()}');
+    }
+    
     final eventDoc = await getDateEventDoc(uid, eventId, date);
-    return eventDoc.collection('notifications').doc(notifId);
+    
+    if (kDebugMode) {
+      print('🎯 事件文檔路徑: ${eventDoc.path}');
+    }
+    
+    final notifDoc = eventDoc.collection('notifications').doc(notifId);
+    
+    if (kDebugMode) {
+      print('🎯 通知文檔路徑: ${notifDoc.path}');
+      print('🎯 DataPathService.getDateEventNotificationDoc 完成');
+    }
+    
+    return notifDoc;
   }
 
   /// 获取用户Sessions集合引用
@@ -243,7 +285,7 @@ class DataPathService {
   Future<CollectionReference> getEventsCollectionByDayNumber(String uid, int dayNumber) async {
     if (dayNumber == 0) {
       return await getUserW0EventsCollection(uid);
-    } else if (dayNumber >= 1 && dayNumber <= 7) {
+    } else if (dayNumber >= 1 && dayNumber <= 6) {
       return await getUserW1EventsCollection(uid);
     } else {
       return await getUserW2EventsCollection(uid);

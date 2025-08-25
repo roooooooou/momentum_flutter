@@ -16,6 +16,7 @@ import '../services/app_usage_service.dart';
 import '../services/data_path_service.dart';
 import '../services/experiment_config_service.dart';
 import '../services/task_router_service.dart';
+import '../services/day_number_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../services/analytics_service.dart';
@@ -34,6 +35,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final Set<String> _shownDialogTaskIds = {}; // 記錄已顯示過對話框的任務ID
   bool _isExperimentGroup = false; // 用户是否为实验组
   bool _isOpeningChat = false; // 防止重複點擊聊天按鈕
+
+  /// 根據dayNumber生成顯示標籤
+  /// 當前的dayNumber-1就是yesterday，更早的就是day X
+  Future<String> _getDayLabel(int dayNumber) async {
+    try {
+      final now = DateTime.now();
+      final currentDayNumber = await DayNumberService().calculateDayNumber(now);
+      
+      if (dayNumber == currentDayNumber - 1) {
+        return 'Yesterday';
+      } else {
+        return 'Day $dayNumber';
+      }
+    } catch (e) {
+      return 'Day $dayNumber';
+    }
+  }
 
   @override
   void initState() {
@@ -197,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             .get();
 
         final allEvents = snap.docs.map(EventModel.fromDoc).toList();
-        final activeEvents = allEvents.where((e) => e.isActive).toList();
+        final activeEvents = allEvents;
 
         // 今日：只補 now 之後；未來兩天：補當日全部未完成事件
         final toSchedule = activeEvents.where((e) {
@@ -243,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           .get();
       
       final allEvents = snap.docs.map(EventModel.fromDoc).toList();
-      final events = allEvents.where((event) => event.isActive).toList();
+      final events = allEvents;
       
       // 找到應該開始但還沒開始的任務
       final pendingEvents = events.where((event) {
@@ -282,6 +300,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return;
         }
         
+        // 🎯 新增：檢查是否有通知觸發的 dialog 正在顯示
+        if (NotificationHandler.instance.isNotificationTriggeredDialogShowing) {
+          if (kDebugMode) {
+            print('有通知觸發的 TaskStartDialog 正在顯示，跳過 app resume 的 dialog');
+          }
+          return;
+        }
+        
+        // 🎯 新增：檢查是否在通知觸發的時間窗口內
+        if (NotificationHandler.instance.isInNotificationTriggerWindow()) {
+          if (kDebugMode) {
+            final lastTriggerTime = NotificationHandler.instance.lastNotificationTriggerTime;
+            final timeSinceLastNotification = DateTime.now().difference(lastTriggerTime!);
+            print('在通知觸發時間窗口內（${timeSinceLastNotification.inSeconds} 秒前），跳過 app resume 的 dialog');
+          }
+          return;
+        }
+        
         // 检查是否在聊天页面
         if (context.findAncestorWidgetOfExactType<ChatScreen>() != null) {
           if (kDebugMode) {
@@ -293,6 +329,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 選擇最早應該開始的任務
         pendingEvents.sort((a, b) => a.scheduledStartTime.compareTo(b.scheduledStartTime));
         final mostUrgentTask = pendingEvents.first;
+        
+        // 🎯 特殊處理：test 任務不顯示 pending task 的 task start dialog
+        if (mostUrgentTask.title.toLowerCase().contains('test')) {
+          if (kDebugMode) {
+            print('🎯 test 任務不顯示 pending task 的 task start dialog: ${mostUrgentTask.title}');
+          }
+          return;
+        }
         
         // 記錄已顯示過對話框
         _shownDialogTaskIds.add(mostUrgentTask.id);
@@ -315,10 +359,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (context) => TaskStartDialog(event: mostUrgentTask, isControlGroup: isControlGroup),
+            builder: (context) => TaskStartDialog(
+              event: mostUrgentTask, 
+              isControlGroup: isControlGroup,
+              triggerSource: TaskStartDialogTrigger.appResume, // 🎯 來自 app resume
+            ),
           ).then((_) {
             // 對話框關閉時重置狀態
             NotificationHandler.instance.setTaskStartDialogShowing(false);
+            NotificationHandler.instance.setNotificationTriggeredDialogShowing(false); // 🎯 重置通知觸發狀態
           });
           
           if (kDebugMode) {
@@ -327,6 +376,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         } else {
           // 如果context不可用，重置狀態
           NotificationHandler.instance.setTaskStartDialogShowing(false);
+          NotificationHandler.instance.setNotificationTriggeredDialogShowing(false); // 🎯 重置通知觸發狀態
         }
       }
       
@@ -355,12 +405,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _handleAction(EventModel e, TaskAction action) async {
     final uid = context.read<AuthService>().currentUser!.uid;
+    final userGroup = _isExperimentGroup ? 'experiment' : 'control';
     switch (action) {
       case TaskAction.start:
         await CalendarService.instance.startEvent(uid, e);
         // 跳转到相应的任务页面，source 为 'home_screen'
         if (mounted) {
-          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen');
+          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen', userGroup: userGroup);
         }
         break;
       case TaskAction.stop:
@@ -373,21 +424,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await CalendarService.instance.continueEvent(uid, e);
         // 跳转到相应的任务页面，source 为 'home_screen_continue'
         if (mounted) {
-          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen_continue');
+          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen_continue', userGroup: userGroup);
         }
         break;
       case TaskAction.reviewStart:
         await ExperimentEventHelper.recordReviewStart(uid: uid, eventId: e.id);
-        await AnalyticsService().logEvent('review_started', parameters: {
+        await AnalyticsService().logEvent('review_started', userGroup, parameters: {
           'source': 'event_card',
         });
         if (mounted) {
-          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen_review');
+          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen_review', userGroup: userGroup);
         }
         break;
       case TaskAction.reviewEnd:
         await ExperimentEventHelper.recordReviewEnd(uid: uid, eventId: e.id);
-        await AnalyticsService().logEvent('review_ended', parameters: {
+        await AnalyticsService().logEvent('review_ended', userGroup, parameters: {
           'source': 'event_card',
         });
         break;
@@ -551,20 +602,52 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           ),
                                         ),
                                       ),
-                                      StreamBuilder<List<EventModel>>(
-                                        stream: context.read<EventsProvider>().getPastEventsStream(context.read<AuthService>().currentUser!),
+                                      StreamBuilder<Map<int, List<EventModel>>>(
+                                        stream: context.read<EventsProvider>().getPastEventsStreamGrouped(context.read<AuthService>().currentUser!),
                                         builder: (context, pastSnap) {
-                                          final past = (pastSnap.data ?? []).where((e) => e.id.isNotEmpty).toList();
-                                          if (past.isEmpty) {
+                                          final groupedPast = pastSnap.data ?? <int, List<EventModel>>{};
+                                          if (groupedPast.isEmpty) {
                                             return const Text('No past events this week.');
                                           }
+                                          
+                                          // 按dayNumber倒序排列（較新的天排在上面）
+                                          final sortedDayNumbers = groupedPast.keys.toList()..sort((a, b) => b.compareTo(a));
+                                          
                                           return Column(
-                                            children: past.map((e) => Padding(
-                                              padding: EdgeInsets.only(bottom: listViewSpacing),
-                                              child: EventCard(
-                                                event: e,
-                                                onAction: (a) => _handleAction(e, a),
-                                                isPastEvent: true, // 標記為過去事件
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: sortedDayNumbers.expand((dayNumber) {
+                                              final events = groupedPast[dayNumber]!.where((e) => e.id.isNotEmpty).toList();
+                                              if (events.isEmpty) return <Widget>[];
+                                              
+                                              return [
+                                                // 日期分組標題
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    top: listViewSpacing * 0.5,
+                                                    bottom: listViewSpacing * 0.3,
+                                                    left: 4,
+                                                  ),
+                                                  child: FutureBuilder<String>(
+                                                    future: _getDayLabel(dayNumber),
+                                                    builder: (context, snapshot) {
+                                                      return Text(
+                                                        snapshot.data ?? 'Day $dayNumber',
+                                                        style: TextStyle(
+                                                          fontSize: (14 * responsiveText).clamp(12.0, 16.0),
+                                                          fontWeight: FontWeight.w500,
+                                                          color: const Color(0xFF666666),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
+                                                // 該天的事件列表
+                                                ...events.map((e) => Padding(
+                                                  padding: EdgeInsets.only(bottom: listViewSpacing),
+                                                  child: EventCard(
+                                                    event: e,
+                                                    onAction: (a) => _handleAction(e, a),
+                                                    isPastEvent: true, // 標記為過去事件
                                                 onOpenChat: _isExperimentGroup ? () async {
                                                   if (mounted) {
                                                     if (_isOpeningChat) return;
@@ -594,22 +677,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                                               child: ChatScreen(
                                                                 taskTitle: e.title,
                                                                 taskDescription: e.description,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            } finally {
-                                              Future.delayed(const Duration(milliseconds: 500), () {
-                                                if (mounted) {
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    } finally {
+                                                      Future.delayed(const Duration(milliseconds: 500), () {
+                                                        if (mounted) {
                                                           setState(() { _isOpeningChat = false; });
-                                                }
-                                              });
-                                            }
-                                          }
+                                                        }
+                                                      });
+                                                    }
+                                                  }
                                                 } : null,
                                               ),
-                                            )).toList(),
+                                            )),
+                                              ];
+                                            }).toList(),
                                           );
                                         },
                                       ),

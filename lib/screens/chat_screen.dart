@@ -21,6 +21,7 @@ import '../models/reading_content_model.dart';
 import '../screens/vocab_quiz_screen.dart';
 import '../services/vocab_service.dart';
 import '../models/vocab_content_model.dart';
+import '../services/experiment_config_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.taskTitle, this.taskDescription});
@@ -254,17 +255,13 @@ class _ChatScreenState extends State<ChatScreen> {
         // 用戶願意立即開始任務
         result = ChatResult.start;
         break;
-      case 'snooze':
-        // 用戶有commit plan但不想立即開始
-        result = ChatResult.snooze;
-        break;
       case 'give_up':
         // 用戶不願意開始任務
-        result = ChatResult.giveUp;
+        result = ChatResult.snooze;
         break;
       default:
         // pending 或其他情況，預設為 give_up
-        result = ChatResult.giveUp;
+        result = ChatResult.snooze;
         break;
     }
 
@@ -415,10 +412,15 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// 安全地跳转到任务页面
-  void _safeNavigateToTaskPage(EventModel event, {required String source}) {
+  void _safeNavigateToTaskPage(EventModel event, {required String source}) async {
     // 在導航前直接記錄分析事件
     final taskType = _getTaskType(event.title);
-    AnalyticsService().logTaskStart(
+    final uid = context.read<AuthService>().currentUser?.uid;
+    final isControlGroup = uid != null ? await ExperimentConfigService.instance.isControlGroup(uid) : false;
+    final userGroup = isControlGroup ? 'control' : 'experiment';
+
+    AnalyticsService().logTaskStarted(
+      userGroup: userGroup,
       taskType: taskType.name,
       eventId: event.id,
       triggerSource: source,
@@ -428,13 +430,13 @@ class _ChatScreenState extends State<ChatScreen> {
     
     switch (taskType) {
       case TaskType.vocab:
-        targetPage = VocabPage(event: event);
+        targetPage = VocabPage(event: event, source: source);
         break;
       case TaskType.vocabQuiz:
         targetPage = _buildQuizRoute(event);
         break;
       case TaskType.reading:
-        targetPage = ReadingPage(event: event);
+        targetPage = ReadingPage(event: event, source: source);
         break;
       case TaskType.readingQuiz:
         targetPage = _buildReadingQuizRoute(event);

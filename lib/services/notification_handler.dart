@@ -11,6 +11,7 @@ import '../screens/daily_report_screen.dart';
 import '../screens/chat_screen.dart'; // Added import for ChatScreen
 import 'package:momentum/services/data_path_service.dart';
 import 'package:momentum/services/experiment_config_service.dart';
+import 'analytics_service.dart';
 
 class NotificationHandler {
   NotificationHandler._();
@@ -22,14 +23,42 @@ class NotificationHandler {
   // 全局TaskStartDialog显示状态管理
   bool _isTaskStartDialogShowing = false;
   
-  /// 检查是否有TaskStartDialog正在显示
+  // 🎯 新增：追蹤是否有通知觸發的 dialog 正在顯示
+  bool _isNotificationTriggeredDialogShowing = false;
+  
+  // 🎯 新增：記錄最後一次通知觸發的時間
+  DateTime? _lastNotificationTriggerTime;
+  
+  /// 检查是否有TaskStartDialog在显示
   bool get isTaskStartDialogShowing => _isTaskStartDialogShowing;
+  
+  /// 🎯 新增：檢查是否有通知觸發的 dialog 正在顯示
+  bool get isNotificationTriggeredDialogShowing => _isNotificationTriggeredDialogShowing;
+  
+  /// 🎯 新增：獲取最後一次通知觸發的時間
+  DateTime? get lastNotificationTriggerTime => _lastNotificationTriggerTime;
+  
+  /// 🎯 新增：檢查是否在通知觸發的時間窗口內（預設 30 秒）
+  bool isInNotificationTriggerWindow({Duration window = const Duration(seconds: 10)}) {
+    if (_lastNotificationTriggerTime == null) return false;
+    final now = DateTime.now();
+    final timeSinceLastNotification = now.difference(_lastNotificationTriggerTime!);
+    return timeSinceLastNotification < window;
+  }
   
   /// 设置TaskStartDialog显示状态
   void setTaskStartDialogShowing(bool showing) {
     _isTaskStartDialogShowing = showing;
     if (kDebugMode) {
       print('TaskStartDialog显示状态: $showing');
+    }
+  }
+  
+  /// 🎯 新增：設置通知觸發的 dialog 顯示狀態
+  void setNotificationTriggeredDialogShowing(bool showing) {
+    _isNotificationTriggeredDialogShowing = showing;
+    if (kDebugMode) {
+      print('通知觸發的 TaskStartDialog 顯示狀態: $showing');
     }
   }
   
@@ -102,18 +131,43 @@ class NotificationHandler {
         print('處理通知點擊，payload: $payload');
       }
 
+      // 根據 payload 類型記錄 notification_open 事件
+      String notificationType;
+      String? eventIdForAnalytics;
+
+      if (payload == 'daily_report') {
+        notificationType = 'daily_report';
+      } else if (payload.startsWith('task_completion_')) {
+        notificationType = 'task_completion';
+        eventIdForAnalytics = payload.replaceFirst('task_completion_', '');
+      } else {
+        notificationType = 'task_reminder';
+        final match = RegExp(r'^(.*)-(1st|2nd)$').firstMatch(payload);
+        eventIdForAnalytics = match != null ? match.group(1) : payload;
+      }
+
+      // 檢查使用者分組
+      final currentUser = AuthService.instance.currentUser;
+      bool isControlGroup = false;
+      if (currentUser != null) {
+        isControlGroup = await ExperimentConfigService.instance.isControlGroup(currentUser.uid);
+      }
+      final userGroup = isControlGroup ? 'control' : 'experiment';
+
+      AnalyticsService().logNotificationOpen(
+        userGroup: userGroup,
+        notificationType: notificationType,
+        eventId: eventIdForAnalytics,
+      );
+
       // 特殊處理每日報告通知
       if (payload == 'daily_report') {
         await _handleDailyReportNotification();
         return;
       }
 
-      // 特殊處理任務完成提醒通知
-      if (payload.startsWith('task_completion_')) {
-        final eventId = payload.replaceFirst('task_completion_', '');
-        await _handleTaskCompletionNotification(eventId);
-        return;
-      }
+      // 🎯 已移除：任務完成提醒通知處理
+      // 不再需要，因為已移除該功能
 
       // 一般事件通知：payload 可能為 eventId 或 "eventId-1st/2nd"
       String eventId = payload;
@@ -121,6 +175,23 @@ class NotificationHandler {
       if (match != null) {
         eventId = match.group(1)!;
         clickedNotifId = payload; // 完整的notifId
+        
+        // 🎯 調試：詳細記錄第二個通知的處理
+        if (kDebugMode) {
+          print('🎯 檢測到第二個通知:');
+          print('🎯 Original payload: $payload');
+          print('🎯 Parsed eventId: $eventId');
+          print('🎯 Clicked notifId: $clickedNotifId');
+          print('🎯 Match groups: ${match.groups([1, 2])}');
+        }
+      } else {
+        // 🎯 調試：記錄第一個通知的處理
+        if (kDebugMode) {
+          print('🎯 檢測到第一個通知或直接事件ID:');
+          print('🎯 Original payload: $payload');
+          print('🎯 Parsed eventId: $eventId');
+          print('🎯 Clicked notifId: $clickedNotifId');
+        }
       }
       parsedEventId = eventId;
 
@@ -131,6 +202,18 @@ class NotificationHandler {
           print('找不到事件: $eventId');
         }
         return;
+      }
+      
+      // 🎯 調試：驗證獲取到的事件信息
+      if (kDebugMode) {
+        print('🎯 NotificationHandler: 獲取到事件');
+        print('🎯 Event ID: ${event.id}');
+        print('🎯 Event Title: ${event.title}');
+        print('🎯 Event Date: ${event.date}');
+        print('🎯 Event DayNumber: ${event.dayNumber}');
+        print('🎯 Original payload: $payload');
+        print('🎯 Parsed eventId: $eventId');
+        print('🎯 Clicked notifId: $clickedNotifId');
       }
 
       // 檢查事件狀態
@@ -148,12 +231,25 @@ class NotificationHandler {
         return;
       }
 
+      // 🎯 特殊處理：test 任務不顯示 task start dialog
+      if (event.title.toLowerCase().contains('test')) {
+        if (kDebugMode) {
+          print('🎯 test 任務不顯示 task start dialog: ${event.title}');
+        }
+        // 記錄通知點擊但不顯示對話框
+        if (currentUser != null) {
+          await ExperimentEventHelper.recordNotificationTap(
+            uid: currentUser.uid,
+            eventId: event.id,
+          );
+        }
+        return;
+      }
+
       // 🎯 實驗數據收集：記錄通過通知打開應用
       AppUsageService.instance.recordAppOpen(fromNotification: true);
 
       // 🎯 實驗數據收集：記錄通知點擊
-      final currentUser = AuthService.instance.currentUser;
-      bool isControlGroup = false; // 移到外層作用域
       if (currentUser != null) {
         if (kDebugMode) {
           print('🎯 記錄通知點擊: eventId=${event.id}, clickedNotifId=${clickedNotifId ?? 'unknown'}');
@@ -206,9 +302,16 @@ class NotificationHandler {
       }
       // 在release mode中，即使出错也尝试显示对话框
       try {
-        if (payload != 'daily_report' && !payload.startsWith('task_completion_')) {
+        if (payload != 'daily_report') {
           final event = await _getEventById(parsedEventId ?? payload);
           if (event != null && !event.isDone && event.actualStartTime == null) {
+            // 🎯 特殊處理：test 任務不顯示 task start dialog
+            if (event.title.toLowerCase().contains('test')) {
+              if (kDebugMode) {
+                print('🎯 release mode: test 任務不顯示 task start dialog: ${event.title}');
+              }
+              return;
+            }
             await Future.delayed(const Duration(milliseconds: 500));
             await _showTaskStartDialog(event, forceShow: forceShow, notifId: clickedNotifId, isControlGroup: false);
           }
@@ -252,6 +355,14 @@ class NotificationHandler {
 
   /// 顯示任務開始彈窗
   Future<void> _showTaskStartDialog(EventModel event, {bool forceShow = false, String? notifId, bool? isControlGroup}) async {
+    // 🎯 最後防護：test 任務絕對不顯示 task start dialog
+    if (event.title.toLowerCase().contains('test')) {
+      if (kDebugMode) {
+        print('🎯 _showTaskStartDialog: test 任務絕對不顯示 dialog: ${event.title}');
+      }
+      return;
+    }
+    
     // 检查是否已有TaskStartDialog在显示
     if (_isTaskStartDialogShowing) {
       if (kDebugMode) {
@@ -301,6 +412,15 @@ class NotificationHandler {
 
     // 設置對話框顯示狀態
     setTaskStartDialogShowing(true);
+    
+    // 🎯 新增：設置通知觸發的 dialog 顯示狀態
+    setNotificationTriggeredDialogShowing(true);
+    
+    // 🎯 新增：記錄通知觸發時間
+    _lastNotificationTriggerTime = DateTime.now();
+    if (kDebugMode) {
+      print('🎯 記錄通知觸發時間: ${_lastNotificationTriggerTime}');
+    }
 
     // 確保在主線程中執行，并添加延迟以确保UI完全加载
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -310,20 +430,33 @@ class NotificationHandler {
           showDialog(
             context: currentContext,
             barrierDismissible: false,
-            builder: (context) => TaskStartDialog(
-              event: event,
-              notifId: notifId,
-              isControlGroup: controlGroup,
-            ),
+            builder: (context) {
+              // 🎯 調試：確認傳遞給 TaskStartDialog 的事件
+              if (kDebugMode) {
+                print('🎯 Creating TaskStartDialog with:');
+                print('🎯 Event ID: ${event.id}');
+                print('🎯 Event Title: ${event.title}');
+                print('🎯 NotifId: $notifId');
+                print('🎯 IsControlGroup: $controlGroup');
+              }
+              return TaskStartDialog(
+                event: event,
+                notifId: notifId,
+                isControlGroup: controlGroup,
+                triggerSource: TaskStartDialogTrigger.notification, // 🎯 來自通知點擊
+              );
+            },
           ).then((_) {
             // 對話框關閉時重置狀態
             setTaskStartDialogShowing(false);
+            setNotificationTriggeredDialogShowing(false); // 关闭通知触发状态
           }).catchError((error) {
             // 处理对话框显示错误
             if (kDebugMode) {
               print('顯示任務開始彈窗時發生錯誤: $error');
             }
             setTaskStartDialogShowing(false);
+            setNotificationTriggeredDialogShowing(false); // 关闭通知触发状态
           });
         } else {
           // 如果context不可用，重置狀態
@@ -331,6 +464,7 @@ class NotificationHandler {
             print('延遲后仍無法獲取有效的 context');
           }
           setTaskStartDialogShowing(false);
+          setNotificationTriggeredDialogShowing(false); // 关闭通知触发状态
         }
       });
     });
@@ -373,176 +507,6 @@ class NotificationHandler {
     }
   }
 
-  /// 處理任務完成提醒通知點擊
-  Future<void> _handleTaskCompletionNotification(String eventId) async {
-    try {
-      // 記錄應用打開事件（由通知觸發）
-      await AppUsageService.instance.recordAppOpen(
-        fromNotification: true,
-      );
-
-      if (kDebugMode) {
-        print('任務完成提醒通知被點擊: $eventId');
-      }
-
-      // 獲取事件資料
-      final event = await _getEventById(eventId);
-      if (event == null) {
-        if (kDebugMode) {
-          print('找不到事件: $eventId');
-        }
-        return;
-      }
-
-      // 🎯 實驗數據收集：記錄完成提醒通知被點擊（帶入事件日期以選擇正確路徑）
-      final currentUser = AuthService.instance.currentUser;
-      if (currentUser != null) {
-        final notifId = '$eventId-complete';
-        await ExperimentEventHelper.recordNotificationOpened(
-          uid: currentUser.uid,
-          eventId: eventId,
-          notifId: notifId,
-          eventDate: event.date,
-        );
-      }
-
-      // 檢查事件是否已完成
-      if (event.isDone) {
-        if (kDebugMode) {
-          print('事件已完成: ${event.title}');
-        }
-        return;
-      }
-
-      // 记录已显示过完成对话框的任务ID
-      _shownCompletionDialogTaskIds.add(event.id);
-
-      // 顯示完成確認對話框
-      await _showCompletionDialog(event);
-
-    } catch (e) {
-      if (kDebugMode) {
-        print('處理任務完成提醒通知時發生錯誤: $e');
-      }
-    }
-  }
-
-  /// 顯示任務完成確認對話框
-  Future<void> _showCompletionDialog(EventModel event) async {
-    final context = NavigationService.context;
-    if (context == null) {
-      if (kDebugMode) {
-        print('無法獲取 NavigationService 的 context');
-      }
-      return;
-    }
-
-    // 確保在主線程中執行
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        showDialog<bool>(
-          context: context,
-          barrierDismissible: true,
-          builder: (context) => AlertDialog(
-            title: const Text('任務時間到了'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('「${event.title}」的預計時間已結束，您已經完成這個任務了嗎？'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(false); // false = 稍後再說
-                },
-                child: const Text('稍後再說'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.of(context).pop(true); // true = 已完成
-                  // 執行完成操作
-                  await _completeTask(event);
-                },
-                child: const Text('已完成'),
-              ),
-            ],
-          ),
-        ).then((result) async {
-          // 🎯 實驗數據收集：記錄完成提醒通知結果
-          if (result == true) {
-            // true = 用戶點擊「已完成」
-            await _recordCompletionNotificationResult(event.id, NotificationResult.start);
-          } else {
-            // false = 用戶點擊「稍後再說」, null = 用戶點擊外部區域或返回鍵關閉
-            await _recordCompletionNotificationResult(event.id, NotificationResult.dismiss);
-          }
-        });
-      }
-    });
-
-    if (kDebugMode) {
-      print('顯示任務完成確認對話框: ${event.title}');
-    }
-  }
-
-  /// 記錄完成提醒通知的操作結果
-  Future<void> _recordCompletionNotificationResult(String eventId, NotificationResult result) async {
-    try {
-      final currentUser = AuthService.instance.currentUser;
-      if (currentUser != null) {
-        final notifId = '$eventId-complete';
-        // 取得事件以獲取正確的事件日期
-        final event = await _getEventById(eventId);
-        await ExperimentEventHelper.recordNotificationResult(
-          uid: currentUser.uid,
-          eventId: eventId,
-          notifId: notifId,
-          result: result,
-          eventDate: event?.date,
-        );
-        
-        if (kDebugMode) {
-          print('記錄完成提醒通知結果: eventId=$eventId, result=${result.name}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('記錄完成提醒通知結果失敗: $e');
-      }
-    }
-  }
-
-  /// 執行任務完成操作
-  Future<void> _completeTask(EventModel event) async {
-    try {
-      final currentUser = AuthService.instance.currentUser;
-      if (currentUser == null) return;
-
-      // 更新事件為已完成
-      final ref = await DataPathService.instance.getEventDocAuto(currentUser.uid, event.id);
-      await ref.update({
-        'isDone': true,
-        'completedTime': Timestamp.fromDate(DateTime.now()),
-        'status': TaskStatus.completed.value,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-
-      if (kDebugMode) {
-        print('任務已標記為完成: ${event.title}');
-      }
-
-      // 記錄實驗數據
-      await ExperimentEventHelper.recordEventCompletion(
-        uid: currentUser.uid,
-        eventId: event.id,
-      );
-
-    } catch (e) {
-      if (kDebugMode) {
-        print('完成任務時發生錯誤: $e');
-      }
-    }
-  }
+  // 🎯 已移除：任務完成提醒通知相關方法
+  // 不再需要，因為已移除該功能
 } 

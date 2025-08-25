@@ -68,9 +68,46 @@ Yesterday’s daily-report summary : {{daily_summary}}
 - If current_turn >= 8, be more direct and push for a decision (start_now, snooze, or give_up).
 """
 
-def get_reading_topic(day_number: int) -> str:
-    """根据dayNumber获取对应的reading topic"""
-    # 如果dayNumber超出范围，使用循环模式
+def get_reading_topic(day_number: int, week: int = None, day: int = None) -> str:
+    """根据 week 和 day 获取对应的reading topic，如果提供 week 和 day 则优先使用"""
+    
+    # 如果提供了 week 和 day，直接根据这些值来确定 topic
+    if week is not None and day is not None:
+        # 根据 week 和 day 的组合来确定 topic
+        if week == 1:
+            # Week 1: day 1-7
+            if day == 1:
+                return "洞察世界與自然"
+            elif day == 2:
+                return "探索科學的奧秘"
+            elif day == 3:
+                return "改變世界的科技"
+            elif day == 4:
+                return "以歷史為鑑"
+            elif day == 5:
+                return "學習與自我成長"
+            elif day == 6:
+                return "培養思辨能力"
+            elif day == 7:
+                return ""  # 週末，無特定主題
+        elif week == 2:
+            # Week 2: day 8+
+            if day == 8:
+                return "洞察世界與自然"
+            elif day == 9:
+                return "探索科學的奧秘"
+            elif day == 10:
+                return "改變世界的科技"
+            elif day == 11:
+                return "以歷史為鑑"
+            elif day == 12:
+                return "學習與自我成長"
+            elif day == 13:
+                return "培養思辨能力"
+            elif day == 14:
+                return ""  # 週末，無特定主題
+    
+    # 如果沒有提供 week 和 day，或者超出範圍，使用原有的 day_number 邏輯作為備用
     if day_number <= 0:
         return "Travel"  # 默认值
     
@@ -79,8 +116,6 @@ def get_reading_topic(day_number: int) -> str:
     # The last element is an empty string, which means no topic will be mentioned.
     base_topics = ["洞察世界與自然", "探索科學的奧秘", "改變世界的科技", "以歷史為鑑", "學習與自我成長", "培養思辨能力", ""]
     
-    # This is a list of personas that the coach can adopt.
-    # Each persona has a name and a description of their personality.
     # 其他情况使用循环模式
     index = (day_number - 1) % len(base_topics)
     return base_topics[index]
@@ -101,9 +136,8 @@ def get_response_schema() -> dict:
                         "description": "The action user take",
                         "enum": [
                             "start_now",
-                            "snooze",
                             "pending",
-                            "give_up"
+                            "snooze"
                         ]
                     },
                     "presistant_type": {
@@ -171,9 +205,7 @@ def get_summarize_schema() -> dict:
                         "description": "The action user take",
                         "enum": [
                             "start",
-                            "snooze",
-                            "give_up"
-                        ]
+                            "snooze"                        ]
                     }
                 },
                 "required": ["snooze_reasons", "summary", "coach_methods", "result"],

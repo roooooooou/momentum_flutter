@@ -35,7 +35,12 @@ service cloud.firestore {
       }
       
       // 詞彙學習數據
-      match /vocab/{document} {
+      match /vocab/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // 複習會話數據
+      match /review/{sessionId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
@@ -64,7 +69,12 @@ service cloud.firestore {
       }
       
       // 詞彙學習數據
-      match /vocab/{document} {
+      match /vocab/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // 複習會話數據
+      match /review/{sessionId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
@@ -93,7 +103,12 @@ service cloud.firestore {
       }
       
       // 詞彙學習數據
-      match /vocab/{document} {
+      match /vocab/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // 複習會話數據
+      match /review/{sessionId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }

@@ -76,8 +76,10 @@ class _EventCardState extends State<EventCard> {
     final cardHPadding = size.width * 0.045; // 4.5% of screen width
     final cardVPadding = size.height * 0.022; // 2.2% of screen height
     final iconSize = size.width * 0.7 > 43 ? 43.0 : size.width * 0.7; // 放大圓圈
-    final titleFontSize = (19 * responsiveText).clamp(16.0, 23.0);
+    // 響應式字體大小計算
+    final titleFontSize = (18 * responsiveText).clamp(16.0, 22.0);
     final subtitleFontSize = (15 * responsiveText).clamp(14.0, 19.0);
+    final pastEventFontSize = (12 * responsiveText).clamp(11.0, 15.0); // Past Event 專用較小字體
 
     // --- Card background color based on status ---------------------------
     late final Color bg;
@@ -225,7 +227,7 @@ class _EventCardState extends State<EventCard> {
                             return Text(
                               text,
                               style: TextStyle(
-                                fontSize: subtitleFontSize,
+                                fontSize: pastEventFontSize,
                                 color: statusColor,
                               ),
                             );
@@ -306,24 +308,29 @@ class _EventCardState extends State<EventCard> {
               // 顯示前三個單字
               final topThree = vocabs.take(3).map((v) => v.word).where((w) => w.isNotEmpty).toList();
               if (topThree.isNotEmpty) {
-                return '${topThree.join(', ')}${topThree.length == 3 ? '...' : ''}';
+                final content = '${topThree.join(', ')}${topThree.length == 3 ? '...' : ''}';
+                // 限制長度為10個字，超過則截取並添加省略號
+                return content.length > 10 ? '${content.substring(0, 10)}...' : content;
               }
             }
           } catch (e) {
             if (kDebugMode) print('載入單字內容失敗: $e');
           }
           
-          return '第$week週第$day天單字學習';
+          final content = '第$week週第$day天單字學習';
+          return content.length > 10 ? '${content.substring(0, 10)}...' : content;
         }
         
         // 測驗
         final testMatch = RegExp(r'w(\d+)[-_]?test').firstMatch(title);
         if (testMatch != null) {
           final week = testMatch.group(1);
-          return '第$week週單字測驗';
+          final content = '第$week週單字測驗';
+          return content.length > 10 ? '${content.substring(0, 10)}...' : content;
         }
         
-        return '單字學習';
+        final content = '單字學習';
+        return content.length > 10 ? '${content.substring(0, 10)}...' : content;
       }
       
       // 閱讀任務
@@ -339,34 +346,42 @@ class _EventCardState extends State<EventCard> {
             if (articles.isNotEmpty) {
               // 顯示第一篇文章標題
               final firstTitle = articles.first.title;
-              return firstTitle.length > 25 ? '${firstTitle.substring(0, 25)}...' : firstTitle;
+              final content = firstTitle.length > 25 ? '${firstTitle.substring(0, 25)}...' : firstTitle;
+              // 限制長度為10個字，超過則截取並添加省略號
+              return content.length > 10 ? '${content.substring(0, 10)}...' : content;
             }
           } catch (e) {
             if (kDebugMode) print('載入閱讀內容失敗: $e');
           }
           
-          return '第$week週第$day天文章閱讀';
+          final content = '第$week週第$day天文章閱讀';
+          return content.length > 10 ? '${content.substring(0, 10)}...' : content;
         }
         
         // 測驗
         final testMatch = RegExp(r'w(\d+)[-_]?test').firstMatch(title);
         if (testMatch != null) {
           final week = testMatch.group(1);
-          return '第$week週閱讀測驗';
+          final content = '第$week週閱讀測驗';
+          return content.length > 10 ? '${content.substring(0, 10)}...' : content;
         }
         
-        return '文章閱讀';
+        final content = '文章閱讀';
+        return content.length > 10 ? '${content.substring(0, 10)}...' : content;
       }
       
       // 其他任務，顯示描述或標題
       if (e.description != null && e.description!.isNotEmpty) {
         // 如果描述太長，截取前30個字元
         final desc = e.description!;
-        return desc.length > 30 ? '${desc.substring(0, 30)}...' : desc;
+        final content = desc.length > 30 ? '${desc.substring(0, 30)}...' : desc;
+        // 限制長度為10個字，超過則截取並添加省略號
+        return content.length > 10 ? '${content.substring(0, 10)}...' : content;
       }
       
       // 最後回退到時間範圍
-      return e.timeRange;
+      final content = e.timeRange;
+      return content.length > 10 ? '${content.substring(0, 10)}...' : content;
       
     } catch (err) {
       if (kDebugMode) print('生成學習內容摘要失敗: $err');

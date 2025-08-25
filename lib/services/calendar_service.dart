@@ -295,7 +295,7 @@ class CalendarService extends ChangeNotifier {
             'dayNumber': dayNumber,
             'googleEventId': ev.id,
             'googleCalendarId': targetCalendarId,
-            'lifecycleStatus': EventLifecycleStatus.active.value,
+
             'updatedAt': Timestamp.fromDate(ev.updated?.toUtc() ?? now.toUtc()),
             'isDone': false,
           };
@@ -440,12 +440,8 @@ class CalendarService extends ChangeNotifier {
         final localEventId = localDoc.id;
         final googleEventId = localData?['googleEventId'] as String?;
         final localCalendarId = localData?['googleCalendarId'] as String?;
-        final currentLifecycleStatus = localData?['lifecycleStatus'] as int?;
-        
-        // 跳过已经被归档的事件
-        if (currentLifecycleStatus != null && currentLifecycleStatus != EventLifecycleStatus.active.value) {
-          continue;
-        }
+
+
 
         if (googleEventId != null && apiEventMap.containsKey(googleEventId)) {
           // 事件在Google Calendar中存在，检查是否有变化
@@ -459,29 +455,15 @@ class CalendarService extends ChangeNotifier {
           
           if (localStart == null || localEnd == null) continue;
           
-          // 检查时间是否发生变化（移动）
-          if (_hasTimeChanged(localStart, localEnd, apiStart, apiEnd)) {
-            if (kDebugMode) {
-              print('syncToday: 检测到事件移动: ${localData?['title']} (ID: $localEventId)');
-              print('  从 ${localStart.toIso8601String()} - ${localEnd.toIso8601String()}');
-              print('  到 ${apiStart.toIso8601String()} - ${apiEnd.toIso8601String()}');
-            }
-            
-            await _handleEventMove(uid, col, localDoc, apiEvent, targetCalendarId, now, batch);
-            archivedEvents.add(localEventId);
-          } else {
-            // 事件没有重大变化，更新其他可能的字段
-            await _updateExistingEvent(col, localDoc, apiEvent, targetCalendarId, now);
-          }
+          // 事件存在，只更新非时间相关的字段（标题、描述等）
+          await _updateExistingEvent(col, localDoc, apiEvent, targetCalendarId, now);
         } else {
           // 事件在Google Calendar中不存在，检查是否移动到其他日历或被删除
-          final lifecycleStatus = await _determineEventFate(googleEventId, localCalendarId, targetCalendarId);
-          
-          if (kDebugMode) {
-            print('syncToday: 事件不存在于当前日历: ${localData?['title']} (ID: $localEventId), 状态: ${lifecycleStatus.displayName}');
+                    if (kDebugMode) {
+            print('syncToday: 事件不存在于当前日历: ${localData?['title']} (ID: $localEventId)');
           }
-          
-          await _archiveEvent(col, localDoc, lifecycleStatus, now, batch);
+
+          await _archiveEvent(col, localDoc, now, batch);
           archivedEvents.add(localEventId);
         }
       }
@@ -507,12 +489,8 @@ class CalendarService extends ChangeNotifier {
           
           // 2) 然后检查事件是否为活跃状态
           final data = doc.data() as Map<String, dynamic>?;
-          final lifecycleStatus = data?['lifecycleStatus'] as int?;
-          
-          // 如果没有lifecycleStatus字段（旧数据）或者是active状态，都算作活跃事件
-          final isActive = lifecycleStatus == null || lifecycleStatus == EventLifecycleStatus.active.value;
-          
-          return isActive;
+                    // 所有事件都是活躍的（不再使用 lifecycleStatus）
+          return true;
         }).toList();
         final existingDoc = existingDocsList.isNotEmpty ? existingDocsList.first : null;
 
@@ -536,7 +514,7 @@ class CalendarService extends ChangeNotifier {
             'dayNumber': dayNumber, // 添加dayNumber字段
             'googleEventId': apiEvent.id,
             'googleCalendarId': targetCalendarId,
-            'lifecycleStatus': EventLifecycleStatus.active.value,
+
             'updatedAt': Timestamp.fromDate(apiEvent.updated?.toUtc() ?? now.toUtc()),
             'isDone': false,
             'createdAt': Timestamp.fromDate(now.toUtc()),
@@ -571,7 +549,7 @@ class CalendarService extends ChangeNotifier {
       // 在内存中过滤活跃事件，避免需要复合索引
       final activeEvents = activeSnap.docs
           .map(EventModel.fromDoc)
-          .where((event) => event.isActive)
+
           .toList();
       
       // 6) 更新任务状态
@@ -600,87 +578,11 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// 检查事件时间是否发生变化
-  bool _hasTimeChanged(DateTime localStart, DateTime localEnd, DateTime apiStart, DateTime apiEnd) {
-    // 允许几秒钟的误差（处理时区和精度问题）
-    const tolerance = Duration(seconds: 30);
-    
-    return (localStart.difference(apiStart).abs() > tolerance) ||
-           (localEnd.difference(apiEnd).abs() > tolerance);
-  }
 
-  /// 处理事件移动
-  Future<void> _handleEventMove(
-    String uid,
-    CollectionReference col,
-    QueryDocumentSnapshot localDoc,
-    cal.Event apiEvent,
-    String targetCalendarId,
-    DateTime now,
-    WriteBatch batch,
-  ) async {
-    final localData = localDoc.data() as Map<String, dynamic>;
-    final originalStart = (localData['scheduledStartTime'] as Timestamp).toDate();
-    final originalEnd = (localData['scheduledEndTime'] as Timestamp).toDate();
-    final originalEventId = localDoc.id;
-    
-    // 通知管理已在用户初始化时完成，此处不再处理
-    
-    // 生成移动记录的事件ID（原ID + _moved + 时间戳）
-    final movedEventId = '${originalEventId}_moved_${now.millisecondsSinceEpoch}';
-    
-    // 1) 将原事件文档重命名为移动记录（保存历史）
-    final movedRef = col.doc(movedEventId);
-    final movedData = Map<String, dynamic>.from(localData);
-    movedData.addAll({
-      'lifecycleStatus': EventLifecycleStatus.moved.value,
-      'archivedAt': Timestamp.fromDate(now),
-      'movedFromStartTime': Timestamp.fromDate(originalStart),
-      'movedFromEndTime': Timestamp.fromDate(originalEnd),
-      'updatedAt': Timestamp.fromDate(now),
-    });
-    
-    batch.set(movedRef, movedData);
-    
-    // 2) 删除原文档
-    batch.delete(localDoc.reference);
-    
-    // 3) 根据新的事件日期获取正确的组别和集合
-    final newEventDate = apiEvent.start!.dateTime!.toLocal();
-    final correctEventsCollection = await DataPathService.instance.getDateEventsCollection(uid, newEventDate);
-    // 補上 dayNumber 欄位
-    int? newDayNumber;
-    try {
-      newDayNumber = await DayNumberService().calculateDayNumber(newEventDate);
-    } catch (_) {}
-    
-    // 重新创建原ID的文档到正确的组别集合
-    final originalRef = correctEventsCollection.doc(originalEventId);
-    final newData = <String, dynamic>{
-      'title': apiEvent.summary ?? localData['title'],
-      if (apiEvent.description != null) 'description': apiEvent.description,
-      'scheduledStartTime': Timestamp.fromDate(apiEvent.start!.dateTime!.toUtc()),
-      'scheduledEndTime': Timestamp.fromDate(apiEvent.end!.dateTime!.toUtc()),
-      'date': Timestamp.fromDate(newEventDate), // 添加日期字段
-      if (newDayNumber != null) 'dayNumber': newDayNumber,
-      'googleEventId': apiEvent.id,
-      'googleCalendarId': targetCalendarId,
-      'lifecycleStatus': EventLifecycleStatus.active.value,
-      'previousEventId': movedEventId, // 关联到移动记录
-      'updatedAt': Timestamp.fromDate(apiEvent.updated?.toUtc() ?? now.toUtc()),
-      'createdAt': Timestamp.fromDate(now),
-      'isDone': false, // 移动后重置为未完成
-      // 🎯 不继承任何原事件的状态，创建全新的event
-      // 不复制 actualStartTime、startTrigger、chatId、status、completedTime 等字段
-      // 让新事件从干净的状态开始
-    };
-    
-    batch.set(originalRef, newData);
-    
-    if (kDebugMode) {
-      print('_handleEventMove: 原事件移至: $movedEventId, 新事件创建: $originalEventId');
-    }
-  }
+
+
+
+
 
   /// 更新现有事件
   Future<void> _updateExistingEvent(
@@ -694,7 +596,7 @@ class CalendarService extends ChangeNotifier {
       'title': apiEvent.summary ?? 'No title',
       if (apiEvent.description != null) 'description': apiEvent.description,
       'googleCalendarId': targetCalendarId,
-      'lifecycleStatus': EventLifecycleStatus.active.value,
+
       'updatedAt': Timestamp.fromDate(apiEvent.updated?.toUtc() ?? now.toUtc()),
     };
 
@@ -712,21 +614,12 @@ class CalendarService extends ChangeNotifier {
     await localDoc.reference.set(updateData, SetOptions(merge: true));
   }
 
-  /// 确定事件的命运（删除或迁移）
-  Future<EventLifecycleStatus> _determineEventFate(
-    String? googleEventId,
-    String? originalCalendarId,
-    String targetCalendarId,
-  ) async {
-    // 简化处理：如果不在目标日历中，统一视为删除
-    return EventLifecycleStatus.deleted;
-  }
+
 
   /// 归档事件
   Future<void> _archiveEvent(
     CollectionReference col,
     QueryDocumentSnapshot localDoc,
-    EventLifecycleStatus lifecycleStatus,
     DateTime now,
     WriteBatch batch,
   ) async {
@@ -736,13 +629,12 @@ class CalendarService extends ChangeNotifier {
     
     // 标记为归档
     batch.update(localDoc.reference, {
-      'lifecycleStatus': lifecycleStatus.value,
       'archivedAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
     });
     
     if (kDebugMode) {
-      print('_archiveEvent: 归档事件: ${localData['title']} (ID: ${localDoc.id}), 状态: ${lifecycleStatus.displayName}');
+      print('_archiveEvent: 归档事件: ${localData['title']} (ID: ${localDoc.id})');
     }
   }
 
@@ -780,15 +672,20 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  Future<void> startEvent(String uid, EventModel e) async {
-    // 🎯 實驗數據收集：記錄卡片點擊觸發（包含actualStartTime, updatedAt, isDone等）
+  Future<void> startEvent(String uid, EventModel e, {String? notifId, StartTrigger? startTrigger}) async {
+    // 🎯 實驗數據收集：記錄任務開始觸發（包含actualStartTime, updatedAt, isDone等）
     await ExperimentEventHelper.recordEventStart(
       uid: uid,
       eventId: e.id,
-      startTrigger: StartTrigger.tapCard,
+      startTrigger: startTrigger ?? StartTrigger.tapCard, // 允許傳入觸發方式，預設為點擊卡片
     );
 
-    // 移除：不再排程任務完成提醒通知
+    // 🎯 移除：通知結果記錄邏輯已移至 TaskStartDialog 中處理
+    // 避免重複記錄，確保數據一致性
+    if (kDebugMode && notifId != null) {
+      print('🎯 startEvent: 通知結果記錄已移至 TaskStartDialog 處理');
+      print('🎯 notifId: $notifId, eventId: ${e.id}');
+    }
   }
 
   /// 從聊天開始任務（用於聊天頁面的開始任務按鈕）
@@ -800,84 +697,11 @@ class CalendarService extends ChangeNotifier {
       startTrigger: StartTrigger.chat,
     );
 
-    // 移除：不再排程任務完成提醒通知
+    // 🎯 任務開始時：不取消任何通知，只記錄開始事件
   }
 
-  /// 排程任務完成提醒通知
-  Future<void> _scheduleCompletionNotification(EventModel event) async {
-    try {
-      // 🎯 修复：正确处理暂停后继续的通知排程
-      final now = DateTime.now();
-      DateTime targetEndTime;
-      
-      if (event.actualStartTime != null && event.pauseAt != null && event.resumeAt != null) {
-        // 如果任务有暂停时间和继续时间，需要调整结束时间
-        // 原定任务时长
-        final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
-        // 已经工作的时间（从开始到暂停）
-        final workedDuration = event.pauseAt!.difference(event.actualStartTime!);
-        // 剩余工作时间
-        final remainingWorkDuration = originalTaskDuration - workedDuration;
-        // 调整后的结束时间 = 继续时间 + 剩余工作时间
-        targetEndTime = event.resumeAt!.add(remainingWorkDuration);
-        
-        if (kDebugMode) {
-          print('_scheduleCompletionNotification: 暂停后继续 ${event.title}, 已工作时间: ${workedDuration.inMinutes}分钟, 剩余工作时间: ${remainingWorkDuration.inMinutes}分钟, 继续时间: ${event.resumeAt}, 调整后结束时间: $targetEndTime');
-        }
-      } else if (event.actualStartTime != null && event.pauseAt != null) {
-        // 如果只有暂停时间但没有继续时间（暂停状态）
-        // 原定任务时长
-        final originalTaskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
-        // 已经工作的时间
-        final workedDuration = event.pauseAt!.difference(event.actualStartTime!);
-        // 剩余工作时间
-        final remainingWorkDuration = originalTaskDuration - workedDuration;
-        // 调整后的结束时间 = 当前时间 + 剩余工作时间
-        targetEndTime = now.add(remainingWorkDuration);
-        
-        if (kDebugMode) {
-          print('_scheduleCompletionNotification: 暂停状态 ${event.title}, 已工作时间: ${workedDuration.inMinutes}分钟, 剩余工作时间: ${remainingWorkDuration.inMinutes}分钟, 调整后结束时间: $targetEndTime');
-        }
-      } else if (event.actualStartTime != null) {
-        // 没有暂停时间，使用原来的逻辑
-        final taskDuration = event.scheduledEndTime.difference(event.scheduledStartTime);
-        targetEndTime = event.actualStartTime!.add(taskDuration);
-      } else {
-        // 如果没有实际开始时间，使用原定结束时间
-        targetEndTime = event.scheduledEndTime;
-      }
-      
-      // 計算延遲秒數
-      final delaySeconds = targetEndTime.difference(now).inSeconds;
-      
-      // 只有當延遲時間為正數時才排程通知
-      if (delaySeconds > 0) {
-        // 使用固定的算法生成通知ID
-        final notificationId = 2000 + (event.id.hashCode.abs() % 100000);
-        
-        final success = await NotificationService.instance.scheduleEventNotification(
-          notificationId: notificationId,
-          title: event.title,
-          eventStartTime: targetEndTime,
-          offsetMinutes: 0, // 無偏移，準確在結束時間觸發
-          payload: 'task_completion_${event.id}',
-          isSecondNotification: false,
-          customTitle: '⏰ 任務時間到了！',
-          customBody: '「${event.title}」的預計時間已結束，記得回來按完成哦！',
-        );
-        
-        if (success && kDebugMode) {
-          print('任務完成提醒通知已排程: ${event.title}, notificationId=$notificationId, 將於 $targetEndTime 觸發');
-        }
-      } else if (kDebugMode) {
-        print('任務時長為負數或零，不排程完成提醒: ${event.title}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('排程任務完成提醒通知失敗: $e');
-      }
-    }
-  }
+  // 🎯 已移除：任務完成提醒通知功能
+  // 不再需要，因為用戶可以手動標記任務完成
 
   Future<void> stopEvent(String uid, EventModel e) async {
     // 🎯 設置為暫停狀態（保留開始時間）並增加暫停次數
@@ -903,8 +727,8 @@ class CalendarService extends ChangeNotifier {
       'updatedAt': Timestamp.fromDate(now), // 更新時間
     }, SetOptions(merge: true));
 
-    // 取消任務完成提醒通知（暫停時不需要提醒）
-    await _cancelCompletionNotification(e.id);
+    // 🎯 已移除：取消任務完成提醒通知
+    // 不再需要，因為已移除該功能
   }
 
   Future<void> continueEvent(String uid, EventModel e) async {
@@ -947,7 +771,7 @@ class CalendarService extends ChangeNotifier {
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
 
-    // 移除：不再排程任務完成提醒通知
+    // 🎯 任務恢復時：不取消任何通知，只更新狀態
   }
 
   Future<void> completeEvent(String uid, EventModel e) async {
@@ -957,11 +781,6 @@ class CalendarService extends ChangeNotifier {
       eventId: e.id,
       chatId: e.chatId,
     );
-
-    // 取消第二個通知（因為任務已經開始）
-    if (e.notifIds.contains('${e.id}-2nd')) {
-      await NotificationScheduler().cancelSecondNotification(e.id);
-    }
   }
 
   /// 更新事件狀態（用於同步時檢查overdue/notStarted狀態）
@@ -973,8 +792,13 @@ class CalendarService extends ChangeNotifier {
       bool hasBatchUpdates = false;
 
       for (final event in events) {
-        // 跳過已完成的任務
-        if (event.isDone) continue;
+        // 🎯 修正：優先檢查 isDone 狀態，已完成任務不更新狀態
+        if (event.isDone) {
+          if (kDebugMode) {
+            print('_updateEventStatuses: 跳過已完成任務: ${event.title}');
+          }
+          continue;
+        }
 
         TaskStatus newStatus;
         
@@ -982,6 +806,9 @@ class CalendarService extends ChangeNotifier {
           // 🎯 修复关键bug：如果任务已被暂停，保持暂停状态，不要强制改为进行中
           if (event.status == TaskStatus.paused) {
             // 保持暂停状态，不更新
+            if (kDebugMode) {
+              print('_updateEventStatuses: 保持暂停状态: ${event.title}');
+            }
             continue;
           }
           
@@ -995,6 +822,15 @@ class CalendarService extends ChangeNotifier {
             newStatus = TaskStatus.inProgress;
           }
         } else {
+          // 🎯 修正：任務未開始時，需要檢查是否真的未開始
+          // 如果任務有 completedTime，說明任務已完成，不應該被標記為 notStarted
+          if (event.completedTime != null) {
+            if (kDebugMode) {
+              print('_updateEventStatuses: 跳過已完成任務（有 completedTime）: ${event.title}');
+            }
+            continue;
+          }
+          
           // 任務未開始，根據時間判斷狀態
           if (now.isAfter(event.scheduledStartTime)) {
             // 已過預定開始時間 → 逾期
@@ -1026,13 +862,13 @@ class CalendarService extends ChangeNotifier {
         }
       }
 
-    // 批量提交更新
-    if (hasBatchUpdates) {
-      await batch.commit();
-      if (kDebugMode) {
-        print('_updateEventStatuses: 批量狀態更新完成');
+      // 批量提交更新
+      if (hasBatchUpdates) {
+        await batch.commit();
+        if (kDebugMode) {
+          print('_updateEventStatuses: 批量狀態更新完成');
+        }
       }
-    }
     } catch (e) {
       if (kDebugMode) {
         print('_updateEventStatuses: 更新事件狀態失敗: $e');
@@ -1041,20 +877,6 @@ class CalendarService extends ChangeNotifier {
     }
   }
 
-  /// 取消任務完成提醒通知
-  Future<void> _cancelCompletionNotification(String eventId) async {
-    try {
-      // 使用固定的算法生成通知ID（類似NotificationScheduler的做法）
-      final notificationId = 2000 + (eventId.hashCode.abs() % 100000);
-      await NotificationService.instance.cancelNotification(notificationId);
-      
-      if (kDebugMode) {
-        print('任務完成提醒通知已取消: eventId=$eventId, notificationId=$notificationId');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('取消任務完成提醒通知失敗: $e');
-      }
-    }
-  }
+  // 🎯 已移除：取消任務完成提醒通知方法
+  // 不再需要，因為已移除該功能
 }

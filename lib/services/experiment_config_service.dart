@@ -54,7 +54,7 @@ class ExperimentConfigService {
         return assign == 'A' ? 'experiment' : 'control';
       }
       
-      final isWeek1 = dayNum >= 1 && dayNum <= 7;
+      final isWeek1 = dayNum >= 1 && dayNum <= 6;
       if (assign == 'A') {
         return isWeek1 ? 'experiment' : 'control';
       } else {

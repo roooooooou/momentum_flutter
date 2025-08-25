@@ -19,12 +19,15 @@ class TaskStartDialog extends StatefulWidget {
   // 新增：當前被點擊的notifId（若有）
   final String? notifId;
   final bool isControlGroup;
+  // 新增：觸發來源，用於決定 startTrigger 和是否記錄 notification result
+  final TaskStartDialogTrigger triggerSource;
 
   const TaskStartDialog({
     super.key,
     required this.event,
     this.notifId,
     this.isControlGroup = false,
+    this.triggerSource = TaskStartDialogTrigger.manual,
   });
 
   @override
@@ -37,6 +40,11 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 調試：顯示觸發來源信息
+    if (kDebugMode) {
+      print('🎯 TaskStartDialog.build: triggerSource=${widget.triggerSource.name}, notifId=${widget.notifId}');
+    }
+    
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
@@ -89,9 +97,17 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                       });
                       
                       try {
-                        // 直接開始任務並導頁；避免先 pop 導致 context/mounted 問題
+                        // GA Event: notification_action
+                        AnalyticsService().logNotificationAction(
+                          userGroup: widget.isControlGroup ? 'control' : 'experiment',
+                          notificationType: 'task_reminder',
+                          action: 'start_task',
+                          eventId: widget.event.id,
+                        );
+                        
+                        // 🎯 開始任務（CalendarService.startEvent 會自動記錄通知結果）
                         await _startTask(context);
-                        _recordNotificationResult(context, NotificationResult.start);
+                        
                       } finally {
                         // 確保無論成功或失敗都重置狀態
                         if (mounted) {
@@ -146,8 +162,15 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                   child: widget.isControlGroup
                       ? ElevatedButton(
                           onPressed: () {
+                            // GA Event: notification_action
+                            AnalyticsService().logNotificationAction(
+                              userGroup: widget.isControlGroup ? 'control' : 'experiment',
+                              notificationType: 'task_reminder',
+                              action: 'snooze',
+                              eventId: widget.event.id,
+                            );
                             _recordNotificationResult(context, NotificationResult.snooze);
-                            Navigator.of(context).pop();
+                            Navigator.of(context).pop('snooze');
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey[300], // 灰色
@@ -174,6 +197,13 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                                   _isOpeningChat = true;
 
                                   try {
+                                    // GA Event: notification_action
+                                    AnalyticsService().logNotificationAction(
+                                      userGroup: widget.isControlGroup ? 'control' : 'experiment',
+                                      notificationType: 'task_reminder',
+                                      action: 'open_chat',
+                                      eventId: widget.event.id,
+                                    );
                                     // 先獲取父級navigator，再關閉對話框
                                     final navigator = Navigator.of(context);
                                     final parentContext = context;
@@ -183,9 +213,9 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
 
                                     // 記錄通知結果為延後處理
                                     _recordNotificationResult(parentContext, NotificationResult.snooze);
-
-                                    // 關閉對話框
-                                    navigator.pop();
+                                    
+                                    // 關閉對話框並回傳 action
+                                    navigator.pop('open_chat');
 
                                     // 導航到聊天頁面
                                     final uid = parentContext.read<AuthService>().currentUser?.uid;
@@ -269,6 +299,18 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
   /// 開始任務
   Future<void> _startTask(BuildContext context) async {
     try {
+      // 🎯 調試：記錄開始任務的事件信息
+      if (kDebugMode) {
+        print('🎯 TaskStartDialog._startTask 開始');
+        print('🎯 Event ID: ${widget.event.id}');
+        print('🎯 Event Title: ${widget.event.title}');
+        print('🎯 Event Date: ${widget.event.date}');
+        print('🎯 Event DayNumber: ${widget.event.dayNumber}');
+        print('🎯 NotifId: ${widget.notifId}');
+        print('🎯 Event notifIds: ${widget.event.notifIds}');
+        print('🎯 Trigger Source: ${widget.triggerSource.name}');
+      }
+      
       // 執行開始任務邏輯
       final uid = context.read<AuthService>().currentUser?.uid;
       if (uid == null) {
@@ -276,32 +318,118 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
         return;
       }
 
-      await CalendarService.instance.startEvent(uid, widget.event);
+      // 🎯 根據觸發來源決定 startTrigger
+      final startTrigger = widget.triggerSource == TaskStartDialogTrigger.notification 
+          ? StartTrigger.tapNotification 
+          : StartTrigger.tapCard;
+
+      // 🎯 只有來自通知點擊時才記錄 notification result
+      if (widget.triggerSource == TaskStartDialogTrigger.notification && widget.notifId != null) {
+        if (kDebugMode) {
+          print('🎯 來自通知點擊，準備記錄通知結果為 start');
+          print('🎯 目標 notifId: ${widget.notifId}');
+          print('🎯 事件日期: ${widget.event.date}');
+        }
+        
+        try {
+          await ExperimentEventHelper.recordNotificationResult(
+            uid: uid,
+            eventId: widget.event.id,
+            notifId: widget.notifId!,
+            result: NotificationResult.start,
+            eventDate: widget.event.date,
+          );
+          if (kDebugMode) {
+            print('🎯 通知結果記錄成功: start');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('🎯 記錄通知結果失敗: $e');
+          }
+          // 不中斷流程，繼續執行任務開始
+        }
+      } else {
+        if (kDebugMode) {
+          print('🎯 非通知觸發，跳過 notification result 記錄');
+          print('🎯 Trigger Source: ${widget.triggerSource.name}');
+        }
+      }
+
+      // 🎯 傳遞通知ID以正確記錄通知狀態
+      if (kDebugMode) {
+        print('🎯 準備調用 CalendarService.startEvent');
+        print('🎯 傳遞的 notifId: ${widget.notifId}');
+        print('🎯 傳遞的 startTrigger: ${startTrigger.value} (${startTrigger.name})');
+      }
+      
+      await CalendarService.instance.startEvent(
+        uid, 
+        widget.event, 
+        notifId: widget.notifId,
+        startTrigger: startTrigger, // 🎯 根據觸發來源決定 startTrigger
+      );
+      
+      if (kDebugMode) {
+        print('🎯 CalendarService.startEvent 調用完成');
+      }
       
       // 記錄分析事件 - 改由 TaskRouterService 统一记录
       // await AnalyticsService().logTaskStarted('dialog');
       
-      // 顯示成功訊息
+      // 🎯 修正：優化導航流程
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('任務「${widget.event.title}」已開始'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 1),
-          ),
-        );
         
-        // 先關閉對話框
-        Navigator.of(context).pop();
-
-        // 使用路由服務判斷任務型別並導頁（含 test 類型）
-        final navContext = NavigationService.context ?? context;
-        if (navContext.mounted) {
-          TaskRouterService().navigateToTaskPage(navContext, widget.event, source: 'notification_dialog');
-        } else {
-          // 後備：若 navContext 不可用，直接嘗試用全域 navigator push
-          TaskRouterService().navigateToTaskPage(context, widget.event, source: 'notification_dialog');
+        // 🎯 立即獲取導航所需的參數
+        final navContext = NavigationService.context;
+        final userGroup = widget.isControlGroup ? 'control' : 'experiment';
+        
+        if (kDebugMode) {
+          print('🎯 _startTask: 準備導航');
+          print('🎯 navContext.mounted: ${navContext?.mounted}');
+          print('🎯 context.mounted: ${context.mounted}');
         }
+        
+        // 關閉對話框
+        Navigator.of(context).pop();
+        
+        // 🎯 延遲一小段時間確保對話框完全關閉
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        // 使用路由服務判斷任務型別並導頁
+        if (navContext != null && navContext.mounted) {
+          if (kDebugMode) {
+            print('🎯 _startTask: 使用 NavigationService.context 導航');
+          }
+          TaskRouterService().navigateToTaskPage(navContext, widget.event, source: 'notification_dialog', userGroup: userGroup);
+        } else {
+          // 重試機制
+          if (kDebugMode) {
+            print('🎯 _startTask: NavigationService.context 不可用，重試...');
+          }
+          await Future.delayed(const Duration(milliseconds: 200));
+          final retryContext = NavigationService.context;
+          if (retryContext != null && retryContext.mounted) {
+            if (kDebugMode) {
+              print('🎯 _startTask: 重試成功，使用 retryContext 導航');
+            }
+            TaskRouterService().navigateToTaskPage(retryContext, widget.event, source: 'notification_dialog', userGroup: userGroup);
+          } else {
+            print('⚠️ 無法獲取有效的導航 context，任務已開始但無法導航到任務頁面');
+            // 🎯 後備方案：顯示錯誤提示
+            NavigationService.safeShowSnackBar(
+              '任務已開始，但無法自動導航到任務頁面。請手動從主頁開始任務。',
+              backgroundColor: Colors.orange,
+            );
+          }
+        }
+        
+        // 🎯 延遲顯示成功訊息，避免干擾導航
+        Future.delayed(const Duration(milliseconds: 300), () {
+          NavigationService.safeShowSnackBar(
+            '任務「${widget.event.title}」已開始',
+            backgroundColor: Colors.green,
+          );
+        });
       }
     } catch (e) {
       _showErrorMessage(context, '開始任務失敗: $e');

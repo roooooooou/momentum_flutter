@@ -309,9 +309,7 @@ class AuthService {
             'scheduledEndTime': Timestamp.fromDate(event.end!.dateTime!),
             'date': Timestamp.fromDate(eventDate), // 添加日期字段
             if (dayNumber != null) 'dayNumber': dayNumber,
-            'isActive': true,
             'isDone': false,
-            'lifecycleStatus': 1, // active status
             'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           };

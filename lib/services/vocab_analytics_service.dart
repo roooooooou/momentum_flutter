@@ -11,10 +11,32 @@ class VocabAnalyticsService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 获取词汇数据文档引用（自動解析事件所在集合）
-  Future<DocumentReference> _getVocabDataRef(String uid, String eventId) async {
+  /// 獲取一個新的會話文檔引用，並根據 source 決定路徑
+  Future<DocumentReference> _getNewSessionRef({
+    required String uid,
+    required String eventId,
+    required String source,
+  }) async {
     final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
-    return eventDoc.collection('vocab').doc('analytics');
+    final sessionId = DateTime.now().toIso8601String();
+    
+    if (source == 'home_screen_review') {
+      // 複習會話
+      return eventDoc.collection('review').doc(sessionId);
+    } else {
+      // 學習會話
+      return eventDoc.collection('vocab').doc(sessionId);
+    }
+  }
+
+  /// 獲取詞彙學習數據文檔引用（用於舊的 startQuiz 和 completeQuiz 方法）
+  Future<DocumentReference> _getVocabDataRef({
+    required String uid,
+    required String eventId,
+  }) async {
+    final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
+    // 使用固定的文檔ID 'vocab_data' 來存儲詞彙學習數據
+    return eventDoc.collection('vocab').doc('vocab_data');
   }
 
   /// 儲存詞彙測驗結果到 users/{uid}/experiment_quiz/{quizId}
@@ -83,53 +105,83 @@ class VocabAnalyticsService {
 
   // 舊 attempts 版本已移除，不再使用
 
-  /// 开始词汇学习会话
-  Future<void> startVocabSession({
+  /// 开始词汇学习会话，並返回會話文檔的引用
+  Future<DocumentReference?> startVocabSession({
     required String uid,
     required String eventId,
+    required String source,
     required List<VocabContent> vocabList,
   }) async {
-    final now = DateTime.now();
-    final sessionId = 'vocab_${eventId}_${now.millisecondsSinceEpoch}';
-    final ref = await _getVocabDataRef(uid, eventId);
-    
-    // 检查是否已有会话数据
-    final existingDoc = await ref.get();
-    Map<String, dynamic> existingData = {};
-    if (existingDoc.exists) {
-      existingData = existingDoc.data() as Map<String, dynamic>;
+    try {
+      final ref = await _getNewSessionRef(uid: uid, eventId: eventId, source: source);
+      final now = DateTime.now();
+
+      final initialData = {
+        'eventId': eventId,
+        'startTime': Timestamp.fromDate(now),
+        'source': source,
+        'totalWords': vocabList.length,
+        'cardDwellTimes': Map.fromIterables(
+          List.generate(vocabList.length, (i) => i.toString()),
+          List.filled(vocabList.length, 0),
+        ),
+        'totalLearningTime': 0,
+        'leaveCount': 0,
+        'status': 'active', // active, completed
+        'updatedAt': Timestamp.fromDate(now),
+      };
+
+      // 如果是複習，額外標記 taskType
+      if (source == 'home_screen_review') {
+        initialData['taskType'] = 'vocab';
+      }
+
+      await ref.set(initialData);
+      
+      // 如果是複習，更新父事件的 activeReviewSessionId
+      if (source == 'home_screen_review') {
+        final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
+        await eventDoc.set({
+          'activeReviewSessionId': ref.id,
+          'reviewStarted': true, // 確保標記複習已開始
+          'updatedAt': Timestamp.fromDate(now),
+        }, SetOptions(merge: true));
+      }
+
+      return ref;
+    } catch (e) {
+      print('開始詞彙學習會話失敗: $e');
+      return null;
     }
-    
-    await ref.set({
-      'eventId': eventId,
-      'sessionId': sessionId,
-      'startTime': existingData['startTime'] ?? Timestamp.fromDate(now),
-      'endTime': null,
-      'totalWords': vocabList.length,
-      'cardDwellTimes': existingData['cardDwellTimes'] ?? Map.fromIterables(
-        List.generate(vocabList.length, (i) => i.toString()),
-        List.filled(vocabList.length, 0), // 初始停留时间为0
-      ),
-      'totalLearningTime': existingData['totalLearningTime'] ?? 0,
-      'leaveCount': existingData['leaveCount'] ?? 0, // 离开次数
-      'status': 'learning', // learning, completed（不再記錄 quiz 狀態）
-      'updatedAt': Timestamp.fromDate(now),
-    }, SetOptions(merge: true));
   }
 
-  /// 完成詞彙學習會話（不經過測驗記錄）
+  /// 完成詞彙學習會話
   Future<void> completeLearningSession({
-    required String uid,
-    required String eventId,
+    required DocumentReference sessionRef,
   }) async {
     try {
-      final ref = await _getVocabDataRef(uid, eventId);
       final now = DateTime.now();
-      await ref.set({
+      
+      final doc = await sessionRef.get();
+      if (!doc.exists) return;
+      
+      final data = doc.data() as Map<String, dynamic>;
+      final startTime = (data['startTime'] as Timestamp).toDate();
+      final totalDurationMs = now.difference(startTime).inMilliseconds;
+
+      final updateData = {
         'status': 'completed',
         'endTime': Timestamp.fromDate(now),
+        'totalSessionDurationMs': totalDurationMs,
         'updatedAt': Timestamp.fromDate(now),
-      }, SetOptions(merge: true));
+      };
+
+      // 如果是複習會話，也添加 durationMin 欄位（與原 ExperimentEventHelper 格式相容）
+      if (data['taskType'] == 'vocab') {
+        updateData['durationMin'] = now.difference(startTime).inMinutes;
+      }
+
+      await sessionRef.update(updateData);
     } catch (e) {
       print('完成詞彙學習會話記錄失敗: $e');
     }
@@ -137,62 +189,31 @@ class VocabAnalyticsService {
 
   /// 记录卡片停留时间
   Future<void> recordCardDwellTime({
-    required String uid,
-    required String eventId,
+    required DocumentReference sessionRef,
     required int cardIndex,
     required int dwellTimeMs,
   }) async {
     try {
-      final ref = await _getVocabDataRef(uid, eventId);
-
-      final snap = await ref.get();
-      if (snap.exists) {
-        // 更新卡片停留时间
-        await ref.update({
-          'cardDwellTimes.$cardIndex': FieldValue.increment(dwellTimeMs),
-          'totalLearningTime': FieldValue.increment(dwellTimeMs),
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        });
-      } else {
-        // 文檔不存在時先建檔
-        await ref.set({
-          'eventId': eventId,
-          'cardDwellTimes': {cardIndex.toString(): dwellTimeMs},
-          'totalLearningTime': dwellTimeMs,
-          'leaveCount': 0,
-          'status': 'learning',
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        }, SetOptions(merge: true));
-      }
+      await sessionRef.update({
+        'cardDwellTimes.$cardIndex': FieldValue.increment(dwellTimeMs),
+        'totalLearningTime': FieldValue.increment(dwellTimeMs),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
     } catch (e) {
+      // 如果文檔可能不存在，可以考慮在這裡做一個 get and set 的回退，但理論上 sessionRef 應該是有效的
       print('記錄卡片停留時間失敗: $e');
     }
   }
 
   /// 记录离开学习页面
   Future<void> recordLeaveSession({
-    required String uid,
-    required String eventId,
+    required DocumentReference sessionRef,
   }) async {
     try {
-      final ref = await _getVocabDataRef(uid, eventId);
-
-      final snap = await ref.get();
-      if (snap.exists) {
-        // 增加离开次数
-        await ref.update({
-          'leaveCount': FieldValue.increment(1),
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        });
-      } else {
-        // 文檔不存在時先建檔
-        await ref.set({
-          'eventId': eventId,
-          'leaveCount': 1,
-          'status': 'learning',
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        }, SetOptions(merge: true));
-      }
+      await sessionRef.update({
+        'leaveCount': FieldValue.increment(1),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
     } catch (e) {
       print('記錄離開學習頁面失敗: $e');
     }
@@ -204,7 +225,7 @@ class VocabAnalyticsService {
     required String eventId,
   }) async {
     try {
-      final ref = await _getVocabDataRef(uid, eventId);
+      final ref = await _getVocabDataRef(uid: uid, eventId: eventId);
       final now = DateTime.now();
       
       await ref.update({
@@ -223,7 +244,7 @@ class VocabAnalyticsService {
     required int totalQuestions,
   }) async {
     try {
-      final ref = await _getVocabDataRef(uid, eventId);
+      final ref = await _getVocabDataRef(uid: uid, eventId: eventId);
       final now = DateTime.now();
       
       // 获取当前数据来计算测验时间
@@ -241,23 +262,14 @@ class VocabAnalyticsService {
     }
   }
 
-  /// 获取词汇学习会话数据
+  /// (DEPRECATED) 获取词汇学习会话数据 - 應改為查詢特定 session
   Future<Map<String, dynamic>?> getVocabSessionData({
     required String uid,
     required String eventId,
   }) async {
-    try {
-      final ref = await _getVocabDataRef(uid, eventId);
-      final doc = await ref.get();
-      
-      if (doc.exists) {
-        return doc.data() as Map<String, dynamic>;
-      }
-      return null;
-    } catch (e) {
-      print('獲取詞彙學習會話數據失敗: $e');
-      return null;
-    }
+    // 這個方法現在邏輯上已經過時，因為一個 event 可能有多個 session
+    // 應在調用處直接處理 session document
+    return null;
   }
 
   /// 獲取用戶所有詞彙學習統計（已移除 quiz 統計）
@@ -283,26 +295,22 @@ class VocabAnalyticsService {
         
         for (final eventDoc in eventsSnapshot.docs) {
           try {
-            final vocabRef = eventDoc.reference.collection('vocab').doc('analytics');
-            final vocabDoc = await vocabRef.get();
-            
-            if (vocabDoc.exists) {
-              final data = vocabDoc.data()! as Map<String, dynamic>;
-              final startTime = data['startTime'] as Timestamp?;
-              
+            // 查詢新的 learning_sessions 集合
+            final sessionsRef = eventDoc.reference.collection('vocab');
+            final sessionsSnapshot = await sessionsRef.get();
+
+            for (final sessionDoc in sessionsSnapshot.docs) {
+              final data = sessionDoc.data();
+              final startTime = (data['startTime'] as Timestamp?)?.toDate();
+
               // 检查时间范围
-              if (startDate != null && startTime != null && startTime.toDate().isBefore(startDate)) {
-                continue;
-              }
-              if (endDate != null && startTime != null && startTime.toDate().isAfter(endDate)) {
-                continue;
-              }
+              if (startDate != null && startTime != null && startTime.isBefore(startDate)) continue;
+              if (endDate != null && startTime != null && startTime.isAfter(endDate)) continue;
               
               // 只统计已完成的会话
               if (data['status'] == 'completed') {
                 totalSessions++;
                 totalLearningTime += (data['totalLearningTime'] as num?)?.toInt() ?? 0;
-                // 不再累加 quiz 資訊
 
                 // 累计卡片停留时间
                 final dwellTimes = data['cardDwellTimes'] as Map<String, dynamic>?;

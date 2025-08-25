@@ -6,6 +6,7 @@ import '../services/vocab_analytics_service.dart';
 import '../services/calendar_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/analytics_service.dart';
+import '../services/experiment_config_service.dart';
 
 class VocabQuizScreen extends StatefulWidget {
   final List<VocabContent> questions;
@@ -129,6 +130,10 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> with WidgetsBindingOb
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // 獲取使用者分組
+        final isControlGroup = await ExperimentConfigService.instance.isControlGroup(user.uid);
+        final userGroup = isControlGroup ? 'control' : 'experiment';
+
         // 儲存測驗結果（答案詳情 + 分數）
         final answers = <Map<String, dynamic>>[];
         for (var i = 0; i < widget.questions.length; i++) {
@@ -153,6 +158,7 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> with WidgetsBindingOb
         
         // 記錄 quiz_complete 事件
         AnalyticsService().logQuizComplete(
+          userGroup: userGroup,
           quizType: 'vocab',
           eventId: widget.event.id,
           score: (widget.questions.isNotEmpty ? (_correctAnswers / widget.questions.length * 100).round() : 0),

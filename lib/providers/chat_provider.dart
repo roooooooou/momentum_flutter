@@ -26,6 +26,7 @@ class ChatProvider extends ChangeNotifier {
   final List<int> _latencies = [];
   bool _hasRecordedChatStart = false;
   int _totalTokens = 0;
+  bool _disposed = false; // 新增：追蹤是否已被 dispose
 
   ChatProvider({
     required this.taskTitle, 
@@ -65,6 +66,9 @@ class ChatProvider extends ChangeNotifier {
 
   /// 加载历史聊天记录
   Future<void> _loadChatHistory() async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     try {
       final chatsCollection = await DataPathService.instance
           .getEventChatsCollectionAuto(uid, eventId);
@@ -91,7 +95,7 @@ class ChatProvider extends ChangeNotifier {
       }));
 
       _currentTurn = _messages.length ~/ 2; // 每轮对话包含用户和助手各一条消息
-      notifyListeners();
+      _safeNotifyListeners();
     } catch (e) {
       debugPrint('加载聊天历史失败: $e');
     }
@@ -99,6 +103,9 @@ class ChatProvider extends ChangeNotifier {
 
   /// 保存聊天消息到Firestore
   Future<void> _saveChatMessage(ChatMessage message) async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     try {
       final chatsCollection = await DataPathService.instance
           .getEventChatsCollectionAuto(uid, eventId);
@@ -120,6 +127,9 @@ class ChatProvider extends ChangeNotifier {
   }
 
   Future<void> sendUserMessage(String text) async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     if (text.trim().isEmpty || isDialogueEnded) return;
     
     final userMessage = ChatMessage(
@@ -130,7 +140,7 @@ class ChatProvider extends ChangeNotifier {
     
     _messages.add(userMessage);
     _currentTurn++;
-    notifyListeners();
+    _safeNotifyListeners();
     
     // 保存用户消息
     await _saveChatMessage(userMessage);
@@ -140,8 +150,11 @@ class ChatProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchAssistantReply() async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     _isLoading = true;
-    notifyListeners();
+    _safeNotifyListeners();
 
     final startTime = DateTime.now();
 
@@ -179,13 +192,19 @@ class ChatProvider extends ChangeNotifier {
       _messages.add(errorMessage);
       await _saveChatMessage(errorMessage);
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      // 檢查是否已被 dispose
+      if (!_disposed) {
+        _isLoading = false;
+        _safeNotifyListeners();
+      }
     }
   }
 
   /// AI主動開始對話
   Future<void> startConversation() async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     if (_hasStarted) return; // 避免重複開始
     _hasStarted = true;
     
@@ -213,6 +232,9 @@ class ChatProvider extends ChangeNotifier {
 
   /// 結束聊天會話並記錄實驗數據
   Future<void> endChatSession(ChatResult result, {bool commitPlan = false}) async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     if (!_hasRecordedChatStart || _hasEndedChat) return; // 如果没有开始记录或已经结束，就不再记录
     
     try {
@@ -251,6 +273,9 @@ class ChatProvider extends ChangeNotifier {
   
   /// 更新聊天統計數據
   Future<void> _updateChatStatistics() async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     // 🎯 即使沒有延遲數據也要更新基本統計信息
     int avgLatency = 0;
     if (_latencies.isNotEmpty) {
@@ -279,6 +304,9 @@ class ChatProvider extends ChangeNotifier {
 
   /// 生成並儲存聊天總結
   Future<void> _generateAndSaveSummary() async {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     // 只有在有对话消息时才生成总结
     if (_messages.isEmpty || _messages.length < 2) {
       debugPrint('聊天消息太少，跳过总结生成');
@@ -326,6 +354,9 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void reset() {
+    // 檢查是否已被 dispose
+    if (_disposed) return;
+    
     _messages.clear();
     _currentTurn = 0; // 重置turn計數
     _hasStarted = false; // 重置開始狀態
@@ -333,6 +364,22 @@ class ChatProvider extends ChangeNotifier {
     _hasRecordedChatStart = false; // 重置記錄狀態
     _hasEndedChat = false; // 重置结束状态
     _totalTokens = 0; // 重置token計數
-    notifyListeners();
+    _safeNotifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// 檢查是否已被 dispose
+  bool get isDisposed => _disposed;
+
+  /// 安全的 notifyListeners 調用
+  void _safeNotifyListeners() {
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 }
