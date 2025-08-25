@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
 import '../models/vocab_content_model.dart';
-
+import '../models/enums.dart';
 import '../services/vocab_analytics_service.dart';
+import '../services/calendar_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/analytics_service.dart';
 
 class VocabQuizScreen extends StatefulWidget {
   final List<VocabContent> questions;
@@ -19,20 +21,51 @@ class VocabQuizScreen extends StatefulWidget {
   State<VocabQuizScreen> createState() => _VocabQuizScreenState();
 }
 
-class _VocabQuizScreenState extends State<VocabQuizScreen> {
+class _VocabQuizScreenState extends State<VocabQuizScreen> with WidgetsBindingObserver {
   int _currentQuestionIndex = 0;
   String? _selectedAnswer;
   int _correctAnswers = 0;
   bool _showResult = false;
   List<String> _userAnswers = [];
   final VocabAnalyticsService _analyticsService = VocabAnalyticsService();
+  final CalendarService _calendarService = CalendarService.instance;
   String? _attemptSessionId;
+  bool _reviewEndedLogged = false; // 自動結束複習的保險旗標
+  DateTime? _quizStartTime; // 記錄測驗開始時間
+  String? _currentUserId; // 當前用戶ID
+  bool _isQuizActive = true; // 測驗是否處於活躍狀態
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 添加生命週期觀察者
+    _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _userAnswers = List.filled(widget.questions.length, '');
+    _quizStartTime = DateTime.now(); // 記錄測驗開始時間
     _startAttempt();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 移除生命週期觀察者
+    // 頁面銷毀時，視為複習結束
+    _endReviewIfAny();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // App進入後台或非活躍狀態，暫停測驗任務
+      _isQuizActive = false;
+      _pauseQuizEvent();
+    } else if (state == AppLifecycleState.resumed) {
+      // App恢復活躍狀態，如果任務被暫停則繼續
+      _isQuizActive = true;
+      _resumeQuizEvent();
+    }
   }
 
   Future<void> _startAttempt() async {
@@ -41,6 +74,7 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
 
   void _selectAnswer(String answer) {
     setState(() {
+      // 存選項文字本身，方便與正確答案（文字）比對
       _selectedAnswer = answer;
       _userAnswers[_currentQuestionIndex] = answer;
     });
@@ -107,9 +141,26 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
             'isCorrect': _userAnswers[i] == widget.questions[i].answer,
           });
         }
-        final match = RegExp(r'w(\\d+)').firstMatch(widget.event.title.toLowerCase());
-        final week = match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+        // 與閱讀一致：以週為單位命名 vocab_w{week}
+        final dayNum = widget.event.dayNumber;
+        final week = (dayNum != null && dayNum > 0) ? (dayNum <= 7 ? 1 : 2) : 0;
         final quizId = 'vocab_w$week';
+        // 計算測驗時間
+        int quizTimeMs = 0;
+        if (_quizStartTime != null) {
+          quizTimeMs = DateTime.now().difference(_quizStartTime!).inMilliseconds;
+        }
+        
+        // 記錄 quiz_complete 事件
+        AnalyticsService().logQuizComplete(
+          quizType: 'vocab',
+          eventId: widget.event.id,
+          score: (widget.questions.isNotEmpty ? (_correctAnswers / widget.questions.length * 100).round() : 0),
+          correctAnswers: _correctAnswers,
+          totalQuestions: widget.questions.length,
+          durationSeconds: quizTimeMs ~/ 1000,
+        );
+
         await _analyticsService.saveVocabQuizToExperiment(
           uid: user.uid,
           quizId: quizId,
@@ -118,6 +169,7 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
           totalQuestions: widget.questions.length,
           eventId: widget.event.id,
           week: week,
+          quizTimeMs: quizTimeMs, // 傳遞測驗時間
         );
         
         // 记录事件完成
@@ -126,14 +178,60 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
           eventId: widget.event.id,
           chatId: widget.event.chatId,
         );
+
+        // 自動結束複習（若有）
+        await _endReviewIfAny();
       }
       
-      // 跳回home screen
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // 測驗完成後直接跳回首頁（任務已標記為完成）
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } catch (e) {
       print('完成測驗時出錯: $e');
-      // 即使出错也要跳回home screen
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // 即使出错也要跳回home screen（頁面仍掛載才跳轉）
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    }
+  }
+
+  /// 若是從「開始複習」進入，離開測驗頁時自動結束複習
+  Future<void> _endReviewIfAny() async {
+    if (_reviewEndedLogged) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await ExperimentEventHelper.recordReviewEnd(uid: uid, eventId: widget.event.id);
+      } catch (_) {}
+    }
+    _reviewEndedLogged = true;
+  }
+
+  /// 暫停測驗任務
+  Future<void> _pauseQuizEvent() async {
+    if (_currentUserId != null && _isQuizActive) {
+      try {
+        await _calendarService.stopEvent(_currentUserId!, widget.event);
+        print('測驗任務已暫停: ${widget.event.title}');
+      } catch (e) {
+        print('暫停測驗任務失敗: $e');
+      }
+    }
+  }
+
+  /// 恢復測驗任務
+  Future<void> _resumeQuizEvent() async {
+    if (_currentUserId != null) {
+      try {
+        // 檢查任務是否為暫停狀態，如果是則繼續
+        if (widget.event.status == TaskStatus.paused) {
+          await _calendarService.continueEvent(_currentUserId!, widget.event);
+          print('測驗任務已恢復: ${widget.event.title}');
+        }
+      } catch (e) {
+        print('恢復測驗任務失敗: $e');
+      }
     }
   }
 
@@ -168,7 +266,7 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 单词
+                  // 題目敘述：固定顯示句子（sentence）
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -180,7 +278,7 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
                     child: Column(
                       children: [
                         Text(
-                          '單字：',
+                          '句子：',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -189,11 +287,11 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          currentQuestion.word,
+                          currentQuestion.example,
                           style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
+                            fontSize: 18,
+                            height: 1.5,
+                            color: Colors.black87,
                           ),
                         ),
                       ],
@@ -202,9 +300,9 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
                   
                   const SizedBox(height: 24),
                   
-                  // 题目
+                  // 提示
                   Text(
-                    '請選擇正確的定義：',
+                    '請選擇正確的單字：',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -219,12 +317,12 @@ class _VocabQuizScreenState extends State<VocabQuizScreen> {
                     final index = entry.key;
                     final option = entry.value;
                     final optionLetter = String.fromCharCode(97 + index); // a, b, c, d
-                    final isSelected = _selectedAnswer == optionLetter;
+                    final isSelected = _selectedAnswer == option;
                     
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: InkWell(
-                        onTap: () => _selectAnswer(optionLetter),
+                        onTap: () => _selectAnswer(option),
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.all(16),

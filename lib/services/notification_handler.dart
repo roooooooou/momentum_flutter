@@ -70,6 +70,10 @@ class NotificationHandler {
       return;
     }
 
+    // 預先宣告以便在錯誤重試時可使用
+    String? parsedEventId;
+    String? clickedNotifId;
+
     // 确保应用已完全启动
     if (NavigationService.context == null) {
       if (kDebugMode) {
@@ -111,11 +115,20 @@ class NotificationHandler {
         return;
       }
 
+      // 一般事件通知：payload 可能為 eventId 或 "eventId-1st/2nd"
+      String eventId = payload;
+      final match = RegExp(r'^(.*)-(1st|2nd)$').firstMatch(payload);
+      if (match != null) {
+        eventId = match.group(1)!;
+        clickedNotifId = payload; // 完整的notifId
+      }
+      parsedEventId = eventId;
+
       // 根據事件ID獲取事件資料
-      final event = await _getEventById(payload);
+      final event = await _getEventById(eventId);
       if (event == null) {
         if (kDebugMode) {
-          print('找不到事件: $payload');
+          print('找不到事件: $eventId');
         }
         return;
       }
@@ -140,9 +153,10 @@ class NotificationHandler {
 
       // 🎯 實驗數據收集：記錄通知點擊
       final currentUser = AuthService.instance.currentUser;
+      bool isControlGroup = false; // 移到外層作用域
       if (currentUser != null) {
         if (kDebugMode) {
-          print('🎯 記錄通知點擊: eventId=${event.id}, notifIds=${event.notifIds}');
+          print('🎯 記錄通知點擊: eventId=${event.id}, clickedNotifId=${clickedNotifId ?? 'unknown'}');
         }
         
         await ExperimentEventHelper.recordNotificationTap(
@@ -150,40 +164,41 @@ class NotificationHandler {
           eventId: event.id,
         );
 
-        // 🎯 實驗數據收集：記錄通知被打開（對所有可能的通知ID）
-        for (final notifId in event.notifIds) {
+        // 🎯 實驗數據收集：只記錄被點擊的那一則通知為 opened（若可辨識）
+        final notifToRecord = clickedNotifId ?? (event.notifIds.isNotEmpty ? event.notifIds.first : null);
+        if (notifToRecord != null) {
           if (kDebugMode) {
-            print('🎯 記錄通知被打開: notifId=$notifId');
+            print('🎯 記錄通知被打開: notifId=$notifToRecord');
           }
           await ExperimentEventHelper.recordNotificationOpened(
             uid: currentUser.uid,
             eventId: event.id,
-            notifId: notifId,
+            notifId: notifToRecord,
             eventDate: event.date, // 🎯 传递事件发生的日期
           );
         }
 
         // 🎯 检查用户组：对照组不显示任务开始对话框
-        final isControlGroup = await ExperimentConfigService.instance.isControlGroup(currentUser.uid);
-        if (isControlGroup) {
-          // 对照组用户：记录通知结果为已查看，但不显示对话框
-          for (final notifId in event.notifIds) {
-            await ExperimentEventHelper.recordNotificationResult(
-              uid: currentUser.uid,
-              eventId: event.id,
-              notifId: notifId,
-              result: NotificationResult.dismiss, // 标记为已查看但未采取行动
-              eventDate: event.date, // 🎯 传递事件发生的日期
-            );
-          }
-          return;
-        }
+        isControlGroup = await ExperimentConfigService.instance.isControlGroup(currentUser.uid);
+        // if (isControlGroup) {
+        //   // 对照组用户：记录通知结果为已查看，但不显示对话框（僅針對被點擊的通知）
+        //   if (notifToRecord != null) {
+        //     await ExperimentEventHelper.recordNotificationResult(
+        //       uid: currentUser.uid,
+        //       eventId: event.id,
+        //       notifId: notifToRecord,
+        //       result: NotificationResult.dismiss, // 标记为已查看但未采取行动
+        //       eventDate: event.date, // 🎯 传递事件发生的日期
+        //     );
+        //   }
+        //   return;
+        // }
       }
 
-      // 顯示任務開始彈窗（仅限实验组）
+      // 顯示任務開始彈窗（实验组和对照组都显示）
       // 在release mode中添加延迟以确保应用完全启动
       await Future.delayed(const Duration(milliseconds: 300));
-      await _showTaskStartDialog(event, forceShow: forceShow);
+      await _showTaskStartDialog(event, forceShow: forceShow, notifId: clickedNotifId, isControlGroup: isControlGroup);
 
     } catch (e) {
       if (kDebugMode) {
@@ -192,10 +207,10 @@ class NotificationHandler {
       // 在release mode中，即使出错也尝试显示对话框
       try {
         if (payload != 'daily_report' && !payload.startsWith('task_completion_')) {
-          final event = await _getEventById(payload);
+          final event = await _getEventById(parsedEventId ?? payload);
           if (event != null && !event.isDone && event.actualStartTime == null) {
             await Future.delayed(const Duration(milliseconds: 500));
-            await _showTaskStartDialog(event, forceShow: forceShow);
+            await _showTaskStartDialog(event, forceShow: forceShow, notifId: clickedNotifId, isControlGroup: false);
           }
         }
       } catch (retryError) {
@@ -236,7 +251,7 @@ class NotificationHandler {
   }
 
   /// 顯示任務開始彈窗
-  Future<void> _showTaskStartDialog(EventModel event, {bool forceShow = false}) async {
+  Future<void> _showTaskStartDialog(EventModel event, {bool forceShow = false, String? notifId, bool? isControlGroup}) async {
     // 检查是否已有TaskStartDialog在显示
     if (_isTaskStartDialogShowing) {
       if (kDebugMode) {
@@ -269,6 +284,21 @@ class NotificationHandler {
       }
     }
 
+    // 检查用户分组（如果沒有傳入，則重新計算）
+    bool controlGroup = false;
+    if (isControlGroup != null) {
+      controlGroup = isControlGroup;
+    } else {
+      final uid = AuthService.instance.currentUser?.uid;
+      if (uid != null) {
+        controlGroup = await ExperimentConfigService.instance.isControlGroup(uid);
+      }
+    }
+
+    if (kDebugMode) {
+      print('顯示任務開始彈窗: ${event.title}, isControlGroup: $controlGroup');
+    }
+
     // 設置對話框顯示狀態
     setTaskStartDialogShowing(true);
 
@@ -280,7 +310,11 @@ class NotificationHandler {
           showDialog(
             context: currentContext,
             barrierDismissible: false,
-            builder: (context) => TaskStartDialog(event: event),
+            builder: (context) => TaskStartDialog(
+              event: event,
+              notifId: notifId,
+              isControlGroup: controlGroup,
+            ),
           ).then((_) {
             // 對話框關閉時重置狀態
             setTaskStartDialogShowing(false);
@@ -300,10 +334,6 @@ class NotificationHandler {
         }
       });
     });
-
-    if (kDebugMode) {
-      print('顯示任務開始彈窗: ${event.title}');
-    }
   }
 
   /// 處理每日報告通知點擊

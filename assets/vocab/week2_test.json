@@ -1,496 +1,330 @@
 {
   "meta": {
     "week": 2,
-    "items": 30,
-    "sampling_buckets": {
-      "D1": 9,
-      "D2": 7,
-      "D3": 7,
-      "D4": 7
-    },
+    "items": 40,
     "selection_seed": 20250814,
     "sentence_policy": "paraphrased_or_new"
   },
   "items": [
     {
-      "sentence": "The meeting derailed when a _____ attendee dominated every answer.",
-      "options": [
-        "hector",
-        "dissemble",
-        "attenuate",
-        "extirpate"
-      ],
-      "answer_index": 0,
-      "answer_word": "hector",
-      "part_of_speech": "verb",
-      "en_definition": "to bully or intimidate",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 1
-    },
-    {
-      "sentence": "Under scrutiny, the team's position became unmistakably _____.",
-      "options": [
-        "remonstrate",
-        "exculpate",
-        "discomfit",
-        "cosset"
-      ],
-      "answer_index": 3,
-      "answer_word": "cosset",
-      "part_of_speech": "verb",
-      "en_definition": "to care for and protect overindulgently",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 2
-    },
-    {
-      "sentence": "The issue resurfaced in a context that made it plainly _____.",
-      "options": [
-        "contumacious",
-        "peripatetic",
-        "assiduous",
-        "perfidious"
-      ],
-      "answer_index": 2,
-      "answer_word": "assiduous",
-      "part_of_speech": "adj",
-      "en_definition": "showing great care and perseverance",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 3
-    },
-    {
-      "sentence": "Her thesis was so _____ that the committee asked for a plain‑language summary.",
-      "options": [
-        "hector",
-        "pique",
-        "obfuscate",
-        "eschew"
-      ],
-      "answer_index": 2,
-      "answer_word": "obfuscate",
-      "part_of_speech": "verb",
-      "en_definition": "to make obscure or unclear",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 4
-    },
-    {
-      "sentence": "Despite mounting evidence, his position remained _____ throughout the hearings.",
-      "options": [
-        "jejune",
-        "churlish",
-        "lachrymose",
-        "implacable"
-      ],
-      "answer_index": 3,
-      "answer_word": "implacable",
-      "part_of_speech": "adj",
-      "en_definition": "unable to be appeased; relentless",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 5
-    },
-    {
-      "sentence": "His emails grew _____ as the release date slipped again.",
-      "options": [
-        "lugubrious",
-        "obsequious",
-        "implacable",
-        "noisome"
-      ],
-      "answer_index": 1,
-      "answer_word": "obsequious",
-      "part_of_speech": "adj",
-      "en_definition": "excessively obedient or attentive",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 6
-    },
-    {
-      "sentence": "Known for being _____ , he argued over paying for shared tools.",
-      "options": [
-        "noisome",
-        "obsequious",
-        "parsimonious",
-        "ersatz"
-      ],
-      "answer_index": 2,
-      "answer_word": "parsimonious",
-      "part_of_speech": "adj",
-      "en_definition": "unwilling to spend money; stingy",
-      "difficulty_hint": "easy",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 7
-    },
-    {
-      "sentence": "A single _____ donation kept the after‑school program afloat for another year.",
-      "options": [
-        "munificent",
-        "obdurate",
-        "captious",
-        "pellucid"
-      ],
-      "answer_index": 0,
-      "answer_word": "munificent",
-      "part_of_speech": "adj",
-      "en_definition": "more generous than usual",
-      "difficulty_hint": "easy",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 8
-    },
-    {
-      "sentence": "Better insulation should _____ the noise from the generators.",
-      "options": [
-        "execrate",
-        "attenuate",
-        "discomfit",
-        "remonstrate"
-      ],
-      "answer_index": 1,
-      "answer_word": "attenuate",
-      "part_of_speech": "verb",
-      "en_definition": "to reduce in force, effect, or thickness",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 9
-    },
-    {
-      "sentence": "They treated the matter as _____ and moved on.",
-      "options": [
-        "excoriate",
-        "equivocate",
-        "execrate",
-        "cosset"
-      ],
-      "answer_index": 2,
-      "answer_word": "execrate",
-      "part_of_speech": "verb",
-      "en_definition": "to feel or express great loathing for",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 10
-    },
-    {
-      "sentence": "Pressed for details, the spokesperson grew _____ and offered slippery answers.",
-      "options": [
-        "contumacious",
-        "chary",
-        "mendacious",
-        "reticent"
-      ],
-      "answer_index": 2,
-      "answer_word": "mendacious",
-      "part_of_speech": "adj",
-      "en_definition": "not telling the truth; lying",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 11
-    },
-    {
-      "sentence": "Residents began to _____ the plan at the town hall, forcing a rewrite.",
-      "options": [
-        "remonstrate",
-        "gainsay",
-        "excoriate",
-        "prevaricate"
-      ],
-      "answer_index": 0,
-      "answer_word": "remonstrate",
-      "part_of_speech": "verb",
-      "en_definition": "to make a forceful protest",
-      "difficulty_hint": "easy",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 12
-    },
-    {
-      "sentence": "Pressed for details, the spokesperson grew _____ and offered slippery answers.",
-      "options": [
-        "dissemble",
-        "execrate",
-        "hector",
-        "enjoin"
-      ],
-      "answer_index": 0,
-      "answer_word": "dissemble",
-      "part_of_speech": "verb",
-      "en_definition": "to conceal one's true motives",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 13
-    },
-    {
-      "sentence": "The meeting derailed when a _____ attendee dominated every answer.",
-      "options": [
-        "querulous",
-        "recondite",
-        "phlegmatic",
-        "polemical"
-      ],
-      "answer_index": 0,
-      "answer_word": "querulous",
-      "part_of_speech": "adj",
-      "en_definition": "complaining in a whining manner",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 14
-    },
-    {
-      "sentence": "They treated the matter as _____ and moved on.",
-      "options": [
-        "hector",
-        "pique",
-        "gainsay",
-        "remonstrate"
-      ],
-      "answer_index": 1,
-      "answer_word": "pique",
-      "part_of_speech": "verb",
-      "en_definition": "to arouse interest or irritation",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 15
-    },
-    {
-      "sentence": "A long hike in the heat will _____ even seasoned runners.",
-      "options": [
-        "enervate",
-        "fulminate",
-        "hector",
-        "propitiate"
-      ],
+      "sentence": "A long hike in the intense heat will _____ even the most experienced climbers.",
+      "options": [ "enervate", "dissemble", "exculpate", "cosset" ],
       "answer_index": 0,
       "answer_word": "enervate",
       "part_of_speech": "verb",
-      "en_definition": "to weaken or drain energy",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 16
+      "en_definition": "to weaken or drain energy"
     },
     {
-      "sentence": "The deadline felt _____; no petition could push it back any further.",
-      "options": [
-        "protean",
-        "dilatory",
-        "ineluctable",
-        "sagacious"
-      ],
-      "answer_index": 2,
-      "answer_word": "ineluctable",
-      "part_of_speech": "adj",
-      "en_definition": "unable to be resisted; inescapable",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 17
+      "sentence": "The politician's speech was filled with _____, offering no real solutions.",
+      "options": [ "platitude", "calumny", "opprobrium", "polemic" ],
+      "answer_index": 0,
+      "answer_word": "platitude",
+      "part_of_speech": "noun",
+      "en_definition": "a trite, overused remark"
     },
     {
-      "sentence": "Her _____ reading of the brief uncovered the hidden constraint.",
-      "options": [
-        "prolix",
-        "bilious",
-        "sagacious",
-        "perfidious"
-      ],
-      "answer_index": 2,
-      "answer_word": "sagacious",
-      "part_of_speech": "adj",
-      "en_definition": "having or showing good judgment; wise",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 18
-    },
-    {
-      "sentence": "They treated the matter as _____ and moved on.",
-      "options": [
-        "polemical",
-        "ersatz",
-        "bilious",
-        "dilatory"
-      ],
+      "sentence": "His _____ remarks sparked a heated and controversial debate online.",
+      "options": [ "polemical", "assiduous", "pellucid", "reticent" ],
       "answer_index": 0,
       "answer_word": "polemical",
       "part_of_speech": "adj",
-      "en_definition": "strongly critical or controversial",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 19
+      "en_definition": "strongly critical or controversial"
     },
     {
-      "sentence": "The corridor remained _____ with the smell of roasted coffee.",
-      "options": [
-        "lachrymose",
-        "inexorable",
-        "redolent",
-        "implacable"
-      ],
-      "answer_index": 2,
-      "answer_word": "redolent",
-      "part_of_speech": "adj",
-      "en_definition": "strongly reminiscent; fragrant",
-      "difficulty_hint": "easy",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 20
-    },
-    {
-      "sentence": "Under scrutiny, the team's position became unmistakably _____.",
-      "options": [
-        "jejune",
-        "apocryphal",
-        "recondite",
-        "desultory"
-      ],
+      "sentence": "The odd clue in the detective's file managed to _____ her curiosity.",
+      "options": [ "pique", "hector", "execrate", "obfuscate" ],
       "answer_index": 0,
-      "answer_word": "jejune",
-      "part_of_speech": "adj",
-      "en_definition": "naive, simplistic, and superficial",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 21
-    },
-    {
-      "sentence": "Under scrutiny, the team's position became unmistakably _____.",
-      "options": [
-        "pugnacious",
-        "abstruse",
-        "ribald",
-        "apocryphal"
-      ],
-      "answer_index": 0,
-      "answer_word": "pugnacious",
-      "part_of_speech": "adj",
-      "en_definition": "eager or quick to argue or fight",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 22
-    },
-    {
-      "sentence": "Under scrutiny, the team's position became unmistakably _____.",
-      "options": [
-        "discomfit",
-        "prevaricate",
-        "extirpate",
-        "dissemble"
-      ],
-      "answer_index": 0,
-      "answer_word": "discomfit",
+      "answer_word": "pique",
       "part_of_speech": "verb",
-      "en_definition": "to make uneasy or embarrass; to thwart",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 23
+      "en_definition": "to arouse interest or irritation"
     },
     {
-      "sentence": "Pressed for details, the spokesperson grew _____ and offered slippery answers.",
-      "options": [
-        "perfidious",
-        "apocryphal",
-        "parsimonious",
-        "quixotic"
-      ],
+      "sentence": "The _____ editor meticulously checked every fact and citation in the manuscript.",
+      "options": [ "assiduous", "dilatory", "querulous", "perfidious" ],
       "answer_index": 0,
-      "answer_word": "perfidious",
+      "answer_word": "assiduous",
       "part_of_speech": "adj",
-      "en_definition": "deceitful and untrustworthy",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 24
+      "en_definition": "showing great care and perseverance"
     },
     {
-      "sentence": "The issue resurfaced in a context that made it plainly _____.",
-      "options": [
-        "dilatory",
-        "inveterate",
-        "intransigent",
-        "ribald"
-      ],
+      "sentence": "She remained an _____ critic of the new policy, refusing any compromise.",
+      "options": [ "implacable", "protean", "sagacious", "seditious" ],
       "answer_index": 0,
-      "answer_word": "dilatory",
+      "answer_word": "implacable",
       "part_of_speech": "adj",
-      "en_definition": "slow to act; intended to cause delay",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 25
+      "en_definition": "unable to be appeased; relentless"
     },
     {
-      "sentence": "The issue resurfaced in a context that made it plainly _____.",
-      "options": [
-        "exculpate",
-        "execrate",
-        "remonstrate",
-        "discomfit"
-      ],
+      "sentence": "The article was retracted after it was found to be full of _____ and lies.",
+      "options": [ "calumny", "platitude", "opprobrium", "enervation" ],
+      "answer_index": 0,
+      "answer_word": "calumny",
+      "part_of_speech": "noun",
+      "en_definition": "a false and slanderous statement"
+    },
+    {
+      "sentence": "The CEO's _____ explanation of the company's finances only confused the investors.",
+      "options": [ "prolix", "trenchant", "pellucid", "assiduous" ],
+      "answer_index": 0,
+      "answer_word": "prolix",
+      "part_of_speech": "adj",
+      "en_definition": "using too many words; tediously long"
+    },
+    {
+      "sentence": "Faced with direct questions, he began to _____, giving vague and misleading answers.",
+      "options": [ "equivocate", "exculpate", "remonstrate", "propitiate" ],
+      "answer_index": 0,
+      "answer_word": "equivocate",
+      "part_of_speech": "verb",
+      "en_definition": "to use ambiguous language to mislead"
+    },
+    {
+      "sentence": "New forensic evidence was presented to _____ the defendant.",
+      "options": [ "exculpate", "execrate", "discomfit", "hector" ],
       "answer_index": 0,
       "answer_word": "exculpate",
       "part_of_speech": "verb",
-      "en_definition": "to clear from alleged fault or guilt",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 26
+      "en_definition": "to clear from alleged fault or guilt"
     },
     {
-      "sentence": "The memo used _____ phrasing to hide who approved the budget cut.",
-      "options": [
-        "excoriate",
-        "attenuate",
-        "hector",
-        "equivocate"
-      ],
-      "answer_index": 3,
-      "answer_word": "equivocate",
+      "sentence": "The manager's attempt to _____ the issue with jargon made the team suspicious.",
+      "options": [ "obfuscate", "attenuate", "pique", "enervate" ],
+      "answer_index": 0,
+      "answer_word": "obfuscate",
       "part_of_speech": "verb",
-      "en_definition": "to use ambiguous language to mislead",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 27
+      "en_definition": "to make obscure or unclear"
     },
     {
-      "sentence": "Residents began to _____ the plan at the town hall, forcing a rewrite.",
-      "options": [
-        "calumny",
-        "ennui",
-        "opprobrium",
-        "platitude"
-      ],
-      "answer_index": 2,
+      "sentence": "A _____ reviewer found fault with every single aspect of the film.",
+      "options": [ "captious", "munificent", "sagacious", "protean" ],
+      "answer_index": 0,
+      "answer_word": "captious",
+      "part_of_speech": "adj",
+      "en_definition": "inclined to find trivial faults"
+    },
+    {
+      "sentence": "The unexpected question during the press conference seemed to _____ the politician.",
+      "options": [ "discomfit", "cosset", "propitiate", "exculpate" ],
+      "answer_index": 0,
+      "answer_word": "discomfit",
+      "part_of_speech": "verb",
+      "en_definition": "to make uneasy or embarrass; to thwart"
+    },
+    {
+      "sentence": "The public _____ following the scandal forced the minister to resign.",
+      "options": [ "opprobrium", "calumny", "platitude", "sédition" ],
+      "answer_index": 0,
       "answer_word": "opprobrium",
       "part_of_speech": "noun",
-      "en_definition": "harsh criticism or public disgrace",
-      "difficulty_hint": "easy",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 28
+      "en_definition": "harsh criticism or public disgrace"
     },
     {
-      "sentence": "Her column was so _____ that the comments section exploded overnight.",
-      "options": [
-        "prevaricate",
-        "excoriate",
-        "extirpate",
-        "eschew"
-      ],
-      "answer_index": 1,
-      "answer_word": "excoriate",
+      "sentence": "His prose is wonderfully _____, making complex scientific ideas accessible to all.",
+      "options": [ "pellucid", "prolix", "jejune", "polemical" ],
+      "answer_index": 0,
+      "answer_word": "pellucid",
+      "part_of_speech": "adj",
+      "en_definition": "transparently clear and easily understood"
+    },
+    {
+      "sentence": "The senior manager would often _____ junior employees into working late.",
+      "options": [ "hector", "dissemble", "enervate", "attenuate" ],
+      "answer_index": 0,
+      "answer_word": "hector",
       "part_of_speech": "verb",
-      "en_definition": "to criticize severely",
-      "difficulty_hint": "easy",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 29
+      "en_definition": "to bully or intimidate"
     },
     {
-      "sentence": "They treated the matter as _____ and moved on.",
-      "options": [
-        "jejune",
-        "perspicacious",
-        "noisome",
-        "intransigent"
-      ],
-      "answer_index": 2,
+      "sentence": "She was a _____ supporter of the arts, donating generously to museums and theaters.",
+      "options": [ "munificent", "parsimonious", "perfidious", "captious" ],
+      "answer_index": 0,
+      "answer_word": "munificent",
+      "part_of_speech": "adj",
+      "en_definition": "more generous than usual"
+    },
+    {
+      "sentence": "Despite his calm exterior, he was known to be _____ in negotiations.",
+      "options": [ "pugnacious", "reticent", "assiduous", "sagacious" ],
+      "answer_index": 0,
+      "answer_word": "pugnacious",
+      "part_of_speech": "adj",
+      "en_definition": "eager or quick to argue or fight"
+    },
+    {
+      "sentence": "They sent a lavish gift to _____ the unhappy client.",
+      "options": [ "propitiate", "execrate", "excoriate", "hector" ],
+      "answer_index": 0,
+      "answer_word": "propitiate",
+      "part_of_speech": "verb",
+      "en_definition": "to win or regain favor by doing something pleasing"
+    },
+    {
+      "sentence": "The actor had a _____ career, playing everything from villains to heroes.",
+      "options": [ "protean", "dilatory", "implacable", "jejune" ],
+      "answer_index": 0,
+      "answer_word": "protean",
+      "part_of_speech": "adj",
+      "en_definition": "tending to change frequently; very versatile"
+    },
+    {
+      "sentence": "The committee's _____ tactics delayed the vote by several weeks.",
+      "options": [ "dilatory", "trenchant", "assiduous", "seditious" ],
+      "answer_index": 0,
+      "answer_word": "dilatory",
+      "part_of_speech": "adj",
+      "en_definition": "slow to act; intended to cause delay"
+    },
+    {
+      "sentence": "Her _____ commentary on the political situation was quoted by several news outlets.",
+      "options": [ "trenchant", "querulous", "prolix", "dilatory" ],
+      "answer_index": 0,
+      "answer_word": "trenchant",
+      "part_of_speech": "adj",
+      "en_definition": "vigorous or incisive in expression or style"
+    },
+    {
+      "sentence": "He was _____ about his past, revealing very little to his new friends.",
+      "options": [ "reticent", "pugnacious", "polemical", "protean" ],
+      "answer_index": 0,
+      "answer_word": "reticent",
+      "part_of_speech": "adj",
+      "en_definition": "not revealing one's thoughts readily"
+    },
+    {
+      "sentence": "The _____ smell from the abandoned factory was a concern for local residents.",
+      "options": [ "noisome", "redolent", "pellucid", "assiduous" ],
+      "answer_index": 0,
       "answer_word": "noisome",
       "part_of_speech": "adj",
-      "en_definition": "offensive, especially to the senses; harmful",
-      "difficulty_hint": "medium",
-      "sentence_policy": "paraphrased_or_new",
-      "q_number": 30
+      "en_definition": "offensive, especially to the senses; harmful"
+    },
+    {
+      "sentence": "He was a _____ leader, known for his wisdom and sound judgment.",
+      "options": [ "sagacious", "jejune", "mendacious", "perfidious" ],
+      "answer_index": 0,
+      "answer_word": "sagacious",
+      "part_of_speech": "adj",
+      "en_definition": "having or showing good judgment; wise"
+    },
+    {
+      "sentence": "The rebels were accused of distributing _____ propaganda.",
+      "options": [ "seditious", "anodyne", "obsequious", "munificent" ],
+      "answer_index": 0,
+      "answer_word": "seditious",
+      "part_of_speech": "adj",
+      "en_definition": "inciting or causing people to rebel against the authority"
+    },
+    {
+      "sentence": "Critics _____ the new policy as a disaster for the economy.",
+      "options": [ "excoriate", "exculpate", "propitiate", "cosset" ],
+      "answer_index": 0,
+      "answer_word": "excoriate",
+      "part_of_speech": "verb",
+      "en_definition": "to criticize severely"
+    },
+    {
+      "sentence": "The _____ claims in the advertisement were later proven to be false.",
+      "options": [ "mendacious", "sagacious", "assiduous", "pellucid" ],
+      "answer_index": 0,
+      "answer_word": "mendacious",
+      "part_of_speech": "adj",
+      "en_definition": "not telling the truth; lying"
+    },
+    {
+      "sentence": "He tried to _____ his true feelings behind a smile, but his eyes told a different story.",
+      "options": [ "dissemble", "hector", "pique", "remonstrate" ],
+      "answer_index": 0,
+      "answer_word": "dissemble",
+      "part_of_speech": "verb",
+      "en_definition": "to conceal one's true motives"
+    },
+    {
+      "sentence": "The kitchen was _____ with the scent of cinnamon and baking apples.",
+      "options": [ "redolent", "noisome", "seditious", "trenchant" ],
+      "answer_index": 0,
+      "answer_word": "redolent",
+      "part_of_speech": "adj",
+      "en_definition": "strongly reminiscent; fragrant"
+    },
+    {
+      "sentence": "The citizens began to _____ against the new tax laws.",
+      "options": [ "remonstrate", "equivocate", "cosset", "attenuate" ],
+      "answer_index": 0,
+      "answer_word": "remonstrate",
+      "part_of_speech": "verb",
+      "en_definition": "to make a forceful protest"
+    },
+    {
+      "sentence": "A _____ partner revealed the company's secrets to a competitor.",
+      "options": [ "perfidious", "assiduous", "sagacious", "munificent" ],
+      "answer_index": 0,
+      "answer_word": "perfidious",
+      "part_of_speech": "adj",
+      "en_definition": "deceitful and untrustworthy"
+    },
+    {
+      "sentence": "The _____ child complained about every meal he was served.",
+      "options": [ "querulous", "reticent", "obsequious", "protean" ],
+      "answer_index": 0,
+      "answer_word": "querulous",
+      "part_of_speech": "adj",
+      "en_definition": "complaining in a whining manner"
+    },
+    {
+      "sentence": "The arguments in the book were _____, lacking any depth or originality.",
+      "options": [ "jejune", "trenchant", "sagacious", "pellucid" ],
+      "answer_index": 0,
+      "answer_word": "jejune",
+      "part_of_speech": "adj",
+      "en_definition": "naive, simplistic, and superficial"
+    },
+    {
+      "sentence": "The _____ approach to the problem meant that nothing was ever solved.",
+      "options": [ "parsimonious", "munificent", "assiduous", "pugnacious" ],
+      "answer_index": 0,
+      "answer_word": "parsimonious",
+      "part_of_speech": "adj",
+      "en_definition": "unwilling to spend money; stingy"
+    },
+    {
+      "sentence": "He was so _____ that he would do anything his boss asked, no matter how unreasonable.",
+      "options": [ "obsequious", "captious", "seditious", "querulous" ],
+      "answer_index": 0,
+      "answer_word": "obsequious",
+      "part_of_speech": "adj",
+      "en_definition": "excessively obedient or attentive"
+    },
+    {
+      "sentence": "The soundproof walls were designed to _____ the noise from the street.",
+      "options": [ "attenuate", "enervate", "excoriate", "obfuscate" ],
+      "answer_index": 0,
+      "answer_word": "attenuate",
+      "part_of_speech": "verb",
+      "en_definition": "to reduce in force, effect, or thickness"
+    },
+    {
+      "sentence": "The citizens would _____ the corrupt dictator in their private conversations.",
+      "options": [ "execrate", "exculpate", "propitiate", "dissemble" ],
+      "answer_index": 0,
+      "answer_word": "execrate",
+      "part_of_speech": "verb",
+      "en_definition": "to feel or express great loathing for"
+    },
+    {
+      "sentence": "He tended to _____ his youngest child, giving her everything she wanted.",
+      "options": [ "cosset", "hector", "discomfit", "remonstrate" ],
+      "answer_index": 0,
+      "answer_word": "cosset",
+      "part_of_speech": "verb",
+      "en_definition": "to care for and protect overindulgently"
+    },
+    {
+      "sentence": "The _____ nature of change is a central theme in the novel.",
+      "options": [ "ineluctable", "perfidious", "mendacious", "dilatory" ],
+      "answer_index": 0,
+      "answer_word": "ineluctable",
+      "part_of_speech": "adj",
+      "en_definition": "unable to be resisted; inescapable"
     }
   ]
 }

@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "week": 1,
+    "day": 0,
+    "items": 5,
+    "selection_seed": 20250814,
+    "sentence_policy": "simple_intro"
+  },
+  "items": [
+    {
+      "sentence": "_____, how are you today?",
+      "options": [ "Hello", "Goodbye", "Maybe", "Always" ],
+      "answer_index": 0,
+      "answer_word": "Hello",
+      "part_of_speech": "interjection",
+      "en_definition": "used as a greeting"
+    },
+    {
+      "sentence": "We _____ something new every day.",
+      "options": [ "learn", "forget", "ignore", "avoid" ],
+      "answer_index": 0,
+      "answer_word": "learn",
+      "part_of_speech": "verb", 
+      "en_definition": "to gain knowledge or skill"
+    },
+    {
+      "sentence": "This is a _____ example.",
+      "options": [ "simple", "complex", "difficult", "confusing" ],
+      "answer_index": 0,
+      "answer_word": "simple",
+      "part_of_speech": "adj",
+      "en_definition": "easy to understand or do"
+    },
+    {
+      "sentence": "_____ makes perfect.",
+      "options": [ "Practice", "Laziness", "Confusion", "Worry" ],
+      "answer_index": 0,
+      "answer_word": "Practice",
+      "part_of_speech": "verb",
+      "en_definition": "to do something repeatedly to improve"
+    },
+    {
+      "sentence": "Let's _____ our learning journey.",
+      "options": [ "start", "finish", "avoid", "delay" ],
+      "answer_index": 0,
+      "answer_word": "start",
+      "part_of_speech": "verb",
+      "en_definition": "to begin something"
+    }
+  ]
+}

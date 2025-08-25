@@ -78,8 +78,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             print('正在初始化通知服务...');
           }
           await NotificationService.instance.initialize();
-          // 安排每日報告通知
-          await NotificationService.instance.scheduleDailyReportNotification();
+          // 注意：每日報告通知由 AuthService 在新用戶建立時統一排定15天，此處不重複排定
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context)
@@ -141,16 +140,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 額外的通知排程檢查（處理用戶手動修改 Google Calendar 的情況）
         _checkNotificationSchedule(uid);
         
-        // 只有实验组才检查是否有任務需要顯示開始對話框
-        if (_isExperimentGroup) {
-          // 如果app是由通知打開的，跳过此检查，因为notification_handler会处理对话框显示
-          if (AppUsageService.instance.openedByNotification) {
-            if (kDebugMode) {
-              print('App由通知打開，跳过pending task检查，由notification_handler处理');
-            }
-          } else {
-            _checkPendingTaskStart(uid, forceShow: false);
+        // 检查是否有任務需要顯示開始對話框（实验组和对照组都显示）
+        // 如果app是由通知打開的，跳过此检查，因为notification_handler会处理对话框显示
+        if (AppUsageService.instance.openedByNotification) {
+          if (kDebugMode) {
+            print('App由通知打開，跳过pending task检查，由notification_handler处理');
           }
+        } else {
+          _checkPendingTaskStart(uid, forceShow: false);
         }
         
         // 重置通知打开标志，确保下次resume时正常检查
@@ -264,12 +261,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // 已經顯示過完成提醒對話框的任務不再顯示開始對話框
           if (NotificationHandler.instance.shownCompletionDialogTaskIds.contains(event.id)) return false;
         }
-        
-        // 只在任務開始時間前10分鐘到開始後20分鐘內顯示對話框
         const beforeBuffer = Duration(minutes: 10); // 開始前10分鐘
-        const afterBuffer = Duration(minutes: 20);  // 開始後20分鐘
+        const afterBuffer = Duration(minutes: 30);  // 開始後30分鐘 (原為20分鐘)
         final earliestShowTime = event.scheduledStartTime.subtract(beforeBuffer); // 開始前10分鐘
-        final latestShowTime = event.scheduledStartTime.add(afterBuffer);         // 開始後20分鐘
+        final latestShowTime = event.scheduledStartTime.add(afterBuffer);         // 開始後30分鐘
         
         // 當前時間必須在時間窗口內
         final inTimeWindow = now.isAfter(earliestShowTime) && now.isBefore(latestShowTime);
@@ -302,6 +297,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 記錄已顯示過對話框
         _shownDialogTaskIds.add(mostUrgentTask.id);
         
+        // 檢查當前日期的用戶組別
+        bool isControlGroup = false;
+        try {
+          isControlGroup = await ExperimentConfigService.instance.isControlGroup(uid);
+        } catch (e) {
+          if (kDebugMode) {
+            print('檢查用戶組別失敗: $e');
+          }
+        }
+        
         // 設置對話框顯示狀態
         NotificationHandler.instance.setTaskStartDialogShowing(true);
         
@@ -310,14 +315,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (context) => TaskStartDialog(event: mostUrgentTask),
+            builder: (context) => TaskStartDialog(event: mostUrgentTask, isControlGroup: isControlGroup),
           ).then((_) {
             // 對話框關閉時重置狀態
             NotificationHandler.instance.setTaskStartDialogShowing(false);
           });
           
           if (kDebugMode) {
-            print('顯示任務開始對話框: ${mostUrgentTask.title}');
+            print('顯示任務開始對話框: ${mostUrgentTask.title}, isControlGroup: $isControlGroup');
           }
         } else {
           // 如果context不可用，重置狀態
@@ -353,11 +358,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     switch (action) {
       case TaskAction.start:
         await CalendarService.instance.startEvent(uid, e);
-        await AnalyticsService().logTaskStarted('event_card');
-        
-        // 跳转到相应的任务页面
+        // 跳转到相应的任务页面，source 为 'home_screen'
         if (mounted) {
-          TaskRouterService().navigateToTaskPage(context, e);
+          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen');
         }
         break;
       case TaskAction.stop:
@@ -368,12 +371,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         break;
       case TaskAction.continue_:
         await CalendarService.instance.continueEvent(uid, e);
-        await AnalyticsService().logTaskStarted('event_card_continue');
-        
-        // 跳转到相应的任务页面
+        // 跳转到相应的任务页面，source 为 'home_screen_continue'
         if (mounted) {
-          TaskRouterService().navigateToTaskPage(context, e);
+          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen_continue');
         }
+        break;
+      case TaskAction.reviewStart:
+        await ExperimentEventHelper.recordReviewStart(uid: uid, eventId: e.id);
+        await AnalyticsService().logEvent('review_started', parameters: {
+          'source': 'event_card',
+        });
+        if (mounted) {
+          TaskRouterService().navigateToTaskPage(context, e, source: 'home_screen_review');
+        }
+        break;
+      case TaskAction.reviewEnd:
+        await ExperimentEventHelper.recordReviewEnd(uid: uid, eventId: e.id);
+        await AnalyticsService().logEvent('review_ended', parameters: {
+          'source': 'event_card',
+        });
         break;
     }
   }
@@ -466,67 +482,138 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               
                               return Stack(
                                 children: [
-                                  // 事件列表
-                                  ListView.separated(
+                                  // 事件列表 + Past Events 區塊
+                                  ListView(
                                     padding: listPadding,
-                                    itemCount: list.length,
-                                    separatorBuilder: (_, __) =>
-                                        SizedBox(height: listViewSpacing),
-                                    itemBuilder: (_, i) => EventCard(
+                                    children: [
+                                      // 今日事件
+                                      ...List.generate(list.length, (i) => Padding(
+                                        padding: EdgeInsets.only(bottom: listViewSpacing),
+                                        child: EventCard(
                                         event: list[i],
                                         onAction: (a) => _handleAction(list[i], a),
-                                        // 根据实验组别决定是否显示聊天按钮
                                         onOpenChat: _isExperimentGroup ? () async {
                                           if (mounted) {
-                                            // 防止重複點擊
                                             if (_isOpeningChat) return;
                                             _isOpeningChat = true;
-                                            
                                             try {
-                                              // 🎯 實驗數據收集：記錄聊天按鈕點擊
                                               final uid = context.read<AuthService>().currentUser?.uid;
                                               if (uid != null) {
                                                 final chatId = ExperimentEventHelper.generateChatId(list[i].id, DateTime.now());
-                                                
                                                 await ExperimentEventHelper.recordChatTrigger(
                                                   uid: uid,
                                                   eventId: list[i].id,
                                                   chatId: chatId,
                                                 );
-                                                
                                                 Navigator.of(context).push(
                                                   MaterialPageRoute(
                                                     builder: (_) => ChangeNotifierProvider(
                                                       create: (_) => ChatProvider(
                                                         taskTitle: list[i].title,
-                                                        taskDescription: list[i].description, // 新增描述參數
+                                                          taskDescription: list[i].description,
                                                         startTime: list[i].scheduledStartTime,
                                                         uid: uid,
                                                         eventId: list[i].id,
                                                         chatId: chatId,
-                                                        entryMethod: ChatEntryMethod.eventCard, // 🎯 新增：事件卡片進入
-                                                        dayNumber: list[i].dayNumber, // 新增dayNumber參數
+                                                          entryMethod: ChatEntryMethod.eventCard,
+                                                          dayNumber: list[i].dayNumber,
                                                       ),
                                                       child: ChatScreen(
                                                         taskTitle: list[i].title,
-                                                        taskDescription: list[i].description, // 新增描述參數
+                                                          taskDescription: list[i].description,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              } finally {
+                                                Future.delayed(const Duration(milliseconds: 500), () {
+                                                  if (mounted) {
+                                                    setState(() { _isOpeningChat = false; });
+                                                  }
+                                                });
+                                              }
+                                            }
+                                          } : null,
+                                        ),
+                                      )),
+
+                                      SizedBox(height: listViewSpacing * 1.5),
+                                      // Past Events 區塊
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(vertical: listViewSpacing),
+                                        child: Text(
+                                          'Past Events',
+                                          style: TextStyle(
+                                            fontSize: (18 * responsiveText).clamp(16.0, 22.0),
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFF3A4A46),
+                                          ),
+                                        ),
+                                      ),
+                                      StreamBuilder<List<EventModel>>(
+                                        stream: context.read<EventsProvider>().getPastEventsStream(context.read<AuthService>().currentUser!),
+                                        builder: (context, pastSnap) {
+                                          final past = (pastSnap.data ?? []).where((e) => e.id.isNotEmpty).toList();
+                                          if (past.isEmpty) {
+                                            return const Text('No past events this week.');
+                                          }
+                                          return Column(
+                                            children: past.map((e) => Padding(
+                                              padding: EdgeInsets.only(bottom: listViewSpacing),
+                                              child: EventCard(
+                                                event: e,
+                                                onAction: (a) => _handleAction(e, a),
+                                                isPastEvent: true, // 標記為過去事件
+                                                onOpenChat: _isExperimentGroup ? () async {
+                                                  if (mounted) {
+                                                    if (_isOpeningChat) return;
+                                                    _isOpeningChat = true;
+                                                    try {
+                                                      final uid = context.read<AuthService>().currentUser?.uid;
+                                                      if (uid != null) {
+                                                        final chatId = ExperimentEventHelper.generateChatId(e.id, DateTime.now());
+                                                        await ExperimentEventHelper.recordChatTrigger(
+                                                          uid: uid,
+                                                          eventId: e.id,
+                                                          chatId: chatId,
+                                                        );
+                                                        Navigator.of(context).push(
+                                                          MaterialPageRoute(
+                                                            builder: (_) => ChangeNotifierProvider(
+                                                              create: (_) => ChatProvider(
+                                                                taskTitle: e.title,
+                                                                taskDescription: e.description,
+                                                                startTime: e.scheduledStartTime,
+                                                                uid: uid,
+                                                                eventId: e.id,
+                                                                chatId: chatId,
+                                                                entryMethod: ChatEntryMethod.eventCard,
+                                                                dayNumber: e.dayNumber,
+                                                              ),
+                                                              child: ChatScreen(
+                                                                taskTitle: e.title,
+                                                                taskDescription: e.description,
                                                       ),
                                                     ),
                                                   ),
                                                 );
                                               }
                                             } finally {
-                                              // 確保在導航完成後重置標記
                                               Future.delayed(const Duration(milliseconds: 500), () {
                                                 if (mounted) {
-                                                  setState(() {
-                                                    _isOpeningChat = false;
-                                                  });
+                                                          setState(() { _isOpeningChat = false; });
                                                 }
                                               });
                                             }
                                           }
-                                        } : null),
+                                                } : null,
+                                              ),
+                                            )).toList(),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ),
                                   // 同步loading overlay
                                   if (isSyncing)

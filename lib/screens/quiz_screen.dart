@@ -86,7 +86,7 @@ class _VocabScreenState extends State<VocabScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('單字學習 - ${widget.event.title}'),
+        title: Text('單字學習'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,

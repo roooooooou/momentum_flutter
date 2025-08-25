@@ -7,7 +7,7 @@
     "selection_method": "random_without_replacement",
     "counts": {
       "new": 8,
-      "review_due": 10
+      "review_due": 0
     },
     "session_time_limit_sec": 600
   },
@@ -85,126 +85,8 @@
       "label": "new"
     }
   ],
-  "review_items": [
-    {
-      "word": "perspicacious",
-      "part_of_speech": "adj",
-      "en_definition": "having keen insight and understanding",
-      "zh_explanation": "洞察力強；敏銳",
-      "example_en": "Her perspicacious reading solved the puzzle.",
-      "example_zh": "她的敏銳解讀解開了難題。",
-      "label": "review"
-    },
-    {
-      "word": "garrulous",
-      "part_of_speech": "adj",
-      "en_definition": "excessively talkative",
-      "zh_explanation": "喋喋不休；多話",
-      "example_en": "The garrulous host dominated the conversation.",
-      "example_zh": "多話的主持人幾乎壟斷了談話。",
-      "label": "review"
-    },
-    {
-      "word": "lugubrious",
-      "part_of_speech": "adj",
-      "en_definition": "looking or sounding dismal and gloomy",
-      "zh_explanation": "憂鬱陰鬱；悶悶不樂",
-      "example_en": "He spoke in a lugubrious, drawn-out tone.",
-      "example_zh": "他用陰鬱而拖長的語氣說話。",
-      "label": "review"
-    },
-    {
-      "word": "churlish",
-      "part_of_speech": "adj",
-      "en_definition": "rude in a mean-spirited way",
-      "zh_explanation": "粗鄙無禮且刻薄",
-      "example_en": "It would be churlish to refuse their help now.",
-      "example_zh": "此刻拒絕他們的幫忙會顯得無禮。",
-      "label": "review"
-    },
-    {
-      "word": "bilious",
-      "part_of_speech": "adj",
-      "en_definition": "irritable; nauseated",
-      "zh_explanation": "易怒；噁心不適",
-      "example_en": "He felt bilious after the turbulent flight.",
-      "example_zh": "顛簸的航班讓他噁心難受。",
-      "label": "review"
-    },
-    {
-      "word": "inexorable",
-      "part_of_speech": "adj",
-      "en_definition": "impossible to stop or persuade",
-      "zh_explanation": "無可阻擋；不可動搖",
-      "example_en": "The glacier's retreat proved inexorable.",
-      "example_zh": "冰川的退縮看來無可阻擋。",
-      "label": "review"
-    },
-    {
-      "word": "quixotic",
-      "part_of_speech": "adj",
-      "en_definition": "exceedingly idealistic; unrealistic and impractical",
-      "zh_explanation": "過度理想；不切實際",
-      "example_en": "Her quixotic project ignored all constraints.",
-      "example_zh": "她那理想化的專案無視所有限制。",
-      "label": "review"
-    },
-    {
-      "word": "ersatz",
-      "part_of_speech": "adj",
-      "en_definition": "artificial and inferior substitute",
-      "zh_explanation": "劣質仿製；代用品",
-      "example_en": "The ersatz leather peeled within weeks.",
-      "example_zh": "仿皮幾週內就開始剝落。",
-      "label": "review"
-    },
-    {
-      "word": "recondite",
-      "part_of_speech": "adj",
-      "en_definition": "little known; abstruse",
-      "zh_explanation": "艱澀難懂；少人知",
-      "example_en": "A recondite theorem puzzled the class.",
-      "example_zh": "艱澀的定理讓全班困惑。",
-      "label": "review"
-    },
-    {
-      "word": "fulminate",
-      "part_of_speech": "verb",
-      "en_definition": "to protest vehemently",
-      "zh_explanation": "強烈抨擊；譴責",
-      "example_en": "Residents fulminated against the rezoning plan.",
-      "example_zh": "居民強烈抨擊重劃計畫。",
-      "label": "review"
-    }
-  ],
+  "review_items": [],
   "items_shuffled": [
-    {
-      "word": "lugubrious",
-      "part_of_speech": "adj",
-      "en_definition": "looking or sounding dismal and gloomy",
-      "zh_explanation": "憂鬱陰鬱；悶悶不樂",
-      "example_en": "He spoke in a lugubrious, drawn-out tone.",
-      "example_zh": "他用陰鬱而拖長的語氣說話。",
-      "label": "review"
-    },
-    {
-      "word": "bilious",
-      "part_of_speech": "adj",
-      "en_definition": "irritable; nauseated",
-      "zh_explanation": "易怒；噁心不適",
-      "example_en": "He felt bilious after the turbulent flight.",
-      "example_zh": "顛簸的航班讓他噁心難受。",
-      "label": "review"
-    },
-    {
-      "word": "garrulous",
-      "part_of_speech": "adj",
-      "en_definition": "excessively talkative",
-      "zh_explanation": "喋喋不休；多話",
-      "example_en": "The garrulous host dominated the conversation.",
-      "example_zh": "多話的主持人幾乎壟斷了談話。",
-      "label": "review"
-    },
     {
       "word": "inveterate",
       "part_of_speech": "adj",
@@ -213,15 +95,6 @@
       "example_en": "He is an inveterate night owl and coder.",
       "example_zh": "他根深蒂固地是個夜貓子工程師。",
       "label": "new"
-    },
-    {
-      "word": "quixotic",
-      "part_of_speech": "adj",
-      "en_definition": "exceedingly idealistic; unrealistic and impractical",
-      "zh_explanation": "過度理想；不切實際",
-      "example_en": "Her quixotic project ignored all constraints.",
-      "example_zh": "她那理想化的專案無視所有限制。",
-      "label": "review"
     },
     {
       "word": "desultory",
@@ -269,33 +142,6 @@
       "label": "new"
     },
     {
-      "word": "recondite",
-      "part_of_speech": "adj",
-      "en_definition": "little known; abstruse",
-      "zh_explanation": "艱澀難懂；少人知",
-      "example_en": "A recondite theorem puzzled the class.",
-      "example_zh": "艱澀的定理讓全班困惑。",
-      "label": "review"
-    },
-    {
-      "word": "fulminate",
-      "part_of_speech": "verb",
-      "en_definition": "to protest vehemently",
-      "zh_explanation": "強烈抨擊；譴責",
-      "example_en": "Residents fulminated against the rezoning plan.",
-      "example_zh": "居民強烈抨擊重劃計畫。",
-      "label": "review"
-    },
-    {
-      "word": "ersatz",
-      "part_of_speech": "adj",
-      "en_definition": "artificial and inferior substitute",
-      "zh_explanation": "劣質仿製；代用品",
-      "example_en": "The ersatz leather peeled within weeks.",
-      "example_zh": "仿皮幾週內就開始剝落。",
-      "label": "review"
-    },
-    {
       "word": "extirpate",
       "part_of_speech": "verb",
       "en_definition": "to root out and destroy completely",
@@ -303,33 +149,6 @@
       "example_en": "The project aims to extirpate invasive weeds.",
       "example_zh": "這項計畫旨在根除外來雜草。",
       "label": "new"
-    },
-    {
-      "word": "perspicacious",
-      "part_of_speech": "adj",
-      "en_definition": "having keen insight and understanding",
-      "zh_explanation": "洞察力強；敏銳",
-      "example_en": "Her perspicacious reading solved the puzzle.",
-      "example_zh": "她的敏銳解讀解開了難題。",
-      "label": "review"
-    },
-    {
-      "word": "churlish",
-      "part_of_speech": "adj",
-      "en_definition": "rude in a mean-spirited way",
-      "zh_explanation": "粗鄙無禮且刻薄",
-      "example_en": "It would be churlish to refuse their help now.",
-      "example_zh": "此刻拒絕他們的幫忙會顯得無禮。",
-      "label": "review"
-    },
-    {
-      "word": "inexorable",
-      "part_of_speech": "adj",
-      "en_definition": "impossible to stop or persuade",
-      "zh_explanation": "無可阻擋；不可動搖",
-      "example_en": "The glacier's retreat proved inexorable.",
-      "example_zh": "冰川的退縮看來無可阻擋。",
-      "label": "review"
     },
     {
       "word": "ingenuous",

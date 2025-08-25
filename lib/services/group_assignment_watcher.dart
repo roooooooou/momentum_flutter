@@ -45,9 +45,8 @@ class GroupAssignmentWatcher {
           print('manual_week_assignment 變更為: ${current ?? '(null)'}，重新排程今天起的通知');
         }
 
-        // 1) 先處理每日報告：取消下一個固定ID的每日報告，並重排
+        // 1) 先處理每日報告：取消所有 daily report 通知（由 _rescheduleFromToday 重新排定）
         await NotificationService.instance.cancelDailyReportNotification();
-        await NotificationService.instance.scheduleDailyReportNotification();
 
         // 2) 取消並重排今天起未來 N 天（預設 15 天）的事件通知
         await _rescheduleFromToday(uid, days: 15);
@@ -66,7 +65,7 @@ class GroupAssignmentWatcher {
     _lastAssignment = null;
   }
 
-  /// 重新抓取今天起未來 days 天的事件並重排
+  /// 重新抓取今天起未來 days 天的事件並重排（包括 daily report 通知）
   Future<void> _rescheduleFromToday(String uid, {int days = 15}) async {
     final now = DateTime.now();
     for (int i = 0; i < days; i++) {
@@ -75,6 +74,24 @@ class GroupAssignmentWatcher {
       final events = await _fetchFutureEventsForDate(uid, day);
       if (events.isNotEmpty) {
         await NotificationScheduler().sync(events);
+        
+        // 重排該日期的 daily report 通知
+        await _rescheduleDailyReportForDate(day, i);
+      }
+    }
+  }
+  
+  /// 重新排定指定日期的 daily report 通知
+  Future<void> _rescheduleDailyReportForDate(DateTime date, int dayOffset) async {
+    try {
+      final notificationId = 1000000 + dayOffset;
+      await NotificationService.instance.scheduleDailyReportNotificationForDate(date, notificationId);
+      if (kDebugMode) {
+        print('重排 daily report 通知: ${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} (ID: $notificationId)');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('重排 daily report 通知失敗: $e');
       }
     }
   }

@@ -7,7 +7,7 @@
     "selection_method": "random_without_replacement",
     "counts": {
       "new": 8,
-      "review_due": 10
+      "review_due": 0
     },
     "session_time_limit_sec": 600
   },
@@ -85,126 +85,8 @@
       "label": "new"
     }
   ],
-  "review_items": [
-    {
-      "word": "polemical",
-      "part_of_speech": "adj",
-      "en_definition": "strongly critical or controversial",
-      "zh_explanation": "好辯；針鋒相對",
-      "example_en": "His polemical column sparked fierce debate.",
-      "example_zh": "他好辯的專欄引發激烈討論。",
-      "label": "review"
-    },
-    {
-      "word": "querulous",
-      "part_of_speech": "adj",
-      "en_definition": "complaining in a whining manner",
-      "zh_explanation": "愛抱怨；嘟囔",
-      "example_en": "His emails grew querulous under pressure.",
-      "example_zh": "壓力之下他的電郵越來越愛抱怨。",
-      "label": "review"
-    },
-    {
-      "word": "obsequious",
-      "part_of_speech": "adj",
-      "en_definition": "excessively obedient or attentive",
-      "zh_explanation": "諂媚；唯命是從",
-      "example_en": "Obsequious praise made her uncomfortable.",
-      "example_zh": "諂媚的恭維讓她不自在。",
-      "label": "review"
-    },
-    {
-      "word": "equivocate",
-      "part_of_speech": "verb",
-      "en_definition": "to use ambiguous language to mislead",
-      "zh_explanation": "含糊其詞以誤導",
-      "example_en": "He tends to equivocate when the stakes are high.",
-      "example_zh": "在關鍵時刻他總是含糊其詞。",
-      "label": "review"
-    },
-    {
-      "word": "calumny",
-      "part_of_speech": "noun",
-      "en_definition": "a false and slanderous statement",
-      "zh_explanation": "誹謗；不實中傷",
-      "example_en": "The article was pure calumny and had to be retracted.",
-      "example_zh": "那篇文章純屬誹謗，最後被撤回。",
-      "label": "review"
-    },
-    {
-      "word": "cosset",
-      "part_of_speech": "verb",
-      "en_definition": "to care for and protect overindulgently",
-      "zh_explanation": "溺愛；過度保護",
-      "example_en": "Grandparents often cosset the youngest child.",
-      "example_zh": "祖父母常常溺愛家中的么兒。",
-      "label": "review"
-    },
-    {
-      "word": "obfuscate",
-      "part_of_speech": "verb",
-      "en_definition": "to make obscure or unclear",
-      "zh_explanation": "使模糊；混淆視聽",
-      "example_en": "The memo tried to obfuscate the real costs.",
-      "example_zh": "這份備忘錄試圖混淆真實成本。",
-      "label": "review"
-    },
-    {
-      "word": "enervate",
-      "part_of_speech": "verb",
-      "en_definition": "to weaken or drain energy",
-      "zh_explanation": "使衰弱；使無力",
-      "example_en": "The humid heat enervated the runners.",
-      "example_zh": "悶熱讓跑者精疲力盡。",
-      "label": "review"
-    },
-    {
-      "word": "excoriate",
-      "part_of_speech": "verb",
-      "en_definition": "to criticize severely",
-      "zh_explanation": "痛斥；嚴厲譴責",
-      "example_en": "Critics excoriated the film's lazy script.",
-      "example_zh": "影評人痛斥這部片懶散的劇本。",
-      "label": "review"
-    },
-    {
-      "word": "exculpate",
-      "part_of_speech": "verb",
-      "en_definition": "to clear from alleged fault or guilt",
-      "zh_explanation": "為…脫罪；證明無罪",
-      "example_en": "New evidence exculpated the wrongly accused.",
-      "example_zh": "新證據讓被冤枉的人得以脫罪。",
-      "label": "review"
-    }
-  ],
+  "review_items": [],
   "items_shuffled": [
-    {
-      "word": "polemical",
-      "part_of_speech": "adj",
-      "en_definition": "strongly critical or controversial",
-      "zh_explanation": "好辯；針鋒相對",
-      "example_en": "His polemical column sparked fierce debate.",
-      "example_zh": "他好辯的專欄引發激烈討論。",
-      "label": "review"
-    },
-    {
-      "word": "cosset",
-      "part_of_speech": "verb",
-      "en_definition": "to care for and protect overindulgently",
-      "zh_explanation": "溺愛；過度保護",
-      "example_en": "Grandparents often cosset the youngest child.",
-      "example_zh": "祖父母常常溺愛家中的么兒。",
-      "label": "review"
-    },
-    {
-      "word": "obsequious",
-      "part_of_speech": "adj",
-      "en_definition": "excessively obedient or attentive",
-      "zh_explanation": "諂媚；唯命是從",
-      "example_en": "Obsequious praise made her uncomfortable.",
-      "example_zh": "諂媚的恭維讓她不自在。",
-      "label": "review"
-    },
     {
       "word": "noisome",
       "part_of_speech": "adj",
@@ -222,24 +104,6 @@
       "example_en": "Her pellucid prose clarified the concept.",
       "example_zh": "她清澈易懂的文字釐清了概念。",
       "label": "new"
-    },
-    {
-      "word": "querulous",
-      "part_of_speech": "adj",
-      "en_definition": "complaining in a whining manner",
-      "zh_explanation": "愛抱怨；嘟囔",
-      "example_en": "His emails grew querulous under pressure.",
-      "example_zh": "壓力之下他的電郵越來越愛抱怨。",
-      "label": "review"
-    },
-    {
-      "word": "enervate",
-      "part_of_speech": "verb",
-      "en_definition": "to weaken or drain energy",
-      "zh_explanation": "使衰弱；使無力",
-      "example_en": "The humid heat enervated the runners.",
-      "example_zh": "悶熱讓跑者精疲力盡。",
-      "label": "review"
     },
     {
       "word": "parsimonious",
@@ -260,24 +124,6 @@
       "label": "new"
     },
     {
-      "word": "calumny",
-      "part_of_speech": "noun",
-      "en_definition": "a false and slanderous statement",
-      "zh_explanation": "誹謗；不實中傷",
-      "example_en": "The article was pure calumny and had to be retracted.",
-      "example_zh": "那篇文章純屬誹謗，最後被撤回。",
-      "label": "review"
-    },
-    {
-      "word": "equivocate",
-      "part_of_speech": "verb",
-      "en_definition": "to use ambiguous language to mislead",
-      "zh_explanation": "含糊其詞以誤導",
-      "example_en": "He tends to equivocate when the stakes are high.",
-      "example_zh": "在關鍵時刻他總是含糊其詞。",
-      "label": "review"
-    },
-    {
       "word": "pugnacious",
       "part_of_speech": "adj",
       "en_definition": "eager or quick to argue or fight",
@@ -285,15 +131,6 @@
       "example_en": "A pugnacious debater took the stage.",
       "example_zh": "一位好鬥的辯手走上台。",
       "label": "new"
-    },
-    {
-      "word": "excoriate",
-      "part_of_speech": "verb",
-      "en_definition": "to criticize severely",
-      "zh_explanation": "痛斥；嚴厲譴責",
-      "example_en": "Critics excoriated the film's lazy script.",
-      "example_zh": "影評人痛斥這部片懶散的劇本。",
-      "label": "review"
     },
     {
       "word": "reticent",
@@ -312,24 +149,6 @@
       "example_en": "He likes to hector junior staff into agreement.",
       "example_zh": "他喜歡恐嚇菜鳥逼他們同意。",
       "label": "new"
-    },
-    {
-      "word": "exculpate",
-      "part_of_speech": "verb",
-      "en_definition": "to clear from alleged fault or guilt",
-      "zh_explanation": "為…脫罪；證明無罪",
-      "example_en": "New evidence exculpated the wrongly accused.",
-      "example_zh": "新證據讓被冤枉的人得以脫罪。",
-      "label": "review"
-    },
-    {
-      "word": "obfuscate",
-      "part_of_speech": "verb",
-      "en_definition": "to make obscure or unclear",
-      "zh_explanation": "使模糊；混淆視聽",
-      "example_en": "The memo tried to obfuscate the real costs.",
-      "example_zh": "這份備忘錄試圖混淆真實成本。",
-      "label": "review"
     },
     {
       "word": "redolent",

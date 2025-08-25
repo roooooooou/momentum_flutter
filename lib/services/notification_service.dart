@@ -396,6 +396,11 @@ class NotificationService {
       // 轉換為時區時間
       final scheduledDate = tz.TZDateTime.from(triggerTime, tz.local);
       
+      // 設定payload：一般事件通知使用具體的notifId（-1st/-2nd），其他自定義通知沿用原payload
+      final computedPayload = (payload != null && customTitle == null)
+          ? (isSecondNotification ? '$payload-2nd' : '$payload-1st')
+          : payload;
+
       await _plugin.zonedSchedule(
         notificationId,
         notificationTitle,
@@ -403,7 +408,7 @@ class NotificationService {
         scheduledDate,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: payload, // 使用事件ID作為 payload
+        payload: computedPayload,
       );
 
       // 🎯 實驗數據收集：記錄通知發送成功
@@ -686,10 +691,14 @@ class NotificationService {
       String? notifId;
       String? eventId;
       
-      {
-        // 普通事件通知（开始前通知）
+      // 解析payload：若為"<eventId>-1st/-2nd"，拆出eventId與notifId；否則沿用原payload
+      final match = RegExp(r'^(.*)-(1st|2nd)$').firstMatch(payload);
+      if (match != null) {
+        eventId = match.group(1)!;
+        notifId = payload;
+      } else {
         eventId = payload;
-        notifId = payload; // 使用payload作为notifId
+        notifId = payload;
       }
       
       if (notifId != null && eventId != null) {

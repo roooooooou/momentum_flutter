@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../models/event_model.dart';
 import '../models/reading_content_model.dart';
 import 'data_path_service.dart';
+import 'day_number_service.dart';
 
 class ReadingAnalyticsService {
   static final ReadingAnalyticsService _instance = ReadingAnalyticsService._internal();
@@ -11,15 +10,28 @@ class ReadingAnalyticsService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 取得新的實驗測驗結果文件引用：users/{uid}/experiment_quiz/{quizId}
-  DocumentReference _getExperimentQuizDoc(String uid, String quizId) {
-    return _firestore.collection('users').doc(uid).collection('experiment_quiz').doc(quizId);
-  }
-
   /// 获取阅读数据文档引用（自動解析事件所在集合）
   Future<DocumentReference> _getReadingDataRef(String uid, String eventId) async {
     final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
     return eventDoc.collection('reading').doc('analytics');
+  }
+
+  /// 根據事件日期計算週次（w0=0, w1=1, w2=2）。若無法判定則回傳0。
+  Future<int> _computeWeekFromEvent(String uid, String eventId) async {
+    try {
+      final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
+      final snap = await eventDoc.get();
+      if (!snap.exists) return 0;
+      final data = snap.data() as Map<String, dynamic>?;
+      DateTime? date = (data?['date'] as Timestamp?)?.toDate();
+      date ??= (data?['scheduledStartTime'] as Timestamp?)?.toDate();
+      if (date == null) return 0;
+      final dayNum = await DayNumberService().calculateDayNumber(date.toLocal());
+      if (dayNum == 0) return 0;  // w0 測試週
+      return dayNum <= 7 ? 1 : 2;  // w1 或 w2
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// 开始阅读会话
@@ -130,11 +142,13 @@ class ReadingAnalyticsService {
       final ref = await _getReadingDataRef(uid, eventId);
       final now = DateTime.now();
       
-      await ref.update({
+      // 使用 set merge: true 確保文檔存在
+      await ref.set({
+        'eventId': eventId,
         'status': 'quiz',
         'quizStartTime': Timestamp.fromDate(now),
         'updatedAt': Timestamp.fromDate(now),
-      });
+      }, SetOptions(merge: true));
     } catch (e) {
       print('开始测验记录失败: $e');
     }
@@ -146,44 +160,57 @@ class ReadingAnalyticsService {
     required String eventId,
     required int correctAnswers,
     required int totalQuestions,
+    int? quizTimeMs, // 新增測驗時間參數
   }) async {
     try {
       final ref = await _getReadingDataRef(uid, eventId);
       final now = DateTime.now();
       
-      // 获取当前数据来计算测验时间
-      final doc = await ref.get();
-      int quizTimeMs = 0;
-      if (doc.exists) {
-        final data = doc.data()! as Map<String, dynamic>;
-        final quizStartTime = data['quizStartTime'] as Timestamp?;
-        if (quizStartTime != null) {
-          quizTimeMs = now.difference(quizStartTime.toDate()).inMilliseconds;
+      // 使用傳入的測驗時間，或從 Firestore 計算
+      int finalQuizTimeMs = quizTimeMs ?? 0;
+      if (finalQuizTimeMs == 0) {
+        // 回退：從 Firestore 計算測驗時間
+        final doc = await ref.get();
+        if (doc.exists) {
+          final data = doc.data()! as Map<String, dynamic>;
+          final quizStartTime = data['quizStartTime'] as Timestamp?;
+          if (quizStartTime != null) {
+            finalQuizTimeMs = now.difference(quizStartTime.toDate()).inMilliseconds;
+          }
         }
       }
       
-      await ref.update({
+      // 使用 set merge: true 確保文檔存在
+      await ref.set({
+        'eventId': eventId,
         'status': 'completed',
         'endTime': Timestamp.fromDate(now),
-        'quizTime': quizTimeMs,
+        'quizTime': finalQuizTimeMs,
         'quizCorrectAnswers': correctAnswers,
         'quizTotalQuestions': totalQuestions,
         'quizScore': totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0,
         'updatedAt': Timestamp.fromDate(now),
-      });
+      }, SetOptions(merge: true));
 
-      // 另存一份到 experiment_quiz
-      final match = RegExp(r'w(\d+)').firstMatch(eventId.toLowerCase());
-      final week = match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
-      final quizId = 'reading_w$week';
-      final quizRef = _getExperimentQuizDoc(uid, quizId);
-      await quizRef.set({
+      // 儲存測驗結果到簡化路徑：users/{uid}/quiz/reading_w{week}
+      final week = await _computeWeekFromEvent(uid, eventId);
+      final quizId = 'reading_w$week'; // 與 vocab 統一：以週為單位
+      
+      final quizDocRef = _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('quiz')
+          .doc(quizId);
+      
+      // 直接儲存到 quiz 集合，不使用 attempts 子集合
+      await quizDocRef.set({
         'type': 'reading',
         'eventId': eventId,
         'week': week,
         'correctAnswers': correctAnswers,
         'totalQuestions': totalQuestions,
         'score': totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0,
+        'quizTimeMs': finalQuizTimeMs, // 新增測驗時間（毫秒）
         'savedAt': Timestamp.fromDate(now),
         'updatedAt': Timestamp.fromDate(now),
       }, SetOptions(merge: true));

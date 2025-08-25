@@ -6,84 +6,47 @@
     "selection_seed": 20250814,
     "selection_method": "random_without_replacement",
     "counts": {
-      "new": 0,
-      "review_due": 18
+      "new": 8,
+      "review_due": 0
     },
     "session_time_limit_sec": 600
   },
-  "new_items": [],
-  "review_items": [
+  "new_items": [
     {
-      "word": "enervate",
+      "word": "jejune",
+      "part_of_speech": "adj",
+      "en_definition": "naive, simplistic, and superficial",
+      "zh_explanation": "幼稚膚淺；單薄",
+      "example_en": "The essay felt jejune and superficial.",
+      "example_zh": "這篇文章顯得幼稚而淺薄。",
+      "label": "new"
+    },
+    {
+      "word": "sagacious",
+      "part_of_speech": "adj",
+      "en_definition": "having or showing good judgment; wise",
+      "zh_explanation": "睿智；判斷力好",
+      "example_en": "A sagacious mentor offered simple advice.",
+      "example_zh": "一位睿智的導師給了簡明建議。",
+      "label": "new"
+    },
+    {
+      "word": "munificent",
+      "part_of_speech": "adj",
+      "en_definition": "more generous than usual",
+      "zh_explanation": "慷慨大方；額外豐厚",
+      "example_en": "A munificent gift kept the program alive.",
+      "example_zh": "一筆慷慨的捐助讓計畫得以延續。",
+      "label": "new"
+    },
+    {
+      "word": "attenuate",
       "part_of_speech": "verb",
-      "en_definition": "to weaken or drain energy",
-      "zh_explanation": "使衰弱；使無力",
-      "example_en": "The humid heat enervated the runners.",
-      "example_zh": "悶熱讓跑者精疲力盡。",
-      "label": "review"
-    },
-    {
-      "word": "discomfit",
-      "part_of_speech": "verb",
-      "en_definition": "to make uneasy or embarrass; to thwart",
-      "zh_explanation": "使窘迫；挫敗",
-      "example_en": "The unexpected question seemed to discomfit him.",
-      "example_zh": "那個突如其來的問題讓他有些窘迫。",
-      "label": "review"
-    },
-    {
-      "word": "dilatory",
-      "part_of_speech": "adj",
-      "en_definition": "slow to act; intended to cause delay",
-      "zh_explanation": "拖延的；蓄意延宕",
-      "example_en": "The board took a dilatory approach to the safety fix.",
-      "example_zh": "董事會對安全修正一再拖延。",
-      "label": "review"
-    },
-    {
-      "word": "perfidious",
-      "part_of_speech": "adj",
-      "en_definition": "deceitful and untrustworthy",
-      "zh_explanation": "背信棄義；不忠",
-      "example_en": "A perfidious partner leaked the strategy.",
-      "example_zh": "一位不忠的夥伴洩了策略。",
-      "label": "review"
-    },
-    {
-      "word": "remonstrate",
-      "part_of_speech": "verb",
-      "en_definition": "to make a forceful protest",
-      "zh_explanation": "強烈抗議；規勸",
-      "example_en": "Residents remonstrated with city officials.",
-      "example_zh": "居民向市府強烈抗議。",
-      "label": "review"
-    },
-    {
-      "word": "polemical",
-      "part_of_speech": "adj",
-      "en_definition": "strongly critical or controversial",
-      "zh_explanation": "好辯；針鋒相對",
-      "example_en": "His polemical column sparked fierce debate.",
-      "example_zh": "他好辯的專欄引發激烈討論。",
-      "label": "review"
-    },
-    {
-      "word": "mendacious",
-      "part_of_speech": "adj",
-      "en_definition": "not telling the truth; lying",
-      "zh_explanation": "不誠實；說謊",
-      "example_en": "The mendacious report misled the public.",
-      "example_zh": "那份不實的報告誤導了大眾。",
-      "label": "review"
-    },
-    {
-      "word": "captious",
-      "part_of_speech": "adj",
-      "en_definition": "inclined to find trivial faults",
-      "zh_explanation": "吹毛求疵的",
-      "example_en": "A captious reviewer nitpicked every paragraph.",
-      "example_zh": "挑剔的審稿人對每段都吹毛求疵。",
-      "label": "review"
+      "en_definition": "to reduce in force, effect, or thickness",
+      "zh_explanation": "削弱；減輕；使變薄",
+      "example_en": "Engineers attenuated the noise with better insulation.",
+      "example_zh": "工程師用更好的隔音來降低噪音。",
+      "label": "new"
     },
     {
       "word": "excoriate",
@@ -92,52 +55,7 @@
       "zh_explanation": "痛斥；嚴厲譴責",
       "example_en": "Critics excoriated the film's lazy script.",
       "example_zh": "影評人痛斥這部片懶散的劇本。",
-      "label": "review"
-    },
-    {
-      "word": "querulous",
-      "part_of_speech": "adj",
-      "en_definition": "complaining in a whining manner",
-      "zh_explanation": "愛抱怨；嘟囔",
-      "example_en": "His emails grew querulous under pressure.",
-      "example_zh": "壓力之下他的電郵越來越愛抱怨。",
-      "label": "review"
-    },
-    {
-      "word": "equivocate",
-      "part_of_speech": "verb",
-      "en_definition": "to use ambiguous language to mislead",
-      "zh_explanation": "含糊其詞以誤導",
-      "example_en": "He tends to equivocate when the stakes are high.",
-      "example_zh": "在關鍵時刻他總是含糊其詞。",
-      "label": "review"
-    },
-    {
-      "word": "ineluctable",
-      "part_of_speech": "adj",
-      "en_definition": "unable to be resisted; inescapable",
-      "zh_explanation": "不可避免；無法逃脫",
-      "example_en": "They faced the ineluctable deadline together.",
-      "example_zh": "他們一起面對不可避免的死線。",
-      "label": "review"
-    },
-    {
-      "word": "cosset",
-      "part_of_speech": "verb",
-      "en_definition": "to care for and protect overindulgently",
-      "zh_explanation": "溺愛；過度保護",
-      "example_en": "Grandparents often cosset the youngest child.",
-      "example_zh": "祖父母常常溺愛家中的么兒。",
-      "label": "review"
-    },
-    {
-      "word": "calumny",
-      "part_of_speech": "noun",
-      "en_definition": "a false and slanderous statement",
-      "zh_explanation": "誹謗；不實中傷",
-      "example_en": "The article was pure calumny and had to be retracted.",
-      "example_zh": "那篇文章純屬誹謗，最後被撤回。",
-      "label": "review"
+      "label": "new"
     },
     {
       "word": "obsequious",
@@ -146,91 +64,29 @@
       "zh_explanation": "諂媚；唯命是從",
       "example_en": "Obsequious praise made her uncomfortable.",
       "example_zh": "諂媚的恭維讓她不自在。",
-      "label": "review"
+      "label": "new"
     },
     {
-      "word": "obfuscate",
-      "part_of_speech": "verb",
-      "en_definition": "to make obscure or unclear",
-      "zh_explanation": "使模糊；混淆視聽",
-      "example_en": "The memo tried to obfuscate the real costs.",
-      "example_zh": "這份備忘錄試圖混淆真實成本。",
-      "label": "review"
-    },
-    {
-      "word": "assiduous",
+      "word": "seditious",
       "part_of_speech": "adj",
-      "en_definition": "showing great care and perseverance",
-      "zh_explanation": "勤勉不懈；一絲不苟",
-      "example_en": "She is assiduous in her archival research.",
-      "example_zh": "她在檔案研究上非常勤勉。",
-      "label": "review"
+      "en_definition": "inciting or causing people to rebel against the authority",
+      "zh_explanation": "煽動叛亂的",
+      "example_en": "The blogger was arrested for posting seditious articles.",
+      "example_zh": "該部落客因發表煽動性文章而被捕。",
+      "label": "new"
     },
     {
-      "word": "exculpate",
-      "part_of_speech": "verb",
-      "en_definition": "to clear from alleged fault or guilt",
-      "zh_explanation": "為…脫罪；證明無罪",
-      "example_en": "New evidence exculpated the wrongly accused.",
-      "example_zh": "新證據讓被冤枉的人得以脫罪。",
-      "label": "review"
+      "word": "trenchant",
+      "part_of_speech": "adj",
+      "en_definition": "vigorous or incisive in expression or style",
+      "zh_explanation": "（言辭）銳利的；一針見血的",
+      "example_en": "Her trenchant commentary cut through the political jargon.",
+      "example_zh": "她一針見血的評論穿透了政治術語的迷霧。",
+      "label": "new"
     }
   ],
+  "review_items": [],
   "items_shuffled": [
-    {
-      "word": "perfidious",
-      "part_of_speech": "adj",
-      "en_definition": "deceitful and untrustworthy",
-      "zh_explanation": "背信棄義；不忠",
-      "example_en": "A perfidious partner leaked the strategy.",
-      "example_zh": "一位不忠的夥伴洩了策略。",
-      "label": "review"
-    },
-    {
-      "word": "enervate",
-      "part_of_speech": "verb",
-      "en_definition": "to weaken or drain energy",
-      "zh_explanation": "使衰弱；使無力",
-      "example_en": "The humid heat enervated the runners.",
-      "example_zh": "悶熱讓跑者精疲力盡。",
-      "label": "review"
-    },
-    {
-      "word": "querulous",
-      "part_of_speech": "adj",
-      "en_definition": "complaining in a whining manner",
-      "zh_explanation": "愛抱怨；嘟囔",
-      "example_en": "His emails grew querulous under pressure.",
-      "example_zh": "壓力之下他的電郵越來越愛抱怨。",
-      "label": "review"
-    },
-    {
-      "word": "remonstrate",
-      "part_of_speech": "verb",
-      "en_definition": "to make a forceful protest",
-      "zh_explanation": "強烈抗議；規勸",
-      "example_en": "Residents remonstrated with city officials.",
-      "example_zh": "居民向市府強烈抗議。",
-      "label": "review"
-    },
-    {
-      "word": "obfuscate",
-      "part_of_speech": "verb",
-      "en_definition": "to make obscure or unclear",
-      "zh_explanation": "使模糊；混淆視聽",
-      "example_en": "The memo tried to obfuscate the real costs.",
-      "example_zh": "這份備忘錄試圖混淆真實成本。",
-      "label": "review"
-    },
-    {
-      "word": "discomfit",
-      "part_of_speech": "verb",
-      "en_definition": "to make uneasy or embarrass; to thwart",
-      "zh_explanation": "使窘迫；挫敗",
-      "example_en": "The unexpected question seemed to discomfit him.",
-      "example_zh": "那個突如其來的問題讓他有些窘迫。",
-      "label": "review"
-    },
     {
       "word": "obsequious",
       "part_of_speech": "adj",
@@ -238,43 +94,34 @@
       "zh_explanation": "諂媚；唯命是從",
       "example_en": "Obsequious praise made her uncomfortable.",
       "example_zh": "諂媚的恭維讓她不自在。",
-      "label": "review"
+      "label": "new"
     },
     {
-      "word": "mendacious",
+      "word": "jejune",
       "part_of_speech": "adj",
-      "en_definition": "not telling the truth; lying",
-      "zh_explanation": "不誠實；說謊",
-      "example_en": "The mendacious report misled the public.",
-      "example_zh": "那份不實的報告誤導了大眾。",
-      "label": "review"
+      "en_definition": "naive, simplistic, and superficial",
+      "zh_explanation": "幼稚膚淺；單薄",
+      "example_en": "The essay felt jejune and superficial.",
+      "example_zh": "這篇文章顯得幼稚而淺薄。",
+      "label": "new"
     },
     {
-      "word": "dilatory",
+      "word": "munificent",
       "part_of_speech": "adj",
-      "en_definition": "slow to act; intended to cause delay",
-      "zh_explanation": "拖延的；蓄意延宕",
-      "example_en": "The board took a dilatory approach to the safety fix.",
-      "example_zh": "董事會對安全修正一再拖延。",
-      "label": "review"
+      "en_definition": "more generous than usual",
+      "zh_explanation": "慷慨大方；額外豐厚",
+      "example_en": "A munificent gift kept the program alive.",
+      "example_zh": "一筆慷慨的捐助讓計畫得以延續。",
+      "label": "new"
     },
     {
-      "word": "equivocate",
-      "part_of_speech": "verb",
-      "en_definition": "to use ambiguous language to mislead",
-      "zh_explanation": "含糊其詞以誤導",
-      "example_en": "He tends to equivocate when the stakes are high.",
-      "example_zh": "在關鍵時刻他總是含糊其詞。",
-      "label": "review"
-    },
-    {
-      "word": "polemical",
+      "word": "sagacious",
       "part_of_speech": "adj",
-      "en_definition": "strongly critical or controversial",
-      "zh_explanation": "好辯；針鋒相對",
-      "example_en": "His polemical column sparked fierce debate.",
-      "example_zh": "他好辯的專欄引發激烈討論。",
-      "label": "review"
+      "en_definition": "having or showing good judgment; wise",
+      "zh_explanation": "睿智；判斷力好",
+      "example_en": "A sagacious mentor offered simple advice.",
+      "example_zh": "一位睿智的導師給了簡明建議。",
+      "label": "new"
     },
     {
       "word": "excoriate",
@@ -283,61 +130,34 @@
       "zh_explanation": "痛斥；嚴厲譴責",
       "example_en": "Critics excoriated the film's lazy script.",
       "example_zh": "影評人痛斥這部片懶散的劇本。",
-      "label": "review"
+      "label": "new"
     },
     {
-      "word": "captious",
+      "word": "trenchant",
       "part_of_speech": "adj",
-      "en_definition": "inclined to find trivial faults",
-      "zh_explanation": "吹毛求疵的",
-      "example_en": "A captious reviewer nitpicked every paragraph.",
-      "example_zh": "挑剔的審稿人對每段都吹毛求疵。",
-      "label": "review"
+      "en_definition": "vigorous or incisive in expression or style",
+      "zh_explanation": "（言辭）銳利的；一針見血的",
+      "example_en": "Her trenchant commentary cut through the political jargon.",
+      "example_zh": "她一針見血的評論穿透了政治術語的迷霧。",
+      "label": "new"
     },
     {
-      "word": "cosset",
+      "word": "attenuate",
       "part_of_speech": "verb",
-      "en_definition": "to care for and protect overindulgently",
-      "zh_explanation": "溺愛；過度保護",
-      "example_en": "Grandparents often cosset the youngest child.",
-      "example_zh": "祖父母常常溺愛家中的么兒。",
-      "label": "review"
+      "en_definition": "to reduce in force, effect, or thickness",
+      "zh_explanation": "削弱；減輕；使變薄",
+      "example_en": "Engineers attenuated the noise with better insulation.",
+      "example_zh": "工程師用更好的隔音來降低噪音。",
+      "label": "new"
     },
     {
-      "word": "exculpate",
-      "part_of_speech": "verb",
-      "en_definition": "to clear from alleged fault or guilt",
-      "zh_explanation": "為…脫罪；證明無罪",
-      "example_en": "New evidence exculpated the wrongly accused.",
-      "example_zh": "新證據讓被冤枉的人得以脫罪。",
-      "label": "review"
-    },
-    {
-      "word": "assiduous",
+      "word": "seditious",
       "part_of_speech": "adj",
-      "en_definition": "showing great care and perseverance",
-      "zh_explanation": "勤勉不懈；一絲不苟",
-      "example_en": "She is assiduous in her archival research.",
-      "example_zh": "她在檔案研究上非常勤勉。",
-      "label": "review"
-    },
-    {
-      "word": "calumny",
-      "part_of_speech": "noun",
-      "en_definition": "a false and slanderous statement",
-      "zh_explanation": "誹謗；不實中傷",
-      "example_en": "The article was pure calumny and had to be retracted.",
-      "example_zh": "那篇文章純屬誹謗，最後被撤回。",
-      "label": "review"
-    },
-    {
-      "word": "ineluctable",
-      "part_of_speech": "adj",
-      "en_definition": "unable to be resisted; inescapable",
-      "zh_explanation": "不可避免；無法逃脫",
-      "example_en": "They faced the ineluctable deadline together.",
-      "example_zh": "他們一起面對不可避免的死線。",
-      "label": "review"
+      "en_definition": "inciting or causing people to rebel against the authority",
+      "zh_explanation": "煽動叛亂的",
+      "example_en": "The blogger was arrested for posting seditious articles.",
+      "example_zh": "該部落客因發表煽動性文章而被捕。",
+      "label": "new"
     }
   ]
 }

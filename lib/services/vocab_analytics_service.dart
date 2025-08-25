@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/vocab_content_model.dart';
 import 'data_path_service.dart';
+import 'day_number_service.dart';
 
 class VocabAnalyticsService {
   static final VocabAnalyticsService _instance = VocabAnalyticsService._internal();
@@ -16,11 +17,6 @@ class VocabAnalyticsService {
     return eventDoc.collection('vocab').doc('analytics');
   }
 
-  /// 取得新的實驗測驗結果文件引用：users/{uid}/experiment_quiz/{quizId}
-  DocumentReference _getExperimentQuizDoc(String uid, String quizId) {
-    return _firestore.collection('users').doc(uid).collection('experiment_quiz').doc(quizId);
-  }
-
   /// 儲存詞彙測驗結果到 users/{uid}/experiment_quiz/{quizId}
   Future<void> saveVocabQuizToExperiment({
     required String uid,
@@ -30,19 +26,53 @@ class VocabAnalyticsService {
     required int totalQuestions,
     String? eventId,
     int? week,
+    int? quizTimeMs, // 新增測驗時間參數
   }) async {
     try {
       final now = DateTime.now();
       final score = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0;
-      final ref = _getExperimentQuizDoc(uid, quizId);
-      await ref.set({
+      // 以事件日期計算週次；若無 eventId 則回退為傳入參數或0
+      int resolvedWeek = week ?? 0;
+      if (resolvedWeek == 0 && eventId != null && eventId.isNotEmpty) {
+        try {
+          final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
+          final snap = await eventDoc.get();
+          if (snap.exists) {
+            final data = snap.data() as Map<String, dynamic>?;
+            DateTime? date = (data?['date'] as Timestamp?)?.toDate();
+            date ??= (data?['scheduledStartTime'] as Timestamp?)?.toDate();
+            if (date != null) {
+              final dayNum = await DayNumberService().calculateDayNumber(date.toLocal());
+              if (dayNum == 0) {
+                resolvedWeek = 0;  // w0 測試週
+              } else {
+                resolvedWeek = dayNum <= 7 ? 1 : 2;  // w1 或 w2
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 統一命名：vocab 以週為單位 → vocab_w{week}
+      final standardizedQuizDocId = 'vocab_w$resolvedWeek';
+      
+      // 儲存測驗結果到簡化路徑：users/{uid}/quiz/vocab_w{week}
+      final quizDocRef = _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('quiz')
+          .doc(standardizedQuizDocId);
+      
+      // 直接儲存到 quiz 集合，不使用 attempts 子集合
+      await quizDocRef.set({
         'type': 'vocab',
         'eventId': eventId,
-        'week': week,
+        'week': resolvedWeek,
         'answers': answers,
         'correctAnswers': correctAnswers,
         'totalQuestions': totalQuestions,
         'score': score,
+        'quizTimeMs': quizTimeMs ?? 0, // 新增測驗時間（毫秒）
         'savedAt': Timestamp.fromDate(now),
         'updatedAt': Timestamp.fromDate(now),
       }, SetOptions(merge: true));
@@ -114,13 +144,26 @@ class VocabAnalyticsService {
   }) async {
     try {
       final ref = await _getVocabDataRef(uid, eventId);
-      
-      // 更新卡片停留时间
-      await ref.update({
-        'cardDwellTimes.$cardIndex': FieldValue.increment(dwellTimeMs),
-        'totalLearningTime': FieldValue.increment(dwellTimeMs),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
+
+      final snap = await ref.get();
+      if (snap.exists) {
+        // 更新卡片停留时间
+        await ref.update({
+          'cardDwellTimes.$cardIndex': FieldValue.increment(dwellTimeMs),
+          'totalLearningTime': FieldValue.increment(dwellTimeMs),
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } else {
+        // 文檔不存在時先建檔
+        await ref.set({
+          'eventId': eventId,
+          'cardDwellTimes': {cardIndex.toString(): dwellTimeMs},
+          'totalLearningTime': dwellTimeMs,
+          'leaveCount': 0,
+          'status': 'learning',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        }, SetOptions(merge: true));
+      }
     } catch (e) {
       print('記錄卡片停留時間失敗: $e');
     }
@@ -133,12 +176,23 @@ class VocabAnalyticsService {
   }) async {
     try {
       final ref = await _getVocabDataRef(uid, eventId);
-      
-      // 增加离开次数
-      await ref.update({
-        'leaveCount': FieldValue.increment(1),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
+
+      final snap = await ref.get();
+      if (snap.exists) {
+        // 增加离开次数
+        await ref.update({
+          'leaveCount': FieldValue.increment(1),
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } else {
+        // 文檔不存在時先建檔
+        await ref.set({
+          'eventId': eventId,
+          'leaveCount': 1,
+          'status': 'learning',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        }, SetOptions(merge: true));
+      }
     } catch (e) {
       print('記錄離開學習頁面失敗: $e');
     }

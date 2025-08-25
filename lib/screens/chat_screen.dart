@@ -393,8 +393,8 @@ class _ChatScreenState extends State<ChatScreen> {
         throw Exception('聊天會話缺少事件ID，無法啟動任務');
       }
       
-      // 记录分析数据
-      await AnalyticsService().logTaskStarted('chat');
+      // 记录分析数据 - 改由 TaskRouterService 或 navigateToTaskPage 内部处理
+      // await AnalyticsService().logTaskStarted('chat');
 
       print('Task started successfully: ${chat.taskTitle}');
       
@@ -402,7 +402,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (eventData != null) {
         // 延迟一点时间确保主页面已经加载完成
         Future.delayed(const Duration(milliseconds: 1000), () {
-          _safeNavigateToTaskPage(eventData);
+          _safeNavigateToTaskPage(eventData, source: 'chat');
         });
       }
     } catch (e) {
@@ -415,8 +415,15 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// 安全地跳转到任务页面
-  void _safeNavigateToTaskPage(EventModel event) {
+  void _safeNavigateToTaskPage(EventModel event, {required String source}) {
+    // 在導航前直接記錄分析事件
     final taskType = _getTaskType(event.title);
+    AnalyticsService().logTaskStart(
+      taskType: taskType.name,
+      eventId: event.id,
+      triggerSource: source,
+    );
+
     Widget targetPage;
     
     switch (taskType) {

@@ -24,6 +24,11 @@ class EventModel {
   final DateTime? pauseAt;             // 🎯 新增：暫停時間
   final DateTime? resumeAt;            // 🎯 新增：繼續時間
   
+  // === 複習統計 ===
+  final int? reviewCount;              // 複習次數
+  final int? reviewTotalDurationMin;   // 複習總時長（分鐘）
+  final DateTime? reviewStartedAt;     // 正在複習的開始時間（未結束時非空）
+  
   // === 互動 ===
   final StartTrigger? startTrigger;     // enum:int 0-tap_notif 1-tap_card 2-chat 3-auto
   final String? chatId;                 // evt42_20250703T0130
@@ -83,6 +88,9 @@ class EventModel {
     this.pauseAt,
     this.resumeAt,
     this.dayNumber,
+    this.reviewCount,
+    this.reviewTotalDurationMin,
+    this.reviewStartedAt,
       }) : notifIds = notifIds ?? [];
 
   factory EventModel.fromDoc(DocumentSnapshot doc) {
@@ -120,6 +128,9 @@ class EventModel {
         pauseCount: d['pauseCount'],
         pauseAt: (d['pauseAt'] as Timestamp?)?.toDate(),
         resumeAt: (d['resumeAt'] as Timestamp?)?.toDate(),
+      reviewCount: d['reviewCount'],
+      reviewTotalDurationMin: d['reviewTotalDurationMin'],
+      reviewStartedAt: (d['reviewStartedAt'] as Timestamp?)?.toDate(),
       );
   }
 
@@ -154,6 +165,9 @@ class EventModel {
         if (pauseCount != null) 'pauseCount': pauseCount,
         if (pauseAt != null) 'pauseAt': Timestamp.fromDate(pauseAt!),
         if (resumeAt != null) 'resumeAt': Timestamp.fromDate(resumeAt!),
+      if (reviewCount != null) 'reviewCount': reviewCount,
+      if (reviewTotalDurationMin != null) 'reviewTotalDurationMin': reviewTotalDurationMin,
+      if (reviewStartedAt != null) 'reviewStartedAt': Timestamp.fromDate(reviewStartedAt!),
       };
   }
 
@@ -259,6 +273,9 @@ class EventModel {
     DateTime? pauseAt,
     DateTime? resumeAt,
     int? dayNumber,
+    int? reviewCount,
+    int? reviewTotalDurationMin,
+    DateTime? reviewStartedAt,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -291,6 +308,9 @@ class EventModel {
       pauseAt: pauseAt ?? this.pauseAt,
       resumeAt: resumeAt ?? this.resumeAt,
       dayNumber: dayNumber ?? this.dayNumber,
+      reviewCount: reviewCount ?? this.reviewCount,
+      reviewTotalDurationMin: reviewTotalDurationMin ?? this.reviewTotalDurationMin,
+      reviewStartedAt: reviewStartedAt ?? this.reviewStartedAt,
     );
   }
 }
@@ -302,48 +322,13 @@ class ExperimentEventHelper {
 
   /// 获取用户事件文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getEventRef(String uid, String eventId) async {
-    // 優先：從 w1/w2 兩個集合中找到已存在的事件文檔
-    final w1Col = await DataPathService.instance.getUserW1EventsCollection(uid);
-    final w1Doc = w1Col.doc(eventId);
-    final w1Snap = await w1Doc.get();
-    if (w1Snap.exists) {
-      return w1Doc;
-    }
-
-    final w2Col = await DataPathService.instance.getUserW2EventsCollection(uid);
-    final w2Doc = w2Col.doc(eventId);
-    final w2Snap = await w2Doc.get();
-    if (w2Snap.exists) {
-      return w2Doc;
-    }
-
-    // 後備：依日期決定 w1/w2 集合
-    final now = DateTime.now();
-    final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
-    return eventsCollection.doc(eventId);
+    // 統一委派給 DataPathService 處理（優先既有，再回退當日分組）
+    return await DataPathService.instance.getEventDocAuto(uid, eventId);
   }
 
   /// 获取用户事件聊天文档引用（使用当前日期的数据路径）
   static Future<DocumentReference> _getChatRef(String uid, String eventId, String chatId) async {
-    // 優先：從 w1/w2 兩個集合中找到已存在的事件文檔
-    final w1Col = await DataPathService.instance.getUserW1EventsCollection(uid);
-    final w1EventDoc = w1Col.doc(eventId);
-    final w1Snap = await w1EventDoc.get();
-    if (w1Snap.exists) {
-      return w1EventDoc.collection('chats').doc(chatId);
-    }
-
-    final w2Col = await DataPathService.instance.getUserW2EventsCollection(uid);
-    final w2EventDoc = w2Col.doc(eventId);
-    final w2Snap = await w2EventDoc.get();
-    if (w2Snap.exists) {
-      return w2EventDoc.collection('chats').doc(chatId);
-    }
-
-    // 後備：依日期決定 w1/w2 集合
-    final now = DateTime.now();
-    final eventsCollection = await DataPathService.instance.getDateEventsCollection(uid, now);
-    final eventDoc = eventsCollection.doc(eventId);
+    final eventDoc = await DataPathService.instance.getEventDocAuto(uid, eventId);
     return eventDoc.collection('chats').doc(chatId);
   }
 
@@ -424,6 +409,58 @@ class ExperimentEventHelper {
       if (chatId != null) 'chatId': chatId,
       if (actualDurationMin != null) 'actualDurationMin': actualDurationMin,
       if (expectedDurationMin != null) 'expectedDurationMin': expectedDurationMin,
+    }, SetOptions(merge: true));
+  }
+
+
+  /// 開始複習：設置 reviewStartedAt（若已在複習則不覆蓋）
+  static Future<void> recordReviewStart({
+    required String uid,
+    required String eventId,
+  }) async {
+    final now = DateTime.now();
+    final ref = await _getEventRef(uid, eventId);
+
+    final snap = await ref.get();
+    DateTime? existing;
+    if (snap.exists) {
+      final data = snap.data()! as Map<String, dynamic>;
+      existing = (data['reviewStartedAt'] as Timestamp?)?.toDate();
+    }
+
+    await ref.set({
+      // 僅當目前沒有複習進行中時才設定開始時間
+      if (existing == null) 'reviewStartedAt': Timestamp.fromDate(now),
+      'updatedAt': Timestamp.fromDate(now),
+      'date': Timestamp.fromDate(now),
+    }, SetOptions(merge: true));
+  }
+
+  /// 結束複習：累加複習總時長（分鐘）並增加複習次數，清除 reviewStartedAt
+  static Future<void> recordReviewEnd({
+    required String uid,
+    required String eventId,
+  }) async {
+    final now = DateTime.now();
+    final ref = await _getEventRef(uid, eventId);
+
+    final snap = await ref.get();
+    if (!snap.exists) return;
+    final data = snap.data()! as Map<String, dynamic>;
+    final reviewStartedAt = (data['reviewStartedAt'] as Timestamp?)?.toDate();
+
+    if (reviewStartedAt == null) {
+      // 沒有進行中的複習，直接返回
+      return;
+    }
+
+    final minutes = now.difference(reviewStartedAt).inMinutes;
+    await ref.set({
+      'reviewStartedAt': null,
+      'reviewCount': FieldValue.increment(1),
+      'reviewTotalDurationMin': FieldValue.increment(minutes),
+      'updatedAt': Timestamp.fromDate(now),
+      'date': Timestamp.fromDate(now),
     }, SetOptions(merge: true));
   }
 
@@ -557,10 +594,24 @@ class ExperimentEventHelper {
         ref = await DataPathService.instance.getUserEventNotificationDoc(uid, eventId, notifId);
         debugPrint('🎯 使用当前日期获取通知文档路径');
       }
-
-      await ref.update({
-        'delivered_time': Timestamp.fromDate(now),
-      });
+      // 若文檔存在則更新，否則建立
+      final snap = await ref.get();
+      if (snap.exists) {
+        await ref.update({
+          'delivered_time': Timestamp.fromDate(now),
+        });
+      } else {
+        await ref.set({
+          'delivered_time': Timestamp.fromDate(now),
+          'opened_time': null,
+          'notification_scheduled_time': null,
+          'result': NotificationResult.dismiss.value,
+          'snooze_minutes': null,
+          'latency_sec': null,
+          'notif_to_click_sec': null,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+      }
       
       // 🎯 調試：確認記錄成功
       debugPrint('通知發送記錄更新成功: notifId=$notifId, deliveredTime=$now, eventDate=$eventDate');

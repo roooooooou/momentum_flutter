@@ -2,20 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../models/event_model.dart';
 import '../models/enums.dart';
+import '../services/vocab_service.dart';
+import '../services/reading_service.dart';
 import 'dart:async';
 
-enum TaskAction { start, stop, complete, continue_ }
+enum TaskAction { start, stop, complete, continue_, reviewStart, reviewEnd }
 
 class EventCard extends StatefulWidget {
   const EventCard(
       {super.key,
       required this.event,
       required this.onAction,
-      this.onOpenChat});
+      this.onOpenChat,
+      this.isPastEvent = false});
 
   final EventModel event;
   final void Function(TaskAction a) onAction;
   final void Function()? onOpenChat;
+  final bool isPastEvent; // 是否為過去事件（用於控制按鈕顯示）
 
   @override
   State<EventCard> createState() => _EventCardState();
@@ -80,37 +84,84 @@ class _EventCardState extends State<EventCard> {
     late final Color statusColor;
     late final Color circleColor;
 
-    switch (widget.event.computedStatus) {
-      case TaskStatus.inProgress:
-        bg = const Color(0xFFEFEBE2); // Light grey-green
-        statusColor = const Color(0xFF8D9B97); // Grey-green for in-progress
-        circleColor = const Color(0xFF99A59D); // Light green for in-progress
-        break;
-      case TaskStatus.overdue:
-        bg = const Color(0xFFF2E9E0); // Light pinkish
-        statusColor = const Color(0xFFE5A79D); // Salmon color for overdue
-        circleColor = const Color(0xFFC7917C); // Light grey for overdue
-        break;
-      case TaskStatus.overtime:
-        bg = const Color(0xFFF5E6E6); // Light red-ish
-        statusColor = const Color(0xFFD4756B); // Red-ish color for overtime
-        circleColor = const Color(0xFFB85450); // Darker red for overtime
-        break;
-      case TaskStatus.completed:
-        bg = const Color(0xFFCBD0C9); // Desaturated blue-grey
-        statusColor = const Color(0XFF6F7C71);
-        circleColor = const Color(0xFF99A59D);
-        break;
-      case TaskStatus.paused:
-        bg = const Color(0xFFF0E8F5); // Light purple-ish for paused
-        statusColor = const Color(0xFF9B8AA0); // Purple-grey for paused
-        circleColor = const Color(0xFF8A7CA8); // Darker purple for paused
-        break;
-      case TaskStatus.notStarted:
-      default:
-        bg = const Color(0xFFEFEBE2); // Light grey
-        statusColor = const Color(0xFF8D9B97); // Grey-green
-        circleColor = const Color(0xFF99A59D);
+    // 🎯 Past Events 統一使用淺灰色調，不顯示狀態顏色
+    if (widget.isPastEvent) {
+      bg = const Color(0xFFF5F5F5); // 統一淺灰色背景
+      statusColor = const Color(0xFF9E9E9E); // 統一灰色文字
+      circleColor = const Color(0xFFBDBDBD); // 統一灰色圓圈
+    } else {
+      // 檢查是否為測試任務
+      final isTestTask = _isTestTitle(widget.event.title);
+      
+      if (isTestTask) {
+        // Test 事件使用特殊顏色 - 淺藍色系
+        switch (widget.event.computedStatus) {
+          case TaskStatus.inProgress:
+            bg = const Color(0xFFE6F3FF); // Light blue
+            statusColor = const Color(0xFF4A90E2); // Blue for test in-progress
+            circleColor = const Color(0xFF5BA3F5); // Light blue for test in-progress
+            break;
+          case TaskStatus.overdue:
+            bg = const Color(0xFFE6F0FF); // Light blue-ish
+            statusColor = const Color(0xFF6B8DD6); // Blue-grey for test overdue
+            circleColor = const Color(0xFF7BA3E0); // Light blue-grey for test overdue
+            break;
+          case TaskStatus.overtime:
+            bg = const Color(0xFFE6EFFF); // Light blue-ish
+            statusColor = const Color(0xFF5A8BCE); // Blue for test overtime
+            circleColor = const Color(0xFF6A95D8); // Blue for test overtime
+            break;
+          case TaskStatus.completed:
+            bg = const Color(0xFFD6E8FF); // Light blue-grey
+            statusColor = const Color(0xFF4A7BA7); // Dark blue-grey
+            circleColor = const Color(0xFF5A8BC2); // Blue-grey
+            break;
+          case TaskStatus.paused:
+            bg = const Color(0xFFEBF2FF); // Light blue for test paused
+            statusColor = const Color(0xFF6A8FCC); // Blue-grey for test paused
+            circleColor = const Color(0xFF7A9FDC); // Light blue for test paused
+            break;
+          case TaskStatus.notStarted:
+          default:
+            bg = const Color(0xFFEDF4FF); // Light blue
+            statusColor = const Color(0xFF5A8BCE); // Blue-grey
+            circleColor = const Color(0xFF6A95D8); // Blue
+        }
+      } else {
+        // 一般事件使用原有顏色
+        switch (widget.event.computedStatus) {
+          case TaskStatus.inProgress:
+            bg = const Color(0xFFEFEBE2); // Light grey-green
+            statusColor = const Color(0xFF8D9B97); // Grey-green for in-progress
+            circleColor = const Color(0xFF99A59D); // Light green for in-progress
+            break;
+          case TaskStatus.overdue:
+            bg = const Color(0xFFF2E9E0); // Light pinkish
+            statusColor = const Color(0xFFE5A79D); // Salmon color for overdue
+            circleColor = const Color(0xFFC7917C); // Light grey for overdue
+            break;
+          case TaskStatus.overtime:
+            bg = const Color(0xFFF5E6E6); // Light red-ish
+            statusColor = const Color(0xFFD4756B); // Red-ish color for overtime
+            circleColor = const Color(0xFFB85450); // Darker red for overtime
+            break;
+          case TaskStatus.completed:
+            bg = const Color(0xFFCBD0C9); // Desaturated blue-grey
+            statusColor = const Color(0XFF6F7C71);
+            circleColor = const Color(0xFF99A59D);
+            break;
+          case TaskStatus.paused:
+            bg = const Color(0xFFF0E8F5); // Light purple-ish for paused
+            statusColor = const Color(0xFF9B8AA0); // Purple-grey for paused
+            circleColor = const Color(0xFF8A7CA8); // Darker purple for paused
+            break;
+          case TaskStatus.notStarted:
+          default:
+            bg = const Color(0xFFEFEBE2); // Light grey
+            statusColor = const Color(0xFF8D9B97); // Grey-green
+            circleColor = const Color(0xFF99A59D);
+        }
+      }
     }
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -149,7 +200,7 @@ class _EventCardState extends State<EventCard> {
                 status: widget.event.computedStatus,
                 color: circleColor,
                 size: iconSize,
-                // 移除完成功能
+                isPastEvent: widget.isPastEvent,
               ),
               SizedBox(width: horizontalSpacing),
               Expanded(
@@ -165,13 +216,28 @@ class _EventCardState extends State<EventCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     SizedBox(height: size.height * 0.005),
-                    Text(
-                      _subtitleText(widget.event),
-                      style: TextStyle(
-                        fontSize: subtitleFontSize,
-                        color: statusColor, // Grey for other text
-                      ),
-                    ),
+                    // 🎯 Past Events 使用 FutureBuilder 異步載入內容
+                    widget.isPastEvent 
+                      ? FutureBuilder<String>(
+                          future: _generateLearningContentSummary(widget.event),
+                          builder: (context, snapshot) {
+                            final text = snapshot.data ?? '載入中...';
+                            return Text(
+                              text,
+                              style: TextStyle(
+                                fontSize: subtitleFontSize,
+                                color: statusColor,
+                              ),
+                            );
+                          },
+                        )
+                      : Text(
+                          _subtitleText(widget.event, isPastEvent: widget.isPastEvent),
+                          style: TextStyle(
+                            fontSize: subtitleFontSize,
+                            color: statusColor, // Grey for other text
+                          ),
+                        ),
                   ],
                 ),
               ),
@@ -187,6 +253,9 @@ class _EventCardState extends State<EventCard> {
                 buttonWidth: size.width * 0.2,
                 borderRadius: size.width * 0.02,
                 fontSize: subtitleFontSize,
+                onReviewStart: () => widget.onAction(TaskAction.reviewStart),
+                isTestTask: _isTestTitle(widget.event.title),
+                isPastEvent: widget.isPastEvent, // 傳遞過去事件標記
               ),
             ],
           ),
@@ -195,7 +264,19 @@ class _EventCardState extends State<EventCard> {
     });
   }
 
-  static String _subtitleText(EventModel e) {
+  bool _isTestTitle(String title) {
+    final lower = title.toLowerCase().trim();
+    final vocabTest = RegExp(r'^vocab[-_]?w\d+[-_]?test$');
+    final readingTest = RegExp(r'^reading[-_]?w\d+[-_]?test$');
+    return vocabTest.hasMatch(lower) || readingTest.hasMatch(lower);
+  }
+
+  static String _subtitleText(EventModel e, {bool isPastEvent = false}) {
+    // 🎯 Past Events 顯示學習內容而不是時間範圍
+    if (isPastEvent) {
+      return '載入中...'; // 暫時顯示，將由 FutureBuilder 替換
+    }
+    
     return switch (e.computedStatus) {
       TaskStatus.inProgress => _getCountdownText(e),
       TaskStatus.overtime => _getCountdownText(e), // 超時也顯示倒數時間（會顯示超時多久）
@@ -206,7 +287,94 @@ class _EventCardState extends State<EventCard> {
     };
   }
 
-  /// 计算并返回倒数时间文本
+  /// 生成學習內容摘要（用於過去事件顯示）
+  Future<String> _generateLearningContentSummary(EventModel e) async {
+    final title = e.title.toLowerCase().trim();
+    
+    try {
+      // 單字任務
+      if (title.contains('vocab') || title.contains('單字')) {
+        // 解析週次和天數資訊
+        final weekDayMatch = RegExp(r'w(\d+)[-_]?d(\d+)').firstMatch(title);
+        if (weekDayMatch != null) {
+          final week = int.parse(weekDayMatch.group(1)!);
+          final day = int.parse(weekDayMatch.group(2)!);
+          
+          try {
+            final vocabs = await VocabService().loadWeeklyVocab(week, day);
+            if (vocabs.isNotEmpty) {
+              // 顯示前三個單字
+              final topThree = vocabs.take(3).map((v) => v.word).where((w) => w.isNotEmpty).toList();
+              if (topThree.isNotEmpty) {
+                return '${topThree.join(', ')}${topThree.length == 3 ? '...' : ''}';
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) print('載入單字內容失敗: $e');
+          }
+          
+          return '第$week週第$day天單字學習';
+        }
+        
+        // 測驗
+        final testMatch = RegExp(r'w(\d+)[-_]?test').firstMatch(title);
+        if (testMatch != null) {
+          final week = testMatch.group(1);
+          return '第$week週單字測驗';
+        }
+        
+        return '單字學習';
+      }
+      
+      // 閱讀任務
+      if (title.contains('reading') || title.contains('閱讀') || title.contains('dyn')) {
+        // 解析週次和天數資訊
+        final weekDayMatch = RegExp(r'w(\d+)[-_]?d(\d+)').firstMatch(title);
+        if (weekDayMatch != null) {
+          final week = int.parse(weekDayMatch.group(1)!);
+          final day = int.parse(weekDayMatch.group(2)!);
+          
+          try {
+            final articles = await ReadingService().loadDailyArticles(week, day);
+            if (articles.isNotEmpty) {
+              // 顯示第一篇文章標題
+              final firstTitle = articles.first.title;
+              return firstTitle.length > 25 ? '${firstTitle.substring(0, 25)}...' : firstTitle;
+            }
+          } catch (e) {
+            if (kDebugMode) print('載入閱讀內容失敗: $e');
+          }
+          
+          return '第$week週第$day天文章閱讀';
+        }
+        
+        // 測驗
+        final testMatch = RegExp(r'w(\d+)[-_]?test').firstMatch(title);
+        if (testMatch != null) {
+          final week = testMatch.group(1);
+          return '第$week週閱讀測驗';
+        }
+        
+        return '文章閱讀';
+      }
+      
+      // 其他任務，顯示描述或標題
+      if (e.description != null && e.description!.isNotEmpty) {
+        // 如果描述太長，截取前30個字元
+        final desc = e.description!;
+        return desc.length > 30 ? '${desc.substring(0, 30)}...' : desc;
+      }
+      
+      // 最後回退到時間範圍
+      return e.timeRange;
+      
+    } catch (err) {
+      if (kDebugMode) print('生成學習內容摘要失敗: $err');
+      return widget.event.timeRange; // 回退到時間範圍
+    }
+  }
+
+  /// 計算並返回倒數時間文本
   static String _getCountdownText(EventModel event) {
     final now = DateTime.now();
     
@@ -318,14 +486,25 @@ class _StatusIcon extends StatelessWidget {
     required this.status,
     required this.color,
     required this.size,
+    this.isPastEvent = false,
   });
 
   final TaskStatus status;
   final Color color;
   final double size;
+  final bool isPastEvent;
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 Past Events 統一使用簡單的圓圈圖標，不顯示狀態差異
+    if (isPastEvent) {
+      return Icon(
+        Icons.radio_button_unchecked,
+        color: color,
+        size: size,
+      );
+    }
+
     if (status == TaskStatus.completed) {
       return Icon(
         Icons.check_circle,
@@ -353,7 +532,7 @@ class _StatusIcon extends StatelessWidget {
 // -------------------------------------------------------------------------
 // Action button on the right (Start/Stop)
 // -------------------------------------------------------------------------
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   const _ActionButton({
     required this.status,
     required this.onStart,
@@ -365,6 +544,10 @@ class _ActionButton extends StatelessWidget {
     required this.buttonWidth,
     required this.borderRadius,
     required this.fontSize,
+    required this.onReviewStart,
+    required this.isTestTask,
+    required this.isPastEvent,
+    super.key,
   });
 
   final TaskStatus status;
@@ -377,17 +560,130 @@ class _ActionButton extends StatelessWidget {
   final double buttonWidth;
   final double borderRadius;
   final double fontSize;
+  final VoidCallback onReviewStart;
+  final bool isTestTask;
+  final bool isPastEvent; // 是否為過去事件
+
+  @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _isProcessing = false; // 防止重複點擊的通用狀態
+  
+  /// 包裝按鈕回調以防止重複點擊
+  VoidCallback? _wrapCallback(VoidCallback? callback) {
+    if (callback == null || _isProcessing) return null;
+    
+    return () async {
+      if (_isProcessing) return;
+      
+      setState(() {
+        _isProcessing = true;
+      });
+      
+      try {
+        callback();
+      } finally {
+        // 延遲重置狀態，避免連續快速點擊
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _isProcessing = false;
+            });
+          }
+        });
+      }
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (status == TaskStatus.completed) return const SizedBox.shrink();
+    // Past Events 只顯示「開始複習」按鈕
+    if (widget.isPastEvent) {
+      // 測驗型任務在 Past Events 中不顯示任何按鈕
+      if (widget.isTestTask) return const SizedBox.shrink();
+      
+      // 只顯示「開始複習」按鈕
+      final Color buttonColor = const Color(0xFFD7DFE0); // 與底部 Daily Report 顏色接近
+      final Color textColor = Colors.black87;
+      final ButtonStyle buttonStyle = ElevatedButton.styleFrom(
+        backgroundColor: buttonColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+                minimumSize: Size(widget.buttonWidth, widget.buttonHeight),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+        ),
+        textStyle: TextStyle(
+          fontSize: widget.fontSize,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: widget.buttonWidth,
+          maxWidth: widget.buttonWidth * 1.5,
+          minHeight: widget.buttonHeight,
+        ),
+        child: ElevatedButton(
+          onPressed: _wrapCallback(widget.onReviewStart),
+          style: buttonStyle,
+          child: const Text('開始複習'),
+        ),
+      );
+    }
+    
+    if (widget.status == TaskStatus.completed) {
+      // 測驗型任務（reading-test/vocab-test）不顯示複習按鈕
+      if (widget.isTestTask) return const SizedBox.shrink();
+
+      // 完成狀態：僅顯示「開始複習」，離開任務頁時自動結束
+      final Color buttonColor = const Color(0xFFD7DFE0); // 與底部 Daily Report 顏色接近
+      final Color textColor = Colors.black87;
+      final ButtonStyle buttonStyle = ElevatedButton.styleFrom(
+        backgroundColor: buttonColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        minimumSize: Size(widget.buttonWidth, widget.buttonHeight),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+        ),
+        textStyle: TextStyle(
+          fontSize: widget.fontSize,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: widget.buttonWidth,
+              maxWidth: widget.buttonWidth * 1.5,
+              minHeight: widget.buttonHeight,
+            ),
+            child: ElevatedButton(
+              onPressed: _wrapCallback(widget.onReviewStart),
+              style: buttonStyle,
+              child: const Text('開始複習'),
+            ),
+          ),
+        ],
+      );
+    }
 
     // 按鈕顏色與樣式設定
     Color buttonColor;
     Color textColor = Colors.black87;
 
     // 根據任務狀態決定按鈕顏色
-    if (status == TaskStatus.inProgress || status == TaskStatus.overtime || status == TaskStatus.notStarted || status == TaskStatus.paused) {
+    if (widget.status == TaskStatus.inProgress || widget.status == TaskStatus.overtime || widget.status == TaskStatus.notStarted || widget.status == TaskStatus.paused) {
       // Stop/Continue 按鈕使用較淺的綠色
       buttonColor = const Color(0xFFCED2C9);
     } else {
@@ -401,32 +697,32 @@ class _ActionButton extends StatelessWidget {
       foregroundColor: textColor,
       elevation: 0,
       padding: EdgeInsets.zero,
-      minimumSize: Size(buttonWidth, buttonHeight),
+      minimumSize: Size(widget.buttonWidth, widget.buttonHeight),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
       ),
       textStyle: TextStyle(
-        fontSize: fontSize,
+        fontSize: widget.fontSize,
         fontWeight: FontWeight.w500,
       ),
     );
 
     // Start button
-    if (status == TaskStatus.notStarted || status == TaskStatus.overdue) {
+    if (widget.status == TaskStatus.notStarted || widget.status == TaskStatus.overdue) {
       return Column(
         mainAxisSize: MainAxisSize.min, // 不撐滿父層
         crossAxisAlignment: CrossAxisAlignment.end, // 右對齊，跟原本一致
         children: [
-          // 只有當onChat不為null時才顯示聊天按鈕
-          if (onChat != null) ...[
+          // 只有當onChat不為null且不是測試任務時才顯示聊天按鈕
+          if (widget.onChat != null && !widget.isTestTask) ...[
             ConstrainedBox(
               constraints: BoxConstraints(
-                minWidth: buttonWidth,
-                maxWidth: buttonWidth * 1.5,
-                minHeight: buttonHeight,
+                minWidth: widget.buttonWidth,
+                maxWidth: widget.buttonWidth * 1.5,
+                minHeight: widget.buttonHeight,
               ),
               child: ElevatedButton(
-                onPressed: onChat,
+                onPressed: _wrapCallback(widget.onChat),
                 style: buttonStyle,
                 child: const Text('需要動力'),
               ),
@@ -435,12 +731,12 @@ class _ActionButton extends StatelessWidget {
           ],
           ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: buttonWidth,
-              maxWidth: buttonWidth * 1.5,
-              minHeight: buttonHeight,
+              minWidth: widget.buttonWidth,
+              maxWidth: widget.buttonWidth * 1.5,
+              minHeight: widget.buttonHeight,
             ),
             child: ElevatedButton(
-              onPressed: onStart,
+              onPressed: _wrapCallback(widget.onStart),
               style: buttonStyle,
               child: const Text('開始任務'),
             ),
@@ -450,21 +746,21 @@ class _ActionButton extends StatelessWidget {
     }
 
     // Continue button (Paused state)
-    if (status == TaskStatus.paused) {
+    if (widget.status == TaskStatus.paused) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 只有當onChat不為null時才顯示聊天按鈕
-          if (onChat != null) ...[
+          // 只有當onChat不為null且不是測試任務時才顯示聊天按鈕
+          if (widget.onChat != null && !widget.isTestTask) ...[
             ConstrainedBox(
               constraints: BoxConstraints(
-                minWidth: buttonWidth,
-                maxWidth: buttonWidth * 1.5,
-                minHeight: buttonHeight,
+                minWidth: widget.buttonWidth,
+                maxWidth: widget.buttonWidth * 1.5,
+                minHeight: widget.buttonHeight,
               ),
               child: ElevatedButton(
-                onPressed: onChat,
+                onPressed: _wrapCallback(widget.onChat),
                 style: buttonStyle,
                 child: const Text('需要動力'),
               ),
@@ -473,12 +769,12 @@ class _ActionButton extends StatelessWidget {
           ],
           ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: buttonWidth,
-              maxWidth: buttonWidth * 1.5,
-              minHeight: buttonHeight,
+              minWidth: widget.buttonWidth,
+              maxWidth: widget.buttonWidth * 1.5,
+              minHeight: widget.buttonHeight,
             ),
             child: ElevatedButton(
-              onPressed: onContinue,
+              onPressed: _wrapCallback(widget.onContinue),
               style: buttonStyle,
               child: const Text('繼續任務'),
             ),
@@ -488,19 +784,19 @@ class _ActionButton extends StatelessWidget {
     }
 
     // Stop and Complete buttons (In Progress and Overtime)
-    if (status == TaskStatus.inProgress || status == TaskStatus.overtime) {
+    if (widget.status == TaskStatus.inProgress || widget.status == TaskStatus.overtime) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: buttonWidth,
-              maxWidth: buttonWidth * 1.5,
-              minHeight: buttonHeight,
+              minWidth: widget.buttonWidth,
+              maxWidth: widget.buttonWidth * 1.5,
+              minHeight: widget.buttonHeight,
             ),
             child: ElevatedButton(
-              onPressed: onComplete,
+              onPressed: _wrapCallback(widget.onComplete),
               style: buttonStyle,
               child: const Text('完成'),
             ),
@@ -508,12 +804,12 @@ class _ActionButton extends StatelessWidget {
           const SizedBox(height: 6),
           ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: buttonWidth,
-              maxWidth: buttonWidth * 1.5,
-              minHeight: buttonHeight,
+              minWidth: widget.buttonWidth,
+              maxWidth: widget.buttonWidth * 1.5,
+              minHeight: widget.buttonHeight,
             ),
             child: ElevatedButton(
-              onPressed: onStop,
+              onPressed: _wrapCallback(widget.onStop),
               style: buttonStyle,
               child: const Text('暫停任務'),
             ),

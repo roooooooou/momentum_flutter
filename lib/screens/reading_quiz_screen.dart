@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
 import '../models/reading_content_model.dart';
+import '../models/enums.dart';
 import '../services/reading_analytics_service.dart';
+import '../services/calendar_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/analytics_service.dart';
 
 class ReadingQuizScreen extends StatefulWidget {
   final List<ReadingQuestion> questions;
@@ -13,18 +16,61 @@ class ReadingQuizScreen extends StatefulWidget {
   State<ReadingQuizScreen> createState() => _ReadingQuizScreenState();
 }
 
-class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
+class _ReadingQuizScreenState extends State<ReadingQuizScreen> with WidgetsBindingObserver {
   int _idx = 0;
   String? _selected;
   int _correct = 0;
   bool _showResult = false;
   late final List<String> _userAnswers;
   final ReadingAnalyticsService _analyticsService = ReadingAnalyticsService();
+  final CalendarService _calendarService = CalendarService.instance;
+  bool _reviewEndedLogged = false;
+  DateTime? _quizStartTime; // 記錄測驗開始時間
+  String? _currentUserId; // 當前用戶ID
+  bool _isQuizActive = true; // 測驗是否處於活躍狀態
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 添加生命週期觀察者
+    _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _userAnswers = List.filled(widget.questions.length, '');
+    _quizStartTime = DateTime.now(); // 記錄測驗開始時間
+    _startQuiz(); // 開始測驗追蹤
+  }
+
+  /// 開始測驗追蹤
+  Future<void> _startQuiz() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await _analyticsService.startQuiz(
+        uid: user.uid,
+        eventId: widget.event.id,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 移除生命週期觀察者
+    // 頁面銷毀時，視為結束複習
+    _endReviewIfAny();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // App進入後台或非活躍狀態，暫停測驗任務
+      _isQuizActive = false;
+      _pauseQuizEvent();
+    } else if (state == AppLifecycleState.resumed) {
+      // App恢復活躍狀態，如果任務被暫停則繼續
+      _isQuizActive = true;
+      _resumeQuizEvent();
+    }
   }
 
   void _select(String letter) {
@@ -42,15 +88,78 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
       for (var i = 0; i < widget.questions.length; i++) {
         if (_userAnswers[i] == widget.questions[i].answerLetter) _correct++;
       }
+      // 計算測驗時間
+      int quizTimeMs = 0;
+      if (_quizStartTime != null) {
+        quizTimeMs = DateTime.now().difference(_quizStartTime!).inMilliseconds;
+      }
+      
+      // 記錄 quiz_complete 事件
+      AnalyticsService().logQuizComplete(
+        quizType: 'reading',
+        eventId: widget.event.id,
+        score: (widget.questions.isNotEmpty ? (_correct / widget.questions.length * 100).round() : 0),
+        correctAnswers: _correct,
+        totalQuestions: widget.questions.length,
+        durationSeconds: quizTimeMs ~/ 1000,
+      );
+
       await _analyticsService.completeQuiz(
         uid: user.uid,
         eventId: widget.event.id,
         correctAnswers: _correct,
         totalQuestions: widget.questions.length,
+        quizTimeMs: quizTimeMs, // 傳遞測驗時間
+      );
+      
+      // 记录事件完成
+      await ExperimentEventHelper.recordEventCompletion(
+        uid: user.uid,
+        eventId: widget.event.id,
+        chatId: widget.event.chatId,
       );
     }
     if (!mounted) return;
+    await _endReviewIfAny();
     setState(() => _showResult = true);
+  }
+
+  Future<void> _endReviewIfAny() async {
+    if (_reviewEndedLogged) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await ExperimentEventHelper.recordReviewEnd(uid: uid, eventId: widget.event.id);
+      } catch (_) {}
+    }
+    _reviewEndedLogged = true;
+  }
+
+  /// 暫停測驗任務
+  Future<void> _pauseQuizEvent() async {
+    if (_currentUserId != null && _isQuizActive) {
+      try {
+        await _calendarService.stopEvent(_currentUserId!, widget.event);
+        print('測驗任務已暫停: ${widget.event.title}');
+      } catch (e) {
+        print('暫停測驗任務失敗: $e');
+      }
+    }
+  }
+
+  /// 恢復測驗任務
+  Future<void> _resumeQuizEvent() async {
+    if (_currentUserId != null) {
+      try {
+        // 檢查任務是否為暫停狀態，如果是則繼續
+        if (widget.event.status == TaskStatus.paused) {
+          await _calendarService.continueEvent(_currentUserId!, widget.event);
+          print('測驗任務已恢復: ${widget.event.title}');
+        }
+      } catch (e) {
+        print('恢復測驗任務失敗: $e');
+      }
+    }
   }
 
   @override

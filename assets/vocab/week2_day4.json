@@ -7,7 +7,7 @@
     "selection_method": "random_without_replacement",
     "counts": {
       "new": 8,
-      "review_due": 20
+      "review_due": 0
     },
     "session_time_limit_sec": 600
   },
@@ -85,207 +85,8 @@
       "label": "new"
     }
   ],
-  "review_items": [
-    {
-      "word": "execrate",
-      "part_of_speech": "verb",
-      "en_definition": "to feel or express great loathing for",
-      "zh_explanation": "痛恨；極度厭惡",
-      "example_en": "Citizens openly execrate systemic corruption.",
-      "example_zh": "民眾公開痛恨體制性的貪腐。",
-      "label": "review"
-    },
-    {
-      "word": "parsimonious",
-      "part_of_speech": "adj",
-      "en_definition": "unwilling to spend money; stingy",
-      "zh_explanation": "吝嗇；節儉過度",
-      "example_en": "A parsimonious budget cut key services.",
-      "example_zh": "過度節省的預算砍掉了重要服務。",
-      "label": "review"
-    },
-    {
-      "word": "prolix",
-      "part_of_speech": "adj",
-      "en_definition": "using too many words; tediously long",
-      "zh_explanation": "冗長乏味；多話",
-      "example_en": "A prolix report buried the key points.",
-      "example_zh": "冗長的報告掩沒了重點。",
-      "label": "review"
-    },
-    {
-      "word": "attenuate",
-      "part_of_speech": "verb",
-      "en_definition": "to reduce in force, effect, or thickness",
-      "zh_explanation": "削弱；減輕；使變薄",
-      "example_en": "Engineers attenuated the noise with better insulation.",
-      "example_zh": "工程師用更好的隔音來降低噪音。",
-      "label": "review"
-    },
-    {
-      "word": "protean",
-      "part_of_speech": "adj",
-      "en_definition": "tending to change frequently; very versatile",
-      "zh_explanation": "多變；多才多藝",
-      "example_en": "A protean designer reinvented the interface.",
-      "example_zh": "那位多變的設計師改頭換面了介面。",
-      "label": "review"
-    },
-    {
-      "word": "redolent",
-      "part_of_speech": "adj",
-      "en_definition": "strongly reminiscent; fragrant",
-      "zh_explanation": "令人想起⋯；芳香",
-      "example_en": "The room was redolent of fresh basil.",
-      "example_zh": "房間瀰漫著新鮮羅勒的香氣。",
-      "label": "review"
-    },
-    {
-      "word": "implacable",
-      "part_of_speech": "adj",
-      "en_definition": "unable to be appeased; relentless",
-      "zh_explanation": "無法撫慰；不妥協",
-      "example_en": "She remained an implacable critic of the policy.",
-      "example_zh": "她始終是該政策不妥協的批評者。",
-      "label": "review"
-    },
-    {
-      "word": "opprobrium",
-      "part_of_speech": "noun",
-      "en_definition": "harsh criticism or public disgrace",
-      "zh_explanation": "譴責；公眾羞辱",
-      "example_en": "He resigned under intense public opprobrium.",
-      "example_zh": "在強大輿論譴責下他辭職了。",
-      "label": "review"
-    },
-    {
-      "word": "reticent",
-      "part_of_speech": "adj",
-      "en_definition": "not revealing one's thoughts readily",
-      "zh_explanation": "沉默寡言；保守",
-      "example_en": "She is reticent about personal matters.",
-      "example_zh": "她對私事一向寡言。",
-      "label": "review"
-    },
-    {
-      "word": "pique",
-      "part_of_speech": "verb",
-      "en_definition": "to arouse interest or irritation",
-      "zh_explanation": "激起（興趣／不悅）",
-      "example_en": "The odd clue piqued her curiosity.",
-      "example_zh": "那條古怪的線索激起了她的好奇。",
-      "label": "review"
-    },
-    {
-      "word": "pugnacious",
-      "part_of_speech": "adj",
-      "en_definition": "eager or quick to argue or fight",
-      "zh_explanation": "好鬥；好爭辯",
-      "example_en": "A pugnacious debater took the stage.",
-      "example_zh": "一位好鬥的辯手走上台。",
-      "label": "review"
-    },
-    {
-      "word": "munificent",
-      "part_of_speech": "adj",
-      "en_definition": "more generous than usual",
-      "zh_explanation": "慷慨大方；額外豐厚",
-      "example_en": "A munificent gift kept the program alive.",
-      "example_zh": "一筆慷慨的捐助讓計畫得以延續。",
-      "label": "review"
-    },
-    {
-      "word": "propitiate",
-      "part_of_speech": "verb",
-      "en_definition": "to win or regain favor by doing something pleasing",
-      "zh_explanation": "討好以求和；撫慰",
-      "example_en": "They sent gifts to propitiate the client.",
-      "example_zh": "他們送禮以安撫客戶、求重修舊好。",
-      "label": "review"
-    },
-    {
-      "word": "hector",
-      "part_of_speech": "verb",
-      "en_definition": "to bully or intimidate",
-      "zh_explanation": "威嚇；欺凌",
-      "example_en": "He likes to hector junior staff into agreement.",
-      "example_zh": "他喜歡恐嚇菜鳥逼他們同意。",
-      "label": "review"
-    },
-    {
-      "word": "dissemble",
-      "part_of_speech": "verb",
-      "en_definition": "to conceal one's true motives",
-      "zh_explanation": "掩飾動機；偽裝",
-      "example_en": "She chose to dissemble about her next move.",
-      "example_zh": "她選擇對自己的下一步遮遮掩掩。",
-      "label": "review"
-    },
-    {
-      "word": "pellucid",
-      "part_of_speech": "adj",
-      "en_definition": "transparently clear and easily understood",
-      "zh_explanation": "清澈透明；清楚易懂",
-      "example_en": "Her pellucid prose clarified the concept.",
-      "example_zh": "她清澈易懂的文字釐清了概念。",
-      "label": "review"
-    },
-    {
-      "word": "noisome",
-      "part_of_speech": "adj",
-      "en_definition": "offensive, especially to the senses; harmful",
-      "zh_explanation": "惡臭難聞；有害",
-      "example_en": "A noisome stench seeped from the drains.",
-      "example_zh": "下水道滲出惡臭。",
-      "label": "review"
-    },
-    {
-      "word": "platitude",
-      "part_of_speech": "noun",
-      "en_definition": "a trite, overused remark",
-      "zh_explanation": "老生常談；陳腔濫調",
-      "example_en": "The talk offered platitudes instead of plans.",
-      "example_zh": "演講只剩陳腔濫調，沒有方案。",
-      "label": "review"
-    },
-    {
-      "word": "jejune",
-      "part_of_speech": "adj",
-      "en_definition": "naive, simplistic, and superficial",
-      "zh_explanation": "幼稚膚淺；單薄",
-      "example_en": "The essay felt jejune and superficial.",
-      "example_zh": "這篇文章顯得幼稚而淺薄。",
-      "label": "review"
-    },
-    {
-      "word": "sagacious",
-      "part_of_speech": "adj",
-      "en_definition": "having or showing good judgment; wise",
-      "zh_explanation": "睿智；判斷力好",
-      "example_en": "A sagacious mentor offered simple advice.",
-      "example_zh": "一位睿智的導師給了簡明建議。",
-      "label": "review"
-    }
-  ],
+  "review_items": [],
   "items_shuffled": [
-    {
-      "word": "noisome",
-      "part_of_speech": "adj",
-      "en_definition": "offensive, especially to the senses; harmful",
-      "zh_explanation": "惡臭難聞；有害",
-      "example_en": "A noisome stench seeped from the drains.",
-      "example_zh": "下水道滲出惡臭。",
-      "label": "review"
-    },
-    {
-      "word": "opprobrium",
-      "part_of_speech": "noun",
-      "en_definition": "harsh criticism or public disgrace",
-      "zh_explanation": "譴責；公眾羞辱",
-      "example_en": "He resigned under intense public opprobrium.",
-      "example_zh": "在強大輿論譴責下他辭職了。",
-      "label": "review"
-    },
     {
       "word": "remonstrate",
       "part_of_speech": "verb",
@@ -294,24 +95,6 @@
       "example_en": "Residents remonstrated with city officials.",
       "example_zh": "居民向市府強烈抗議。",
       "label": "new"
-    },
-    {
-      "word": "execrate",
-      "part_of_speech": "verb",
-      "en_definition": "to feel or express great loathing for",
-      "zh_explanation": "痛恨；極度厭惡",
-      "example_en": "Citizens openly execrate systemic corruption.",
-      "example_zh": "民眾公開痛恨體制性的貪腐。",
-      "label": "review"
-    },
-    {
-      "word": "pugnacious",
-      "part_of_speech": "adj",
-      "en_definition": "eager or quick to argue or fight",
-      "zh_explanation": "好鬥；好爭辯",
-      "example_en": "A pugnacious debater took the stage.",
-      "example_zh": "一位好鬥的辯手走上台。",
-      "label": "review"
     },
     {
       "word": "mendacious",
@@ -323,51 +106,6 @@
       "label": "new"
     },
     {
-      "word": "implacable",
-      "part_of_speech": "adj",
-      "en_definition": "unable to be appeased; relentless",
-      "zh_explanation": "無法撫慰；不妥協",
-      "example_en": "She remained an implacable critic of the policy.",
-      "example_zh": "她始終是該政策不妥協的批評者。",
-      "label": "review"
-    },
-    {
-      "word": "parsimonious",
-      "part_of_speech": "adj",
-      "en_definition": "unwilling to spend money; stingy",
-      "zh_explanation": "吝嗇；節儉過度",
-      "example_en": "A parsimonious budget cut key services.",
-      "example_zh": "過度節省的預算砍掉了重要服務。",
-      "label": "review"
-    },
-    {
-      "word": "prolix",
-      "part_of_speech": "adj",
-      "en_definition": "using too many words; tediously long",
-      "zh_explanation": "冗長乏味；多話",
-      "example_en": "A prolix report buried the key points.",
-      "example_zh": "冗長的報告掩沒了重點。",
-      "label": "review"
-    },
-    {
-      "word": "munificent",
-      "part_of_speech": "adj",
-      "en_definition": "more generous than usual",
-      "zh_explanation": "慷慨大方；額外豐厚",
-      "example_en": "A munificent gift kept the program alive.",
-      "example_zh": "一筆慷慨的捐助讓計畫得以延續。",
-      "label": "review"
-    },
-    {
-      "word": "redolent",
-      "part_of_speech": "adj",
-      "en_definition": "strongly reminiscent; fragrant",
-      "zh_explanation": "令人想起⋯；芳香",
-      "example_en": "The room was redolent of fresh basil.",
-      "example_zh": "房間瀰漫著新鮮羅勒的香氣。",
-      "label": "review"
-    },
-    {
       "word": "ineluctable",
       "part_of_speech": "adj",
       "en_definition": "unable to be resisted; inescapable",
@@ -375,15 +113,6 @@
       "example_en": "They faced the ineluctable deadline together.",
       "example_zh": "他們一起面對不可避免的死線。",
       "label": "new"
-    },
-    {
-      "word": "protean",
-      "part_of_speech": "adj",
-      "en_definition": "tending to change frequently; very versatile",
-      "zh_explanation": "多變；多才多藝",
-      "example_en": "A protean designer reinvented the interface.",
-      "example_zh": "那位多變的設計師改頭換面了介面。",
-      "label": "review"
     },
     {
       "word": "perfidious",
@@ -404,24 +133,6 @@
       "label": "new"
     },
     {
-      "word": "pique",
-      "part_of_speech": "verb",
-      "en_definition": "to arouse interest or irritation",
-      "zh_explanation": "激起（興趣／不悅）",
-      "example_en": "The odd clue piqued her curiosity.",
-      "example_zh": "那條古怪的線索激起了她的好奇。",
-      "label": "review"
-    },
-    {
-      "word": "sagacious",
-      "part_of_speech": "adj",
-      "en_definition": "having or showing good judgment; wise",
-      "zh_explanation": "睿智；判斷力好",
-      "example_en": "A sagacious mentor offered simple advice.",
-      "example_zh": "一位睿智的導師給了簡明建議。",
-      "label": "review"
-    },
-    {
       "word": "discomfit",
       "part_of_speech": "verb",
       "en_definition": "to make uneasy or embarrass; to thwart",
@@ -440,69 +151,6 @@
       "label": "new"
     },
     {
-      "word": "platitude",
-      "part_of_speech": "noun",
-      "en_definition": "a trite, overused remark",
-      "zh_explanation": "老生常談；陳腔濫調",
-      "example_en": "The talk offered platitudes instead of plans.",
-      "example_zh": "演講只剩陳腔濫調，沒有方案。",
-      "label": "review"
-    },
-    {
-      "word": "dissemble",
-      "part_of_speech": "verb",
-      "en_definition": "to conceal one's true motives",
-      "zh_explanation": "掩飾動機；偽裝",
-      "example_en": "She chose to dissemble about her next move.",
-      "example_zh": "她選擇對自己的下一步遮遮掩掩。",
-      "label": "review"
-    },
-    {
-      "word": "jejune",
-      "part_of_speech": "adj",
-      "en_definition": "naive, simplistic, and superficial",
-      "zh_explanation": "幼稚膚淺；單薄",
-      "example_en": "The essay felt jejune and superficial.",
-      "example_zh": "這篇文章顯得幼稚而淺薄。",
-      "label": "review"
-    },
-    {
-      "word": "attenuate",
-      "part_of_speech": "verb",
-      "en_definition": "to reduce in force, effect, or thickness",
-      "zh_explanation": "削弱；減輕；使變薄",
-      "example_en": "Engineers attenuated the noise with better insulation.",
-      "example_zh": "工程師用更好的隔音來降低噪音。",
-      "label": "review"
-    },
-    {
-      "word": "propitiate",
-      "part_of_speech": "verb",
-      "en_definition": "to win or regain favor by doing something pleasing",
-      "zh_explanation": "討好以求和；撫慰",
-      "example_en": "They sent gifts to propitiate the client.",
-      "example_zh": "他們送禮以安撫客戶、求重修舊好。",
-      "label": "review"
-    },
-    {
-      "word": "pellucid",
-      "part_of_speech": "adj",
-      "en_definition": "transparently clear and easily understood",
-      "zh_explanation": "清澈透明；清楚易懂",
-      "example_en": "Her pellucid prose clarified the concept.",
-      "example_zh": "她清澈易懂的文字釐清了概念。",
-      "label": "review"
-    },
-    {
-      "word": "reticent",
-      "part_of_speech": "adj",
-      "en_definition": "not revealing one's thoughts readily",
-      "zh_explanation": "沉默寡言；保守",
-      "example_en": "She is reticent about personal matters.",
-      "example_zh": "她對私事一向寡言。",
-      "label": "review"
-    },
-    {
       "word": "dilatory",
       "part_of_speech": "adj",
       "en_definition": "slow to act; intended to cause delay",
@@ -510,15 +158,6 @@
       "example_en": "The board took a dilatory approach to the safety fix.",
       "example_zh": "董事會對安全修正一再拖延。",
       "label": "new"
-    },
-    {
-      "word": "hector",
-      "part_of_speech": "verb",
-      "en_definition": "to bully or intimidate",
-      "zh_explanation": "威嚇；欺凌",
-      "example_en": "He likes to hector junior staff into agreement.",
-      "example_zh": "他喜歡恐嚇菜鳥逼他們同意。",
-      "label": "review"
     }
   ]
 }

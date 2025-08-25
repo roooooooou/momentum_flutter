@@ -42,13 +42,19 @@ class ExperimentConfigService {
   // 舊的日期分組流程已移除
 
   /// 新：以週為單位的組別判定（僅使用 Firestore 的 manual_week_assignment: 'A'|'B'）
-  /// dayNumber 0-7 → w1，>7 → w2；'A': w1=experiment, w2=control；'B': w1=control, w2=experiment
+  /// dayNumber 0→w0（測試週，根據 A/B 分組），1-7→w1，>7→w2；'A': w0/w1=experiment, w2=control；'B': w0/w1=control, w2=experiment
   Future<String> getWeekGroupName(String uid) async {
     try {
       final manual = await _getManualWeekAssignment(uid); // 'A'|'B'|null
       final assign = manual ?? 'A';
       final dayNum = await DayNumberService().getTodayDayNumber();
-      final isWeek1 = dayNum <= 7;
+      
+      // dayNumber 0 是測試週，根據 A/B 分組決定
+      if (dayNum == 0) {
+        return assign == 'A' ? 'experiment' : 'control';
+      }
+      
+      final isWeek1 = dayNum >= 1 && dayNum <= 7;
       if (assign == 'A') {
         return isWeek1 ? 'experiment' : 'control';
       } else {
@@ -68,7 +74,13 @@ class ExperimentConfigService {
       final manual = await _getManualWeekAssignment(uid); // 'A'|'B'|null
       final assign = manual ?? 'A';
       final dayNum = await DayNumberService().calculateDayNumber(date);
-      final isWeek1 = dayNum <= 7;
+      
+      // dayNumber 0 是測試週，根據 A/B 分組決定
+      if (dayNum == 0) {
+        return assign == 'A' ? 'experiment' : 'control';
+      }
+      
+      final isWeek1 = dayNum >= 1 && dayNum <= 7;
       if (assign == 'A') {
         return isWeek1 ? 'experiment' : 'control';
       } else {

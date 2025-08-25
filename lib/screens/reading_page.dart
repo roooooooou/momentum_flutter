@@ -6,6 +6,7 @@ import '../services/reading_service.dart';
 import '../services/reading_analytics_service.dart';
 import '../services/calendar_service.dart';
 import '../models/enums.dart';
+import '../services/analytics_service.dart';
 
 class ReadingPage extends StatefulWidget {
   final EventModel event;
@@ -33,6 +34,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   String? _currentUserId;
   bool _isAppActive = true;
   bool _showListView = false; // 新增：控制列表视图
+  DateTime? _startTime; // 記錄頁面開始時間
 
   // 將 **...** 片段渲染為粗體
   List<TextSpan> _parseBoldSpans(String text, TextStyle baseStyle, TextStyle boldStyle) {
@@ -56,6 +58,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _startTime = DateTime.now(); // 記錄開始時間
     WidgetsBinding.instance.addObserver(this);
     _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _loadContent();
@@ -64,6 +67,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // 保險：視圖銷毀時結束複習（若此頁也作為複習內容使用）
+    _endReviewIfAny();
     _pageController.dispose();
     super.dispose();
   }
@@ -171,6 +176,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       
       // 暂停事件
       await _pauseEvent();
+      // 結束複習（若有）
+      await _endReviewIfAny();
       
       Navigator.of(context).pop();
     }
@@ -251,6 +258,16 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // 記錄 task_complete 事件
+        if (_startTime != null) {
+          final duration = DateTime.now().difference(_startTime!);
+          AnalyticsService().logTaskComplete(
+            taskType: 'reading',
+            eventId: widget.event.id,
+            durationSeconds: duration.inSeconds,
+          );
+        }
+
         _recordCurrentCardDwellTime();
         await _analyticsService.completeReadingSession(
           uid: user.uid,
@@ -262,6 +279,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
           eventId: widget.event.id,
           chatId: widget.event.chatId,
         );
+        // 結束複習（若有）
+        await _endReviewIfAny();
       }
       
       // 跳回home screen
@@ -271,6 +290,18 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       // 即使出错也要跳回home screen
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
+  }
+
+  bool _reviewEndedLogged = false;
+  Future<void> _endReviewIfAny() async {
+    if (_reviewEndedLogged) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await ExperimentEventHelper.recordReviewEnd(uid: uid, eventId: widget.event.id);
+      } catch (_) {}
+    }
+    _reviewEndedLogged = true;
   }
 
   @override
@@ -460,17 +491,19 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   Widget _buildReadingView() {
     return Column(
       children: [
-        // 页面指示器
+        // 页面指示器：使用 Wrap 避免小圓點總寬度超出螢幕而溢位
         Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          alignment: Alignment.center,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: List.generate(
               _contents.length,
               (index) => Container(
                 width: 8,
                 height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _currentPage == index

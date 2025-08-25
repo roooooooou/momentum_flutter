@@ -19,7 +19,12 @@ class DataPathService {
     return await ExperimentConfigService.instance.getDateGroup(uid, date);
   }
 
-  /// 取得 w1 事件集合引用（week1: day0~7）
+  /// 取得 w0 事件集合引用（week0: day0 測試週）
+  Future<CollectionReference> getUserW0EventsCollection(String uid) async {
+    return _firestore.collection('users').doc(uid).collection('w0');
+  }
+
+  /// 取得 w1 事件集合引用（week1: day1~7）
   Future<CollectionReference> getUserW1EventsCollection(String uid) async {
     return _firestore.collection('users').doc(uid).collection('w1');
   }
@@ -35,18 +40,33 @@ class DataPathService {
     return await getDateEventsCollection(uid, today);
   }
 
-  /// 获取指定日期的事件集合引用（依 dayNumber 判斷 w1/w2）
+  /// 获取指定日期的事件集合引用（依 dayNumber 判斷 w0/w1/w2）
+  /// d0=測試天→w0, d1-d7=w1, d8+=w2
   Future<CollectionReference> getDateEventsCollection(String uid, DateTime date) async {
     final dayNum = await DayNumberService().calculateDayNumber(date);
-    final isWeek1 = dayNum <= 7;
+    String folder;
+    CollectionReference collection;
+    
+    if (dayNum == 0) {
+      folder = 'w0';
+      collection = await getUserW0EventsCollection(uid);
+    } else if (dayNum >= 1 && dayNum <= 7) {
+      folder = 'w1';
+      collection = await getUserW1EventsCollection(uid);
+    } else {
+      folder = 'w2';
+      collection = await getUserW2EventsCollection(uid);
+    }
+    
     assert(() {
       // 調試：輸出日期與目標資料夾
       try {
-        print('DataPathService.getDateEventsCollection: uid=' + uid + ', date=' + date.toIso8601String() + ', dayNum=' + dayNum.toString() + ', folder=' + (isWeek1 ? 'w1' : 'w2'));
+        print('DataPathService.getDateEventsCollection: uid=' + uid + ', date=' + date.toIso8601String() + ', dayNum=' + dayNum.toString() + ', folder=' + folder);
       } catch (_) {}
       return true;
     }());
-    return isWeek1 ? await getUserW1EventsCollection(uid) : await getUserW2EventsCollection(uid);
+    
+    return collection;
   }
 
   /// 获取用户事件文档引用（基于当前日期）
@@ -55,13 +75,21 @@ class DataPathService {
     return eventsCol.doc(eventId);
   }
 
-  /// 優先在 w1/w2 兩個集合中查找已存在的事件文檔
+  /// 優先在 w0/w1/w2 三個集合中查找已存在的事件文檔
   Future<DocumentReference?> findExistingEventDoc(String uid, String eventId) async {
+    // 先檢查 w0（測試週）
+    final w0Col = await getUserW0EventsCollection(uid);
+    final w0Doc = w0Col.doc(eventId);
+    final w0Snap = await w0Doc.get();
+    if (w0Snap.exists) return w0Doc;
+
+    // 再檢查 w1
     final w1Col = await getUserW1EventsCollection(uid);
     final w1Doc = w1Col.doc(eventId);
     final w1Snap = await w1Doc.get();
     if (w1Snap.exists) return w1Doc;
 
+    // 最後檢查 w2
     final w2Col = await getUserW2EventsCollection(uid);
     final w2Doc = w2Col.doc(eventId);
     final w2Snap = await w2Doc.get();
@@ -202,12 +230,24 @@ class DataPathService {
     return group == ExperimentGroup.control;
   }
 
-  /// 获取所有事件集合（w1 + w2）
+  /// 获取所有事件集合（w0 + w1 + w2）
   Future<List<CollectionReference>> getAllEventsCollections(String uid) async {
     return [
+      await getUserW0EventsCollection(uid),
       await getUserW1EventsCollection(uid),
       await getUserW2EventsCollection(uid),
     ];
+  }
+
+  /// 根據 dayNumber 取得事件集合（d0=測試天→w0, d1-d7→w1，d8+→w2）
+  Future<CollectionReference> getEventsCollectionByDayNumber(String uid, int dayNumber) async {
+    if (dayNumber == 0) {
+      return await getUserW0EventsCollection(uid);
+    } else if (dayNumber >= 1 && dayNumber <= 7) {
+      return await getUserW1EventsCollection(uid);
+    } else {
+      return await getUserW2EventsCollection(uid);
+    }
   }
 
   /// 保留舊接口：根據日期與（舊）組別取得事件集合

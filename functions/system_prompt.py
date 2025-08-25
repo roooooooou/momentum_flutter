@@ -74,10 +74,13 @@ def get_reading_topic(day_number: int) -> str:
     if day_number <= 0:
         return "Travel"  # 默认值
     
-    # 使用模运算来循环使用topics
-    # 我们有5个基础topics: Travel, Science, History, Culture, Technology
-    base_topics = ["地理與環境", "科學機制", "技術與工程", "歷史事件", "學習與自我提升", "研究方法", ""]
+    # This is a list of base topics that can be used to generate motivational messages.
+    # The topic should be broad enough to cover a range of articles, but specific enough to be meaningful.
+    # The last element is an empty string, which means no topic will be mentioned.
+    base_topics = ["洞察世界與自然", "探索科學的奧秘", "改變世界的科技", "以歷史為鑑", "學習與自我成長", "培養思辨能力", ""]
     
+    # This is a list of personas that the coach can adopt.
+    # Each persona has a name and a description of their personality.
     # 其他情况使用循环模式
     index = (day_number - 1) % len(base_topics)
     return base_topics[index]

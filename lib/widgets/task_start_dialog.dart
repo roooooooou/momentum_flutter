@@ -16,10 +16,15 @@ import '../screens/reading_page.dart';
 
 class TaskStartDialog extends StatefulWidget {
   final EventModel event;
-  
+  // 新增：當前被點擊的notifId（若有）
+  final String? notifId;
+  final bool isControlGroup;
+
   const TaskStartDialog({
     super.key,
     required this.event,
+    this.notifId,
+    this.isControlGroup = false,
   });
 
   @override
@@ -28,6 +33,7 @@ class TaskStartDialog extends StatefulWidget {
 
 class _TaskStartDialogState extends State<TaskStartDialog> {
   bool _isOpeningChat = false; // 防止重複點擊聊天按鈕
+  bool _isStartingTask = false; // 防止重複點擊開始任務按鈕
 
   @override
   Widget build(BuildContext context) {
@@ -57,15 +63,16 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '需不需要跟我聊聊，讓我陪你一起開始這個任務呢？',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
+                if (!widget.isControlGroup)
+                  const Text(
+                    '需不需要跟我聊聊，讓我陪你一起開始這個任務呢？',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
               ],
             ),
             const SizedBox(height: 40),
@@ -74,10 +81,25 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      // 直接開始任務並導頁；避免先 pop 導致 context/mounted 問題
-                      _startTask(context);
-                      _recordNotificationResult(context, NotificationResult.start);
+                    onPressed: _isStartingTask ? null : () async {
+                      // 防止重複點擊
+                      if (_isStartingTask) return;
+                      setState(() {
+                        _isStartingTask = true;
+                      });
+                      
+                      try {
+                        // 直接開始任務並導頁；避免先 pop 導致 context/mounted 問題
+                        await _startTask(context);
+                        _recordNotificationResult(context, NotificationResult.start);
+                      } finally {
+                        // 確保無論成功或失敗都重置狀態
+                        if (mounted) {
+                          setState(() {
+                            _isStartingTask = false;
+                          });
+                        }
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE8B4CB), // 粉紅色
@@ -88,106 +110,153 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      '開始任務',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    child: _isStartingTask 
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              '啟動中...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Text(
+                          '開始任務',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isOpeningChat ? null : () async {
-                      // 防止重複點擊
-                      _isOpeningChat = true;
-                      
-                      try {
-                        // 先獲取父級navigator，再關閉對話框
-                        final navigator = Navigator.of(context);
-                        final parentContext = context;
-                        
-                        // 先執行實驗數據收集
-                        await _recordChatStart(parentContext);
-                        
-                        // 記錄通知結果為延後處理
-                        _recordNotificationResult(parentContext, NotificationResult.snooze);
-                        
-                        // 關閉對話框
-                        navigator.pop();
-                        
-                        // 導航到聊天頁面
-                        final uid = parentContext.read<AuthService>().currentUser?.uid;
-                        if (uid != null) {
-                          // 根據事件標題解析週/日 counts，組合 taskDescription
-                          String? enrichedDesc = widget.event.description;
-                          int? durationMin;
-                          try {
-                            final start = widget.event.scheduledStartTime;
-                            final end = widget.event.scheduledEndTime;
-                            durationMin = end.difference(start).inMinutes;
-                          } catch (_) {}
-
-                          try {
-                            final svc = VocabService();
-                            final wd = svc.parseWeekDayFromTitle(widget.event.title);
-                            if (wd != null) {
-                              final counts = await svc.loadWeeklyCounts(wd[0], wd[1]);
-                              final newCnt = counts['new'] ?? 0;
-                              final reviewCnt = counts['review'] ?? 0;
-                              enrichedDesc = 'vocab — new=${newCnt}, review=${reviewCnt}';
-                            }
-                          } catch (e) {
-                            debugPrint('讀取vocab counts失敗: $e');
-                          }
-                          final chatId = ExperimentEventHelper.generateChatId(widget.event.id, DateTime.now());
-                          
-                          navigator.push(
-                            MaterialPageRoute(
-                              builder: (_) => ChangeNotifierProvider(
-                                create: (_) => ChatProvider(
-                                  taskTitle: widget.event.title, 
-                                  taskDescription: enrichedDesc, // 帶入 new/review
-                                  startTime: widget.event.scheduledStartTime,
-                                  uid: uid,
-                                  eventId: widget.event.id,
-                                  chatId: chatId,
-                                  entryMethod: ChatEntryMethod.notification,
-                                  dayNumber: widget.event.dayNumber,
-                                  taskDurationMin: durationMin,
-                                ),
-                                child: ChatScreen(
-                                  taskTitle: widget.event.title,
-                                  taskDescription: enrichedDesc,
-                                ),
-                              ),
+                  child: widget.isControlGroup
+                      ? ElevatedButton(
+                          onPressed: () {
+                            _recordNotificationResult(context, NotificationResult.snooze);
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[300], // 灰色
+                            foregroundColor: Colors.black87,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        }
-                      } finally {
-                        // 重置標記
-                        _isOpeningChat = false;
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB8E6B8), // 綠色
-                      foregroundColor: Colors.black87,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Text(
-                      '不太想開始',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+                          ),
+                          child: const Text(
+                            '等等再說',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        )
+                      : ElevatedButton(
+                          onPressed: _isOpeningChat
+                              ? null
+                              : () async {
+                                  // 防止重複點擊
+                                  _isOpeningChat = true;
+
+                                  try {
+                                    // 先獲取父級navigator，再關閉對話框
+                                    final navigator = Navigator.of(context);
+                                    final parentContext = context;
+
+                                    // 先執行實驗數據收集
+                                    await _recordChatStart(parentContext);
+
+                                    // 記錄通知結果為延後處理
+                                    _recordNotificationResult(parentContext, NotificationResult.snooze);
+
+                                    // 關閉對話框
+                                    navigator.pop();
+
+                                    // 導航到聊天頁面
+                                    final uid = parentContext.read<AuthService>().currentUser?.uid;
+                                    if (uid != null) {
+                                      // 根據事件標題解析週/日 counts，組合 taskDescription
+                                      String? enrichedDesc = widget.event.description;
+                                      int? durationMin;
+                                      try {
+                                        final start = widget.event.scheduledStartTime;
+                                        final end = widget.event.scheduledEndTime;
+                                        durationMin = end.difference(start).inMinutes;
+                                      } catch (_) {}
+
+                                      try {
+                                        final svc = VocabService();
+                                        final wd = svc.parseWeekDayFromTitle(widget.event.title);
+                                        if (wd != null) {
+                                          final counts = await svc.loadWeeklyCounts(wd[0], wd[1]);
+                                          final newCnt = counts['new'] ?? 0;
+                                          final reviewCnt = counts['review'] ?? 0;
+                                          enrichedDesc = 'vocab — new=${newCnt}, review=${reviewCnt}';
+                                        }
+                                      } catch (e) {
+                                        debugPrint('讀取vocab counts失敗: $e');
+                                      }
+                                      final chatId = ExperimentEventHelper.generateChatId(widget.event.id, DateTime.now());
+
+                                      navigator.push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ChangeNotifierProvider(
+                                            create: (_) => ChatProvider(
+                                              taskTitle: widget.event.title,
+                                              taskDescription: enrichedDesc, // 帶入 new/review
+                                              startTime: widget.event.scheduledStartTime,
+                                              uid: uid,
+                                              eventId: widget.event.id,
+                                              chatId: chatId,
+                                              entryMethod: ChatEntryMethod.notification,
+                                              dayNumber: widget.event.dayNumber,
+                                              taskDurationMin: durationMin,
+                                            ),
+                                            child: ChatScreen(
+                                              taskTitle: widget.event.title,
+                                              taskDescription: enrichedDesc,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    // 重置標記
+                                    _isOpeningChat = false;
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFB8E6B8), // 綠色
+                            foregroundColor: Colors.black87,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text(
+                            '不太想開始',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -198,7 +267,7 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
   }
 
   /// 開始任務
-  void _startTask(BuildContext context) async {
+  Future<void> _startTask(BuildContext context) async {
     try {
       // 執行開始任務邏輯
       final uid = context.read<AuthService>().currentUser?.uid;
@@ -209,8 +278,8 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
 
       await CalendarService.instance.startEvent(uid, widget.event);
       
-      // 記錄分析事件
-      await AnalyticsService().logTaskStarted('dialog');
+      // 記錄分析事件 - 改由 TaskRouterService 统一记录
+      // await AnalyticsService().logTaskStarted('dialog');
       
       // 顯示成功訊息
       if (context.mounted) {
@@ -225,12 +294,13 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
         // 先關閉對話框
         Navigator.of(context).pop();
 
-        // 使用全域導航避免對話框context失效
-        final lowerTitle = widget.event.title.toLowerCase();
-        if (lowerTitle.contains('vocab')) {
-          NavigationService.safeNavigateTo(VocabPage(event: widget.event));
+        // 使用路由服務判斷任務型別並導頁（含 test 類型）
+        final navContext = NavigationService.context ?? context;
+        if (navContext.mounted) {
+          TaskRouterService().navigateToTaskPage(navContext, widget.event, source: 'notification_dialog');
         } else {
-          NavigationService.safeNavigateTo(ReadingPage(event: widget.event));
+          // 後備：若 navContext 不可用，直接嘗試用全域 navigator push
+          TaskRouterService().navigateToTaskPage(context, widget.event, source: 'notification_dialog');
         }
       }
     } catch (e) {
@@ -263,12 +333,13 @@ class _TaskStartDialogState extends State<TaskStartDialog> {
     try {
       final currentUser = context.read<AuthService>().currentUser;
       if (currentUser != null) {
-        // 對所有可能的通知ID記錄結果
-        for (final notifId in widget.event.notifIds) {
+        // 若能辨識被點擊的通知，則只記錄該筆；否則保底記第一個
+        final targetNotifId = widget.notifId ?? (widget.event.notifIds.isNotEmpty ? widget.event.notifIds.first : null);
+        if (targetNotifId != null) {
           ExperimentEventHelper.recordNotificationResult(
             uid: currentUser.uid,
             eventId: widget.event.id,
-            notifId: notifId,
+            notifId: targetNotifId,
             result: result,
             eventDate: widget.event.date,
           );

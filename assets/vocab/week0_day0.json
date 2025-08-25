@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "week": 1,
+    "day": 0,
+    "policy": "intro_session (test day)",
+    "selection_seed": 20250814,
+    "selection_method": "basic_intro",
+    "counts": {
+      "new": 5,
+      "review_due": 0
+    },
+    "session_time_limit_sec": 300
+  },
+  "new_items": [
+    {
+      "word": "hello",
+      "part_of_speech": "interjection",
+      "en_definition": "used as a greeting",
+      "zh_explanation": "哈囉；你好",
+      "example_en": "Hello, how are you today?",
+      "example_zh": "哈囉，你今天好嗎？",
+      "label": "new"
+    },
+    {
+      "word": "learn",
+      "part_of_speech": "verb",
+      "en_definition": "to gain knowledge or skill",
+      "zh_explanation": "學習；學會",
+      "example_en": "We learn something new every day.",
+      "example_zh": "我們每天都學到新東西。",
+      "label": "new"
+    },
+    {
+      "word": "simple",
+      "part_of_speech": "adj",
+      "en_definition": "easy to understand or do",
+      "zh_explanation": "簡單的；容易的",
+      "example_en": "This is a simple example.",
+      "example_zh": "這是一個簡單的例子。",
+      "label": "new"
+    },
+    {
+      "word": "practice",
+      "part_of_speech": "verb",
+      "en_definition": "to do something repeatedly to improve",
+      "zh_explanation": "練習；實踐",
+      "example_en": "Practice makes perfect.",
+      "example_zh": "熟能生巧。",
+      "label": "new"
+    },
+    {
+      "word": "start",
+      "part_of_speech": "verb",
+      "en_definition": "to begin something",
+      "zh_explanation": "開始；啟動",
+      "example_en": "Let's start our learning journey.",
+      "example_zh": "讓我們開始學習之旅。",
+      "label": "new"
+    }
+  ],
+  "review_items": [],
+  "items_shuffled": [
+    {
+      "word": "start",
+      "part_of_speech": "verb",
+      "en_definition": "to begin something",
+      "zh_explanation": "開始；啟動",
+      "example_en": "Let's start our learning journey.",
+      "example_zh": "讓我們開始學習之旅。",
+      "label": "new"
+    },
+    {
+      "word": "hello",
+      "part_of_speech": "interjection",
+      "en_definition": "used as a greeting",
+      "zh_explanation": "哈囉；你好",
+      "example_en": "Hello, how are you today?",
+      "example_zh": "哈囉，你今天好嗎？",
+      "label": "new"
+    },
+    {
+      "word": "simple",
+      "part_of_speech": "adj",
+      "en_definition": "easy to understand or do",
+      "zh_explanation": "簡單的；容易的",
+      "example_en": "This is a simple example.",
+      "example_zh": "這是一個簡單的例子。",
+      "label": "new"
+    },
+    {
+      "word": "practice",
+      "part_of_speech": "verb",
+      "en_definition": "to do something repeatedly to improve",
+      "zh_explanation": "練習；實踐",
+      "example_en": "Practice makes perfect.",
+      "example_zh": "熟能生巧。",
+      "label": "new"
+    },
+    {
+      "word": "learn",
+      "part_of_speech": "verb",
+      "en_definition": "to gain knowledge or skill",
+      "zh_explanation": "學習；學會",
+      "example_en": "We learn something new every day.",
+      "example_zh": "我們每天都學到新東西。",
+      "label": "new"
+    }
+  ]
+}

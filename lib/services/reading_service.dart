@@ -61,7 +61,7 @@ class ReadingService {
   /// 讀取每日題目（assets/dyn/week{week}_summary_with_questions.json -> dayX）
   Future<Map<String, List<ReadingQuestion>>> loadDayQuestions(int week, int day) async {
     try {
-      final path = 'assets/dyn/week${week}_summary_with_questions.json';
+      final path = 'assets/dyn/week${week}_test.json';
       final jsonString = await rootBundle.loadString(path);
       final Map<String, dynamic> data = json.decode(jsonString);
       final days = (data['days'] as Map<String, dynamic>?);
@@ -82,7 +82,7 @@ class ReadingService {
     }
   }
 
-  /// 讀取整週題庫（彙整所有 day 的 questions）
+  /// 讀取整週題庫（彙整所有 day 的 questions）- 只包含 day1-5，排除 day6
   Future<List<ReadingQuestion>> loadWeeklyQuestions(int week) async {
     try {
       final path = 'assets/dyn/week${week}_summary_with_questions.json';
@@ -90,7 +90,15 @@ class ReadingService {
       final Map<String, dynamic> data = json.decode(jsonString);
       final days = (data['days'] as Map<String, dynamic>?) ?? {};
       final List<ReadingQuestion> out = [];
+      
+      // 只載入 day1-5 的題目，排除 day6
       for (final entry in days.entries) {
+        final dayKey = entry.key;
+        // 跳過 day6 的題目
+        if (dayKey == 'day6') {
+          continue;
+        }
+        
         final List<dynamic> items = (entry.value as List?) ?? [];
         for (final it in items) {
           final m = it as Map<String, dynamic>;

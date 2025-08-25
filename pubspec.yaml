@@ -111,6 +111,15 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
   image_path: "assets/icon/app_icon.png"  # 您的圖標路徑
   # adaptive_icon_background: "#ffffff"  # Android 自適應圖標背景色
   # adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"  # Android 自適應圖標前景

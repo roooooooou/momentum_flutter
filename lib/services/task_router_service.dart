@@ -10,6 +10,7 @@ import '../models/vocab_content_model.dart';
 import '../screens/reading_quiz_screen.dart';
 import '../services/reading_service.dart';
 import '../models/reading_content_model.dart';
+import '../services/analytics_service.dart';
 
 class TaskRouterService {
   static const TaskRouterService _instance = TaskRouterService._internal();
@@ -54,7 +55,7 @@ class TaskRouterService {
   }
 
   /// 根据任务跳转到相应页面
-  void navigateToTaskPage(BuildContext context, EventModel event) {
+  void navigateToTaskPage(BuildContext context, EventModel event, {required String source}) {
     print('TaskRouterService: Navigating to task page for event: ${event.title}');
     
     // 检查context是否有效
@@ -64,6 +65,13 @@ class TaskRouterService {
     }
     
     final taskType = _getTaskType(event.title);
+    
+    // 記錄 task_start 事件
+    AnalyticsService().logTaskStart(
+      taskType: taskType.name,
+      eventId: event.id,
+      triggerSource: source,
+    );
     
     try {
       switch (taskType) {
@@ -126,7 +134,12 @@ Widget _buildQuizRoute(BuildContext context, EventModel event) {
           body: Center(child: CircularProgressIndicator()),
         );
       }
-      final questions = (snapshot.data ?? []) as List<VocabContent>;
+      List<VocabContent> questions = (snapshot.data ?? []) as List<VocabContent>;
+      // 隨機抽 10 題
+      if (questions.length > 10) {
+        questions.shuffle();
+        questions = questions.take(10).toList();
+      }
       return VocabQuizScreen(questions: questions, event: event);
     },
   );
@@ -143,7 +156,21 @@ Widget _buildReadingQuizRoute(BuildContext context, EventModel event) {
           body: Center(child: CircularProgressIndicator()),
         );
       }
-      final questions = (snapshot.data ?? []) as List<ReadingQuestion>;
+      List<ReadingQuestion> questions = (snapshot.data ?? []) as List<ReadingQuestion>;
+      // 依 rid 去重，每篇文章最多一題，並隨機抽 10 題
+      if (questions.isNotEmpty) {
+        questions.shuffle();
+        final seenRid = <String>{};
+        final unique = <ReadingQuestion>[];
+        for (final q in questions) {
+          final rid = q.rid;
+          if (rid.isNotEmpty && seenRid.contains(rid)) continue;
+          seenRid.add(rid);
+          unique.add(q);
+          if (unique.length >= 10) break;
+        }
+        questions = unique.length <= 10 ? unique : unique.take(10).toList();
+      }
       return ReadingQuizScreen(questions: questions, event: event);
     },
   );
@@ -167,17 +194,26 @@ int? _parseWeekFromReadingTest(String title) {
 
 Future<List<ReadingQuestion>> _loadWeeklyReadingQuestions(int week) async {
   try {
-    final path = 'assets/dyn/week${week}_summary_with_questions.json';
+    final path = 'assets/dyn/week${week}_test.json';
     final jsonString = await rootBundle.loadString(path);
     final Map<String, dynamic> data = json.decode(jsonString) as Map<String, dynamic>;
     final Map<String, dynamic> days = (data['days'] as Map<String, dynamic>?) ?? {};
     final List<ReadingQuestion> out = [];
+    
+    // 只載入 day1-5 的題目，排除 day6
     for (final entry in days.entries) {
+      final dayKey = entry.key;
+      // 跳過 day6 的題目
+      if (dayKey == 'day6') {
+        continue;
+      }
+      
       final List<dynamic> items = (entry.value as List?) ?? [];
       for (final it in items) {
         final Map<String, dynamic> m = it as Map<String, dynamic>;
+        final String rid = (m['rid'] ?? '').toString();
         final List<dynamic> qList = (m['questions'] as List?) ?? [];
-        out.addAll(qList.map((q) => ReadingQuestion.fromJson(q as Map<String, dynamic>)));
+        out.addAll(qList.map((q) => ReadingQuestion.fromJson(q as Map<String, dynamic>, rid: rid)));
       }
     }
     return out;

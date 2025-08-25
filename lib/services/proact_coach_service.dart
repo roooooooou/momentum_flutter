@@ -176,19 +176,21 @@ class ProactCoachService {
           if (report.notes != null && report.notes!.isNotEmpty) {
             summaryParts.add('心得: ${report.notes}');
           }
-          if (report.aiImprovementSuggestions != null && report.aiImprovementSuggestions!.isNotEmpty) {
-            summaryParts.add('Coach改進建議: ${report.aiImprovementSuggestions}');
-          }
+          // 新增學習相關的評分摘要
+          summaryParts.add('閱讀有用度: ${report.readingHelpfulness}/5');
+          summaryParts.add('單字有用度: ${report.vocabHelpfulness}/5');
+          summaryParts.add('學習滿意度: ${report.overallSatisfaction}/5');
+          summaryParts.add('明日信心: ${report.tomorrowConfidence}/5');
           
           dailyReportSummary = summaryParts.isNotEmpty ? summaryParts.join('; ') : null;
           
           // 构建状态摘要
           final statusParts = <String>[];
-          if (report.delayedTaskIds.isNotEmpty) {
-            statusParts.add('延遲任務: ${report.delayedTaskIds.length}個');
-          }
           if (report.delayReasons.isNotEmpty) {
             statusParts.add('延遲原因: ${report.delayReasons.join(', ')}');
+          }
+          if (report.incompleteReasons.isNotEmpty) {
+            statusParts.add('未完成原因: ${report.incompleteReasons.join(', ')}');
           }          
           yesterdayStatus = statusParts.join('; ');
           

@@ -2,18 +2,21 @@ class ReadingQuestion {
   final String stem;
   final List<String> options;
   final String answerLetter; // e.g., 'A' | 'B' | 'C' | 'D'
+  final String rid; // 來源文章ID，用於抽題時避免同篇多題
 
   ReadingQuestion({
     required this.stem,
     required this.options,
     required this.answerLetter,
+    this.rid = '',
   });
 
-  factory ReadingQuestion.fromJson(Map<String, dynamic> json) {
+  factory ReadingQuestion.fromJson(Map<String, dynamic> json, {String rid = ''}) {
     return ReadingQuestion(
       stem: json['stem']?.toString() ?? '',
       options: List<String>.from(json['options'] ?? const []),
       answerLetter: json['answer']?.toString() ?? '',
+      rid: rid,
     );
   }
 }
